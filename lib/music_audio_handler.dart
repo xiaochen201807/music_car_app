@@ -35,13 +35,22 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _playbackSubscription = _player.playbackEventStream.listen(
       _broadcastPlaybackState,
     );
+    _stallTimer = Timer.periodic(_stallCheckInterval, (_) {
+      unawaited(checkForPlaybackStall());
+    });
   }
+
+  static const Duration _stallCheckInterval = Duration(seconds: 2);
+  static const Duration _stallSkipThreshold = Duration(seconds: 10);
 
   final NativeAudioPlayer _player;
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
+  late final Timer _stallTimer;
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
   bool _autoSkippingToNext = false;
+  Duration? _lastObservedPosition;
+  DateTime? _lastPlaybackProgressAt;
 
   @override
   Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
@@ -70,6 +79,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     PlayerProbeSnapshot snapshot,
   ) async {
     _autoSkippingToNext = false;
+    _resetPlaybackStallMonitor();
     final MediaItem item = MediaItem(
       id: url,
       title: snapshot.title.isEmpty ? '未知歌曲' : snapshot.title,
@@ -97,13 +107,20 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> play() => _player.play();
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    _resetPlaybackStallMonitor();
+    await _player.pause();
+  }
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    _resetPlaybackStallMonitor();
+    await _player.seek(position);
+  }
 
   @override
   Future<void> stop() async {
+    _resetPlaybackStallMonitor();
     await _player.stop();
     await super.stop();
   }
@@ -148,6 +165,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @override
   Future<void> dispose() async {
+    _stallTimer.cancel();
     await _playbackSubscription.cancel();
     await _player.dispose();
     await super.stop();
@@ -192,6 +210,46 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     }
     _autoSkippingToNext = true;
     await onSkipToNextTrack?.call();
+  }
+
+  @visibleForTesting
+  Future<void> checkForPlaybackStall([DateTime? now]) async {
+    if (!_player.playing || mediaItem.valueOrNull == null) {
+      _resetPlaybackStallMonitor(now: now);
+      return;
+    }
+
+    final DateTime observedAt = now ?? DateTime.now();
+    final Duration currentPosition = _player.position;
+    final Duration? lastPosition = _lastObservedPosition;
+
+    if (lastPosition == null || currentPosition > lastPosition) {
+      _lastObservedPosition = currentPosition;
+      _lastPlaybackProgressAt = observedAt;
+      return;
+    }
+
+    _lastObservedPosition = currentPosition;
+    final DateTime stalledSince = _lastPlaybackProgressAt ?? observedAt;
+    _lastPlaybackProgressAt ??= observedAt;
+
+    if (observedAt.difference(stalledSince) < _stallSkipThreshold) {
+      return;
+    }
+    if (_autoSkippingToNext) {
+      return;
+    }
+
+    debugPrint(
+      '[native-audio] playback stalled for '
+      '${observedAt.difference(stalledSince).inSeconds}s, skipping next',
+    );
+    await autoSkipToNextAfterCompletion();
+  }
+
+  void _resetPlaybackStallMonitor({DateTime? now}) {
+    _lastObservedPosition = null;
+    _lastPlaybackProgressAt = now;
   }
 }
 
