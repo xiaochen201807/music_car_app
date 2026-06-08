@@ -1,0 +1,112 @@
+name: iOS Unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios-unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 60
+    concurrency:
+      group: ios-unsigned-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Pub Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('pubspec.lock', 'ios/Podfile') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Install iOS Pods
+        run: pod install --repo-update
+        working-directory: ios
+
+      - name: Build Unsigned iOS Device App
+        run: flutter build ios --release --no-codesign
+
+      - name: Package Unsigned IPA
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_path="build/ios/iphoneos/Runner.app"
+          test -d "$app_path" || { echo "Missing iOS app bundle: $app_path"; exit 1; }
+
+          version="$(awk '/^version:/ { print $2; exit }' pubspec.yaml | tr '+' '-')"
+          if [ -z "$version" ]; then
+            version="${GITHUB_RUN_NUMBER}"
+          fi
+
+          output_dir="build/ios/ipa"
+          package_dir="build/ios/unsigned-ipa"
+          ipa_name="music-car-app-ios-unsigned-${version}.ipa"
+
+          rm -rf "$output_dir" "$package_dir"
+          mkdir -p "$output_dir" "$package_dir/Payload"
+          ditto "$app_path" "$package_dir/Payload/Runner.app"
+
+          (
+            cd "$package_dir"
+            zip -qry "../ipa/$ipa_name" Payload
+          )
+
+          ipa_path="$output_dir/$ipa_name"
+          test -f "$ipa_path" || { echo "Missing IPA output: $ipa_path"; exit 1; }
+
+          echo "ipa_path=$ipa_path" >> "$GITHUB_OUTPUT"
+          echo "ipa_name=$ipa_name" >> "$GITHUB_OUTPUT"
+          ls -lh "$ipa_path"
+
+      - name: Upload Unsigned IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-ipa
+          path: ${{ steps.package.outputs.ipa_path }}
+          if-no-files-found: error
+
+      - name: Publish Unsigned IPA To GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: music_car_app ${{ github.ref_name }}
+          append_body: true
+          files: ${{ steps.package.outputs.ipa_path }}
+          body: |
+            Unsigned iOS IPA built from ${{ github.sha }}.
+
+            This IPA is intended for local signing tools such as Sideloadly,
+            AltStore, SideStore, or LiveContainer workflows. It is not signed by
+            GitHub Actions and cannot be installed directly on iPhone until a
+            local signing tool signs it with an Apple ID or certificate.

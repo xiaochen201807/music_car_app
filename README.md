@@ -12,11 +12,15 @@ Flutter WebView shell for `https://music.sy110.eu.org/music`, based on the `bbto
 - Provides large back, forward, home, reload, and fullscreen controls.
 - Logs WebView navigation and console output in debug builds.
 
-## GitHub Actions Build
+## GitHub Actions Builds
 
-Push this project to GitHub and run the `Android APK` workflow from the Actions tab. It also runs automatically on pushes to `main`, pull requests to `main`, and `v*` tags.
+Push this project to GitHub and use the Actions tab for cloud builds.
 
-The workflow runs:
+### Android APK
+
+The `Android APK` workflow runs automatically on pushes to `main`, pull requests to `main`, and `v*` tags. It can also be triggered manually.
+
+It runs:
 
 ```sh
 flutter pub get
@@ -26,6 +30,20 @@ flutter build apk --release
 ```
 
 The APK is uploaded as the `car-music-release-apk` workflow artifact.
+
+### iOS Unsigned IPA
+
+The `iOS Unsigned IPA` workflow runs on `v*` tags and can also be triggered manually.
+
+It runs on GitHub's macOS runner:
+
+```sh
+flutter pub get
+pod install --repo-update
+flutter build ios --release --no-codesign
+```
+
+The unsigned IPA is uploaded as the `ios-unsigned-ipa` workflow artifact. On tag builds, it is also attached to the GitHub Release. The IPA must still be signed locally by a tool such as Sideloadly, AltStore, SideStore, or another Apple signing flow before installation.
 
 ## Notes
 
