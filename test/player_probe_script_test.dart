@@ -8,15 +8,23 @@ void main() {
       playerProbeScriptSource,
       contains("bridge.callHandler('musicPlayerProbe', payload)"),
     );
+    expect(playerProbeScriptSource, contains('probe:installed'));
+    expect(playerProbeScriptSource, contains('__musicCarFlushPlayerProbe'));
+    expect(playerProbeScriptSource, contains('__musicCarCollectPlayerPayload'));
+    expect(playerProbeScriptSource, contains('__musicCarPlayerProbeStatus'));
   });
 
   test('player probe script observes audio and page metadata', () {
     expect(
       playerProbeScriptSource,
-      contains("document.querySelector('audio')"),
+      contains("document.querySelectorAll('audio')"),
     );
     expect(playerProbeScriptSource, contains('currentSrc'));
     expect(playerProbeScriptSource, contains('audioUrl'));
+    expect(playerProbeScriptSource, contains('diagnostic'));
+    expect(playerProbeScriptSource, contains('audioCount'));
+    expect(playerProbeScriptSource, contains('hasFlutterBridge'));
+    expect(playerProbeScriptSource, contains('hasPlaylistStorage'));
     expect(playerProbeScriptSource, contains('title'));
     expect(playerProbeScriptSource, contains('artist'));
     expect(playerProbeScriptSource, contains('coverUrl'));

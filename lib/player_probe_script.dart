@@ -9,6 +9,11 @@ const String playerProbeScriptSource = r'''
 
   var lastSignature = '';
   var lastSentAt = 0;
+  var pendingPayloads = [];
+
+  function getAudioNodes() {
+    return Array.prototype.slice.call(document.querySelectorAll('audio'));
+  }
 
   function textFromSelectors(selectors) {
     for (var i = 0; i < selectors.length; i += 1) {
@@ -50,7 +55,7 @@ const String playerProbeScriptSource = r'''
   }
 
   function collectAudio() {
-    var audio = document.querySelector('audio');
+    var audio = getAudioNodes()[0];
     if (!audio) {
       return null;
     }
@@ -70,6 +75,14 @@ const String playerProbeScriptSource = r'''
       readyState: audio.readyState,
       networkState: audio.networkState
     };
+  }
+
+  function localStorageValue(key) {
+    try {
+      return window.localStorage.getItem(key) || '';
+    } catch (error) {
+      return '';
+    }
   }
 
   function currentPlaylistState() {
@@ -98,6 +111,7 @@ const String playerProbeScriptSource = r'''
     var audioState = collectAudio() || {};
     var playlistState = currentPlaylistState();
     var song = playlistState.song || {};
+    var audioNodes = getAudioNodes();
     return {
       reason: reason,
       href: window.location.href,
@@ -137,13 +151,53 @@ const String playerProbeScriptSource = r'''
       volume: typeof audioState.volume === 'number' ? audioState.volume : null,
       readyState: audioState.readyState,
       networkState: audioState.networkState,
+      diagnostic: {
+        audioCount: audioNodes.length,
+        hasFlutterBridge: !!(window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function'),
+        hasPlaylistStorage: !!localStorageValue('fm_player_playlist'),
+        playlistLength: playlistState.playlist.length,
+        currentIndex: playlistState.currentIndex,
+        firstAudioSrc: audioNodes[0] ? normalizeUrl(audioNodes[0].src || '') : '',
+        firstAudioCurrentSrc: audioNodes[0] ? normalizeUrl(audioNodes[0].currentSrc || '') : '',
+        readyState: audioState.readyState,
+        networkState: audioState.networkState,
+        documentReadyState: document.readyState
+      },
       observedAt: new Date().toISOString()
     };
   }
 
+  function sendPayload(payload) {
+    var bridge = window.flutter_inappwebview;
+    if (bridge && typeof bridge.callHandler === 'function') {
+      bridge.callHandler('musicPlayerProbe', payload);
+      return true;
+    }
+    pendingPayloads.push(payload);
+    if (pendingPayloads.length > 8) {
+      pendingPayloads.shift();
+    }
+    window.__musicCarLastPlayerProbe = payload;
+    return false;
+  }
+
+  function flushPending() {
+    if (!pendingPayloads.length) {
+      return false;
+    }
+    var bridge = window.flutter_inappwebview;
+    if (!bridge || typeof bridge.callHandler !== 'function') {
+      return false;
+    }
+    while (pendingPayloads.length) {
+      bridge.callHandler('musicPlayerProbe', pendingPayloads.shift());
+    }
+    return true;
+  }
+
   function send(reason, force) {
     if (reason === 'audio:pause' && Date.now() < (window.__musicCarSuppressPauseUntil || 0)) {
-      return;
+      return null;
     }
     var payload = collectPayload(reason);
     var signature = [
@@ -152,21 +206,70 @@ const String playerProbeScriptSource = r'''
       payload.coverUrl,
       payload.audioUrl,
       payload.playing,
+      payload.currentIndex,
+      payload.playlist.length,
       Math.floor(payload.currentTime)
     ].join('|');
     var now = Date.now();
     if (!force && signature === lastSignature && now - lastSentAt < 1200) {
-      return;
+      return payload;
     }
     lastSignature = signature;
     lastSentAt = now;
 
-    var bridge = window.flutter_inappwebview;
-    if (bridge && typeof bridge.callHandler === 'function') {
-      bridge.callHandler('musicPlayerProbe', payload);
-    } else {
-      window.__musicCarLastPlayerProbe = payload;
+    if (flushPending()) {
+      payload.diagnostic.flushedPending = true;
     }
+    sendPayload(payload);
+    return payload;
+  }
+
+  window.__musicCarCollectPlayerPayload = function(reason) {
+    return send(reason || 'flutter:pull', true);
+  };
+
+  window.__musicCarFlushPlayerProbe = function() {
+    if (flushPending()) {
+      return true;
+    }
+    return !!send('flutter:flush', true);
+  };
+
+  window.__musicCarPlayerProbeStatus = function() {
+    var payload = collectPayload('flutter:status');
+    return {
+      installed: true,
+      pending: pendingPayloads.length,
+      diagnostic: payload.diagnostic,
+      title: payload.title,
+      artist: payload.artist,
+      audioUrl: payload.audioUrl,
+      playlistLength: payload.playlist.length,
+      currentIndex: payload.currentIndex
+    };
+  };
+
+  function sendConsoleProbe(reason) {
+    var payload = collectPayload(reason);
+    try {
+      console.info('[music-car-probe]', JSON.stringify({
+        reason: reason,
+        audio: payload.diagnostic.audioCount,
+        queue: payload.diagnostic.playlistLength,
+        index: payload.currentIndex,
+        bridge: payload.diagnostic.hasFlutterBridge,
+        url: payload.audioUrl || payload.diagnostic.firstAudioCurrentSrc || payload.diagnostic.firstAudioSrc,
+        title: payload.title
+      }));
+    } catch (error) {
+      console.info('[music-car-probe]', reason);
+    }
+    return payload;
+  }
+
+  function sendInstalled() {
+    var payload = sendConsoleProbe('probe:installed');
+    sendPayload(payload);
   }
 
   function bindAudio(audio) {
@@ -192,7 +295,7 @@ const String playerProbeScriptSource = r'''
   }
 
   function scan(reason) {
-    document.querySelectorAll('audio').forEach(bindAudio);
+    getAudioNodes().forEach(bindAudio);
     send(reason, false);
   }
 
@@ -201,6 +304,7 @@ const String playerProbeScriptSource = r'''
   });
 
   function start() {
+    sendInstalled();
     scan('probe:start');
     observer.observe(document.documentElement || document.body, {
       childList: true,
@@ -209,8 +313,12 @@ const String playerProbeScriptSource = r'''
       attributeFilter: ['src', 'title', 'class', 'style']
     });
     window.setInterval(function() {
+      flushPending();
       scan('probe:interval');
     }, 2000);
+    window.setInterval(function() {
+      send('probe:diagnostic', true);
+    }, 5000);
   }
 
   if (document.readyState === 'loading') {

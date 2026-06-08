@@ -390,35 +390,82 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     debugPrint('[native-audio] skip $action dispatched: $result');
   }
 
+  Future<void> _pullPlayerProbe(String reason) async {
+    final InAppWebViewController? controller = _controller;
+    if (controller == null) {
+      return;
+    }
+    try {
+      final Object? result = await controller.evaluateJavascript(
+        source:
+            "window.__musicCarCollectPlayerPayload && "
+            "window.__musicCarCollectPlayerPayload('$reason')",
+      );
+      debugPrint('[music-player-probe] pull $reason result: $result');
+    } catch (error) {
+      debugPrint('[music-player-probe] pull $reason failed: $error');
+    }
+  }
+
+  Future<void> _flushPlayerProbe(String reason) async {
+    final InAppWebViewController? controller = _controller;
+    if (controller == null) {
+      return;
+    }
+    try {
+      final Object? flushResult = await controller.evaluateJavascript(
+        source:
+            "window.__musicCarFlushPlayerProbe && "
+            "window.__musicCarFlushPlayerProbe()",
+      );
+      final Object? statusResult = await controller.evaluateJavascript(
+        source:
+            "window.__musicCarPlayerProbeStatus && "
+            "window.__musicCarPlayerProbeStatus()",
+      );
+      debugPrint(
+        '[music-player-probe] flush $reason result: $flushResult '
+        'status: $statusResult',
+      );
+    } catch (error) {
+      debugPrint('[music-player-probe] flush $reason failed: $error');
+    }
+  }
+
   void _handlePlayerProbe(List<dynamic> arguments) {
     if (arguments.isEmpty) {
+      debugPrint('[music-player-probe] empty payload');
       return;
     }
     final Object? firstArgument = arguments.first;
     if (firstArgument is! Map) {
-      if (kDebugMode) {
-        debugPrint('[music-player-probe] unexpected payload: $firstArgument');
-      }
+      debugPrint('[music-player-probe] unexpected payload: $firstArgument');
       return;
     }
     final Map<Object?, Object?> payload = firstArgument;
     final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot.fromPayload(
       payload,
     );
-    if (kDebugMode) {
-      final String reason = '${payload['reason'] ?? ''}';
-      debugPrint(
-        '[music-player-probe] reason=$reason playing=${snapshot.playing} '
-        'time=${snapshot.currentTime.inMilliseconds / 1000}/'
-        '${snapshot.duration.inMilliseconds / 1000} '
-        'title="${snapshot.title}" artist="${snapshot.artist}" '
-        'audioUrl="${snapshot.audioUrl}" coverUrl="${snapshot.coverUrl}" '
-        'queue=${snapshot.playlist.length} index=${snapshot.currentIndex}',
-      );
-    }
+    final String reason = '${payload['reason'] ?? ''}';
+    final Object? diagnostic = payload['diagnostic'];
+    debugPrint(
+      '[music-player-probe] received reason=$reason '
+      'playing=${snapshot.playing} '
+      'time=${snapshot.currentTime.inMilliseconds / 1000}/'
+      '${snapshot.duration.inMilliseconds / 1000} '
+      'title="${snapshot.title}" artist="${snapshot.artist}" '
+      'audioUrl="${snapshot.audioUrl}" coverUrl="${snapshot.coverUrl}" '
+      'queue=${snapshot.playlist.length} index=${snapshot.currentIndex} '
+      'diagnostic=$diagnostic',
+    );
     unawaited(_nativeAudioController.syncQueueFromProbe(snapshot));
     if (snapshot.hasAudioUrl || snapshot.canResolveAudioUrl) {
       unawaited(_syncNativeAudio(snapshot));
+    } else {
+      debugPrint(
+        '[music-player-probe] ignored reason=$reason: no audio URL and '
+        'no resolvable song',
+      );
     }
   }
 
@@ -470,6 +517,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
                         handlerName: playerProbeHandlerName,
                         callback: _handlePlayerProbe,
                       );
+                      unawaited(_flushPlayerProbe('created'));
                     },
                     onLoadStart:
                         (InAppWebViewController controller, WebUri? url) {
@@ -495,6 +543,8 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
                             _statusText = '';
                           });
                           unawaited(_refreshNavigationState());
+                          unawaited(_flushPlayerProbe('loadStop'));
+                          unawaited(_pullPlayerProbe('flutter:loadStop'));
                         },
                     onProgressChanged:
                         (InAppWebViewController controller, int progress) {
