@@ -18,6 +18,9 @@ jobs:
   build-android-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    concurrency:
+      group: android-apk-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref_type != 'tag' }}
     env:
       GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
 
@@ -56,6 +59,7 @@ jobs:
         run: flutter test
 
       - name: Build Release APK
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         run: |
           build_args="--release --split-per-abi"
           if [ -n "${MUSIC_CAR_UPDATE_MANIFEST_URL:-}" ]; then
@@ -66,9 +70,11 @@ jobs:
           MUSIC_CAR_UPDATE_MANIFEST_URL: ${{ vars.MUSIC_CAR_UPDATE_MANIFEST_URL }}
 
       - name: List APK Outputs
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         run: ls -lh build/app/outputs/flutter-apk/*.apk
 
       - name: Upload APK Artifact
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: car-music-release-apk

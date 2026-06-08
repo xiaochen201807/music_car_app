@@ -49,7 +49,7 @@ jobs:
         run: flutter pub get
 
       - name: Install iOS Pods
-        run: pod install --repo-update
+        run: pod install
         working-directory: ios
 
       - name: Build Unsigned iOS Device App
