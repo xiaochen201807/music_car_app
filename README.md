@@ -26,10 +26,12 @@ It runs:
 flutter pub get
 flutter analyze lib test
 flutter test
-flutter build apk --release
+flutter build apk --release --split-per-abi
 ```
 
-The APK is uploaded as the `car-music-release-apk` workflow artifact.
+The ABI-split APKs are uploaded as the `car-music-release-apk` workflow
+artifact. The in-app updater chooses the best APK for the device ABI before
+downloading.
 
 On `v*` tag builds, the workflow also creates or updates the GitHub Release and
 attaches both the APK and `update.json`. The app's online update checker can read

@@ -57,7 +57,7 @@ jobs:
 
       - name: Build Release APK
         run: |
-          build_args="--release"
+          build_args="--release --split-per-abi"
           if [ -n "${MUSIC_CAR_UPDATE_MANIFEST_URL:-}" ]; then
             build_args="$build_args --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=$MUSIC_CAR_UPDATE_MANIFEST_URL"
           fi
@@ -106,7 +106,7 @@ jobs:
           import os
           import pathlib
 
-          apk_paths = sorted(pathlib.Path("build/app/outputs/flutter-apk").glob("*.apk"))
+          apk_paths = sorted(pathlib.Path("build/app/outputs/flutter-apk").glob("*-release.apk"))
           if not apk_paths:
               raise SystemExit("No APKs found")
 
