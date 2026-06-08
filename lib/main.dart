@@ -117,6 +117,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
   void initState() {
     super.initState();
     _nativeAudioController = NativeAudioController(player: widget.audioHandler);
+    widget.audioHandler?.onPlayTrack = _resumeNativePlayback;
     widget.audioHandler?.onSkipToNextTrack = _skipToNextTrack;
     widget.audioHandler?.onSkipToPreviousTrack = _skipToPreviousTrack;
     WidgetsBinding.instance.addObserver(this);
@@ -135,6 +136,9 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     }
     if (widget.audioHandler?.onSkipToPreviousTrack == _skipToPreviousTrack) {
       widget.audioHandler?.onSkipToPreviousTrack = null;
+    }
+    if (widget.audioHandler?.onPlayTrack == _resumeNativePlayback) {
+      widget.audioHandler?.onPlayTrack = null;
     }
     unawaited(WakelockPlus.disable());
     unawaited(_nativeAudioController.dispose());
@@ -362,6 +366,10 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     await _runMusicControlScript('previous', clickPreviousTrackScript);
   }
 
+  Future<bool> _resumeNativePlayback() {
+    return _nativeAudioController.resumePlayback();
+  }
+
   Future<void> _pauseWebAudioIfAvailable() async {
     try {
       await _controller
@@ -404,9 +412,11 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
         'time=${snapshot.currentTime.inMilliseconds / 1000}/'
         '${snapshot.duration.inMilliseconds / 1000} '
         'title="${snapshot.title}" artist="${snapshot.artist}" '
-        'audioUrl="${snapshot.audioUrl}" coverUrl="${snapshot.coverUrl}"',
+        'audioUrl="${snapshot.audioUrl}" coverUrl="${snapshot.coverUrl}" '
+        'queue=${snapshot.playlist.length} index=${snapshot.currentIndex}',
       );
     }
+    _nativeAudioController.syncQueueFromProbe(snapshot);
     if (snapshot.hasAudioUrl || snapshot.canResolveAudioUrl) {
       unawaited(_syncNativeAudio(snapshot));
     }

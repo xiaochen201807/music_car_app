@@ -46,8 +46,10 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   final NativeAudioPlayer _player;
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
   late final Timer _stallTimer;
+  Future<bool> Function()? onPlayTrack;
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
+  bool _handlingPlayCallback = false;
   bool _autoSkippingToNext = false;
   Duration? _lastObservedPosition;
   DateTime? _lastPlaybackProgressAt;
@@ -104,7 +106,20 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    if (!_handlingPlayCallback && onPlayTrack != null) {
+      _handlingPlayCallback = true;
+      try {
+        final bool handled = await onPlayTrack!.call();
+        if (handled) {
+          return;
+        }
+      } finally {
+        _handlingPlayCallback = false;
+      }
+    }
+    await _player.play();
+  }
 
   @override
   Future<void> pause() async {

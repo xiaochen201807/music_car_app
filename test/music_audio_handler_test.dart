@@ -100,6 +100,43 @@ void main() {
     await handler.dispose();
   });
 
+  test('play uses external resume callback when it handles playback', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+    int callbackCalls = 0;
+    handler.onPlayTrack = () async {
+      callbackCalls += 1;
+      return true;
+    };
+
+    await handler.play();
+
+    expect(callbackCalls, 1);
+    expect(player.isPlaying, isFalse);
+
+    await handler.dispose();
+  });
+
+  test(
+    'play falls back to native player when resume callback cannot handle',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+      int callbackCalls = 0;
+      handler.onPlayTrack = () async {
+        callbackCalls += 1;
+        return false;
+      };
+
+      await handler.play();
+
+      expect(callbackCalls, 1);
+      expect(player.isPlaying, isTrue);
+
+      await handler.dispose();
+    },
+  );
+
   test(
     'checkForPlaybackStall skips next after ten seconds without progress',
     () async {

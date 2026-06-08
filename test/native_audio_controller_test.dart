@@ -192,6 +192,74 @@ void main() {
     ]);
   });
 
+  test('NativeAudioController resumes from loaded track', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+    );
+
+    await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/song.mp3',
+        playing: false,
+        title: '晴天',
+      ),
+    );
+    player.calls.clear();
+
+    expect(await controller.resumePlayback(), isTrue);
+
+    expect(player.calls, <String>[
+      'setUrl:https://example.com/song.mp3',
+      'play',
+    ]);
+  });
+
+  test('NativeAudioController resumes from synced queue', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        expect(request.url.queryParameters['id'], '2');
+        return http.Response(
+          '{"direct":true,"source":"kuwo","url":"https://example.com/2.mp3"}',
+          200,
+        );
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    controller.syncQueueFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: false,
+        currentIndex: 1,
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+        ],
+      ),
+    );
+
+    expect(await controller.resumePlayback(), isTrue);
+
+    expect(player.calls, <String>['setUrl:https://example.com/2.mp3', 'play']);
+  });
+
   test('pauseWebAudioScript marks native audio as active', () {
     expect(pauseWebAudioScript, contains('__musicCarNativeAudioActive'));
     expect(pauseWebAudioScript, contains('__musicCarSuppressPauseUntil'));

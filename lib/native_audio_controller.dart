@@ -190,6 +190,7 @@ class NativeAudioController {
   final NativeAudioPlayer _player;
   final FreeMusicApi _api;
   String _loadedUrl = '';
+  PlayerProbeSnapshot? _loadedSnapshot;
   List<FreeMusicSong> _playlist = const <FreeMusicSong>[];
   int _currentIndex = -1;
 
@@ -203,10 +204,14 @@ class NativeAudioController {
     _syncQueue(snapshot);
     final String audioUrl = await _resolveAudioUrl(snapshot);
     if (audioUrl.isEmpty) {
+      debugPrint(
+        '[native-audio] probe ignored: no audio URL for ${snapshot.debugTitle}',
+      );
       return false;
     }
     if (_loadedUrl != audioUrl) {
       _loadedUrl = audioUrl;
+      _loadedSnapshot = snapshot;
       await _player.loadFromSnapshot(audioUrl, snapshot);
       if (snapshot.currentTime > Duration.zero) {
         await _player.seek(snapshot.currentTime);
@@ -221,6 +226,35 @@ class NativeAudioController {
       debugPrint('[native-audio] paused ${snapshot.debugTitle}');
     }
     return true;
+  }
+
+  void syncQueueFromProbe(PlayerProbeSnapshot snapshot) {
+    _syncQueue(snapshot);
+  }
+
+  Future<bool> resumePlayback() async {
+    if (_loadedUrl.isNotEmpty) {
+      final PlayerProbeSnapshot? snapshot = _loadedSnapshot;
+      if (_player.processingState == ProcessingState.idle && snapshot != null) {
+        await _player.loadFromSnapshot(_loadedUrl, snapshot);
+      }
+      await _player.play();
+      debugPrint(
+        '[native-audio] resumed ${snapshot?.debugTitle ?? _loadedUrl}',
+      );
+      return true;
+    }
+    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+      final bool handled = await _loadQueueIndex(_currentIndex);
+      if (!handled) {
+        debugPrint(
+          '[native-audio] resume failed: current queue item could not load',
+        );
+      }
+      return handled;
+    }
+    debugPrint('[native-audio] resume ignored: no loaded track or queue');
+    return false;
   }
 
   Future<bool> skipToNext() async {
@@ -258,23 +292,40 @@ class NativeAudioController {
 
   void _syncQueue(PlayerProbeSnapshot snapshot) {
     if (snapshot.playlist.isEmpty) {
+      debugPrint('[native-audio] queue sync skipped: empty playlist');
       return;
     }
     _playlist = List<FreeMusicSong>.unmodifiable(snapshot.playlist);
     if (snapshot.currentIndex >= 0 &&
         snapshot.currentIndex < _playlist.length) {
       _currentIndex = snapshot.currentIndex;
+      debugPrint(
+        '[native-audio] queue synced: length=${_playlist.length} '
+        'index=$_currentIndex',
+      );
       return;
     }
     _currentIndex = _indexOfSong(snapshot.song);
+    debugPrint(
+      '[native-audio] queue synced: length=${_playlist.length} '
+      'index=$_currentIndex',
+    );
   }
 
   Future<bool> _skipToQueueOffset(int offset) async {
     if (_playlist.isEmpty || _currentIndex < 0) {
+      debugPrint(
+        '[native-audio] skip ignored: queue length=${_playlist.length} '
+        'index=$_currentIndex offset=$offset',
+      );
       return false;
     }
     final int targetIndex = _currentIndex + offset;
     if (targetIndex < 0 || targetIndex >= _playlist.length) {
+      debugPrint(
+        '[native-audio] skip ignored: target=$targetIndex out of range '
+        'length=${_playlist.length}',
+      );
       return false;
     }
     return _loadQueueIndex(targetIndex);
@@ -297,10 +348,14 @@ class NativeAudioController {
     );
     final String audioUrl = await _resolveAudioUrl(snapshot);
     if (audioUrl.isEmpty) {
+      debugPrint(
+        '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
+      );
       return false;
     }
     _currentIndex = index;
     _loadedUrl = audioUrl;
+    _loadedSnapshot = snapshot;
     await _player.loadFromSnapshot(audioUrl, snapshot);
     await _player.play();
     debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
