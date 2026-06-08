@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +7,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'native_audio_controller.dart';
+import 'player_probe_script.dart';
+
 final WebUri _musicHomeUrl = WebUri('https://music.sy110.eu.org/music');
+
+final UnmodifiableListView<UserScript> _playerProbeScripts =
+    UnmodifiableListView<UserScript>(<UserScript>[
+      UserScript(
+        source: playerProbeScriptSource,
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        contentWorld: ContentWorld.PAGE,
+      ),
+    ]);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +76,7 @@ class MusicCarWebViewPage extends StatefulWidget {
 class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     with WidgetsBindingObserver {
   InAppWebViewController? _controller;
+  final NativeAudioController _nativeAudioController = NativeAudioController();
   double _progress = 0;
   bool _isLoading = true;
   bool _canGoBack = false;
@@ -80,6 +94,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(WakelockPlus.disable());
+    unawaited(_nativeAudioController.dispose());
     super.dispose();
   }
 
@@ -140,6 +155,50 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
+  void _handlePlayerProbe(List<dynamic> arguments) {
+    if (arguments.isEmpty) {
+      return;
+    }
+    final Object? firstArgument = arguments.first;
+    if (firstArgument is! Map) {
+      if (kDebugMode) {
+        debugPrint('[music-player-probe] unexpected payload: $firstArgument');
+      }
+      return;
+    }
+    final Map<Object?, Object?> payload = firstArgument;
+    final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot.fromPayload(
+      payload,
+    );
+    if (kDebugMode) {
+      final String reason = '${payload['reason'] ?? ''}';
+      debugPrint(
+        '[music-player-probe] reason=$reason playing=${snapshot.playing} '
+        'time=${snapshot.currentTime.inMilliseconds / 1000}/'
+        '${snapshot.duration.inMilliseconds / 1000} '
+        'title="${snapshot.title}" artist="${snapshot.artist}" '
+        'audioUrl="${snapshot.audioUrl}" coverUrl="${snapshot.coverUrl}"',
+      );
+    }
+    if (snapshot.hasAudioUrl || snapshot.canResolveAudioUrl) {
+      unawaited(_syncNativeAudio(snapshot));
+    }
+  }
+
+  Future<void> _syncNativeAudio(PlayerProbeSnapshot snapshot) async {
+    try {
+      final bool handled = await _nativeAudioController.syncFromProbe(snapshot);
+      if (handled && snapshot.playing) {
+        await _controller?.evaluateJavascript(source: pauseWebAudioScript);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[native-audio] sync failed: $error');
+      if (kDebugMode) {
+        debugPrint('$stackTrace');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -156,6 +215,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
               widget.webViewOverride ??
                   InAppWebView(
                     initialUrlRequest: URLRequest(url: _musicHomeUrl),
+                    initialUserScripts: _playerProbeScripts,
                     initialSettings: InAppWebViewSettings(
                       isInspectable: kDebugMode,
                       mediaPlaybackRequiresUserGesture: false,
@@ -169,6 +229,10 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
                     ),
                     onWebViewCreated: (InAppWebViewController controller) {
                       _controller = controller;
+                      controller.addJavaScriptHandler(
+                        handlerName: playerProbeHandlerName,
+                        callback: _handlePlayerProbe,
+                      );
                     },
                     onLoadStart:
                         (InAppWebViewController controller, WebUri? url) {

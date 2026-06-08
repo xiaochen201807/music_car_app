@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_inappwebview: ^6.1.5
   wakelock_plus: ^1.6.1
+  just_audio: ^0.10.5
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
