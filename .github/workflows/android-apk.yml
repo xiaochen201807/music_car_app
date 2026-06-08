@@ -58,6 +58,30 @@ jobs:
       - name: Flutter Test
         run: flutter test
 
+      - name: Restore Android Release Signing Key
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_RELEASE_KEYSTORE_BASE64:-}" || { echo "Missing ANDROID_RELEASE_KEYSTORE_BASE64"; exit 1; }
+          test -n "${ANDROID_RELEASE_KEYSTORE_PASSWORD:-}" || { echo "Missing ANDROID_RELEASE_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "${ANDROID_RELEASE_KEY_ALIAS:-}" || { echo "Missing ANDROID_RELEASE_KEY_ALIAS"; exit 1; }
+          test -n "${ANDROID_RELEASE_KEY_PASSWORD:-}" || { echo "Missing ANDROID_RELEASE_KEY_PASSWORD"; exit 1; }
+
+          keystore_path="$GITHUB_WORKSPACE/android/app/music-car-release.jks"
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          {
+            printf 'storeFile=music-car-release.jks\n'
+            printf 'storePassword=%s\n' "$ANDROID_RELEASE_KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_RELEASE_KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$ANDROID_RELEASE_KEY_PASSWORD"
+          } > "$GITHUB_WORKSPACE/android/key.properties"
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+
       - name: Build Release APK
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         run: |
