@@ -23,11 +23,16 @@ The current implementation includes a WebView shell plus a native audio handoff:
    exposes a usable audio URL or resolvable song metadata.
 5. `[x]` Flutter exposes playback through `audio_service` and Android media
    button plumbing.
-6. `[~]` iOS Now Playing and physical car controls are wired at the platform
-   integration level, but still need real-device validation.
+6. `[~]` Android media-app discovery is declared through the Android Auto media
+   metadata file and `MediaBrowserService`; it still needs head-unit validation.
+7. `[~]` iOS Now Playing and physical car controls are wired through background
+   audio and a music audio session, but still need real-device validation.
 
 Android Auto and CarPlay app surfaces are still outside the current scope. They
 require platform-specific media/template integration beyond a plain WebView APK.
+In particular, a full CarPlay app icon/template surface requires Apple-approved
+CarPlay Audio entitlement signing; an unsigned IPA can only provide ordinary
+system playback/Now Playing behavior.
 
 ## Target Architecture
 
@@ -41,7 +46,8 @@ The target car-media architecture status is:
 6. `[x]` `audio_service` publishes playback metadata to the system media
    session.
 7. `[~]` Android notification controls and iOS Now Playing are wired through
-   `audio_service`, but iOS/device behavior still needs physical validation.
+   `audio_service` and `audio_session`, but iOS/device behavior still needs
+   physical validation.
 8. `[~]` Car or steering-wheel controls can call back into `audio_service` via
    the Android media button receiver, but this still needs head-unit validation.
 9. `[~]` `audio_service` controls `just_audio`; next/previous can call back into
@@ -63,6 +69,8 @@ site-specific flows. Flutter becomes the real audio engine.
 - Android notification and many head-unit media keys can work through
   `audio_service`, but Android Auto and CarPlay app surfaces require native
   platform-specific media/template integration beyond a plain WebView APK.
+- Full iOS CarPlay app entry requires Apple-approved CarPlay Audio entitlement
+  signing. Unsigned IPA builds cannot add that entitlement by themselves.
 
 ## Implementation Phases
 
@@ -111,8 +119,11 @@ Exit criteria:
 - `[x]` Publish `title`, `artist`, `coverUrl`, duration, and playback state.
 - `[x]` Wire Android notification controls through `AudioService`,
   `MediaButtonReceiver`, and the foreground media service manifest entries.
-- `[~]` Wire iOS Now Playing metadata through `audio_service`; still needs iOS
-  device validation.
+- `[x]` Declare Android Auto media metadata with `automotive_app_desc.xml`.
+- `[~]` Expose a minimal browsable media queue for compatible Android car
+  systems. This is implemented but still needs head-unit validation.
+- `[~]` Wire iOS Now Playing metadata through `audio_service` and configure the
+  shared audio session for music playback; still needs iOS device validation.
 - `[x]` Handle play, pause, seek, next, and previous callbacks in the audio
   handler.
 
@@ -143,10 +154,14 @@ Exit criteria:
 
 ### Phase 5: Car Controls
 
-- `[~]` Validate Android media-button and compatible steering-wheel callbacks through
-  `audio_service`.
-- `[ ]` Validate Android head-unit notification/media-session behavior on real car
-  hardware or a head-unit test device.
+- `[~]` Validate Android media-button and compatible steering-wheel callbacks
+  through `audio_service`.
+- `[~]` Android head-unit discovery is declared as a media app, but needs real
+  car hardware or a head-unit test device.
+- `[ ]` Validate iOS Now Playing / Remote Command behavior while connected to a
+  CarPlay-capable head unit.
+- `[ ]` Apply for and sign with Apple CarPlay Audio entitlement if the app must
+  appear as a full CarPlay app surface.
 - `[x]` Document what works for ordinary Android car systems versus Android Auto and
   CarPlay.
 

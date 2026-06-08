@@ -1,35 +1,65 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'native_audio_controller.dart';
 
 Future<MusicAudioHandler> initMusicAudioHandler() async {
+  final AudioSession session = await AudioSession.instance;
+  await session.configure(const AudioSessionConfiguration.music());
+
   return AudioService.init<MusicAudioHandler>(
     builder: MusicAudioHandler.new,
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.sy110.music_car_app.audio',
       androidNotificationChannelName: '车载音乐播放',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: false,
+      androidBrowsableRootExtras: <String, Object>{
+        AndroidContentStyle.supportedKey: true,
+        AndroidContentStyle.playableHintKey:
+            AndroidContentStyle.listItemHintValue,
+        AndroidContentStyle.browsableHintKey:
+            AndroidContentStyle.listItemHintValue,
+      },
     ),
   );
 }
 
 class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
-  MusicAudioHandler({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
+  MusicAudioHandler({NativeAudioPlayer? player})
+    : _player = player ?? JustAudioNativePlayer() {
     _playbackSubscription = _player.playbackEventStream.listen(
       _broadcastPlaybackState,
     );
   }
 
-  final AudioPlayer _player;
+  final NativeAudioPlayer _player;
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
   bool _autoSkippingToNext = false;
+
+  @override
+  Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
+
+  @override
+  ProcessingState get processingState => _player.processingState;
+
+  @override
+  bool get playing => _player.playing;
+
+  @override
+  Duration get position => _player.position;
+
+  @override
+  Duration get bufferedPosition => _player.bufferedPosition;
+
+  @override
+  double get speed => _player.speed;
 
   @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);
@@ -40,22 +70,26 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     PlayerProbeSnapshot snapshot,
   ) async {
     _autoSkippingToNext = false;
-    mediaItem.add(
-      MediaItem(
-        id: url,
-        title: snapshot.title.isEmpty ? '未知歌曲' : snapshot.title,
-        artist: snapshot.artist.isEmpty ? null : snapshot.artist,
-        artUri: snapshot.coverUrl.isEmpty
-            ? null
-            : Uri.tryParse(snapshot.coverUrl),
-        duration: snapshot.duration > Duration.zero ? snapshot.duration : null,
-        extras: <String, Object?>{
-          'source': snapshot.song?.source,
-          'songId': snapshot.song?.id,
-          'audioUrl': url,
-        },
-      ),
+    final MediaItem item = MediaItem(
+      id: url,
+      title: snapshot.title.isEmpty ? '未知歌曲' : snapshot.title,
+      artist: snapshot.artist.isEmpty ? null : snapshot.artist,
+      artUri: snapshot.coverUrl.isEmpty
+          ? null
+          : Uri.tryParse(snapshot.coverUrl),
+      duration: snapshot.duration > Duration.zero ? snapshot.duration : null,
+      playable: true,
+      extras: <String, Object?>{
+        'source': snapshot.song?.source,
+        'songId': snapshot.song?.id,
+        'audioUrl': url,
+        AndroidContentStyle.playableHintKey:
+            AndroidContentStyle.listItemHintValue,
+      },
     );
+    mediaItem.add(item);
+    queueTitle.add('当前播放');
+    queue.add(<MediaItem>[item]);
     await setUrl(url);
   }
 
@@ -85,6 +119,34 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> skipToQueueItem(int index) async {
+    if (index == 0 && mediaItem.valueOrNull != null) {
+      await play();
+    }
+  }
+
+  @override
+  Future<void> playMediaItem(MediaItem mediaItem) async {
+    if (this.mediaItem.valueOrNull?.id == mediaItem.id) {
+      await play();
+    }
+  }
+
+  @override
+  Future<List<MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) async {
+    return queue.valueOrNull ?? const <MediaItem>[];
+  }
+
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    final MediaItem? current = mediaItem.valueOrNull;
+    return current?.id == mediaId ? current : null;
+  }
+
+  @override
   Future<void> dispose() async {
     await _playbackSubscription.cancel();
     await _player.dispose();
@@ -92,7 +154,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   void _broadcastPlaybackState(PlaybackEvent event) {
-    if (_player.processingState == ProcessingState.completed) {
+    if (event.processingState == ProcessingState.completed) {
       unawaited(autoSkipToNextAfterCompletion());
     }
 
@@ -113,11 +175,12 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
           MediaAction.seekBackward,
         },
         androidCompactActionIndices: const <int>[0, 1, 2],
-        processingState: _mapProcessingState(_player.processingState),
+        processingState: _mapProcessingState(event.processingState),
         playing: playing,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
         speed: _player.speed,
+        queueIndex: mediaItem.valueOrNull == null ? null : 0,
       ),
     );
   }

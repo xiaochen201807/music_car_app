@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/native_audio_controller.dart';
 
@@ -125,6 +126,25 @@ void main() {
 
 class FakeNativeAudioPlayer implements NativeAudioPlayer {
   final List<String> calls = <String>[];
+
+  @override
+  Duration get bufferedPosition => Duration.zero;
+
+  @override
+  bool get playing => false;
+
+  @override
+  Stream<PlaybackEvent> get playbackEventStream =>
+      const Stream<PlaybackEvent>.empty();
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  ProcessingState get processingState => ProcessingState.idle;
+
+  @override
+  double get speed => 1;
 
   @override
   Future<void> dispose() async {

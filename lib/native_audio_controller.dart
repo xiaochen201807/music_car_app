@@ -98,6 +98,18 @@ class PlayerProbeSnapshot {
 }
 
 abstract class NativeAudioPlayer {
+  Stream<PlaybackEvent> get playbackEventStream;
+
+  ProcessingState get processingState;
+
+  bool get playing;
+
+  Duration get position;
+
+  Duration get bufferedPosition;
+
+  double get speed;
+
   Future<Duration?> setUrl(String url);
 
   Future<void> loadFromSnapshot(String url, PlayerProbeSnapshot snapshot);
@@ -118,6 +130,24 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
     : _player = player ?? AudioPlayer();
 
   final AudioPlayer _player;
+
+  @override
+  Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
+
+  @override
+  ProcessingState get processingState => _player.processingState;
+
+  @override
+  bool get playing => _player.playing;
+
+  @override
+  Duration get position => _player.position;
+
+  @override
+  Duration get bufferedPosition => _player.bufferedPosition;
+
+  @override
+  double get speed => _player.speed;
 
   @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);
