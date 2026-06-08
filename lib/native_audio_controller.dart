@@ -43,6 +43,8 @@ class PlayerProbeSnapshot {
     required this.audioUrl,
     required this.playing,
     this.song,
+    this.playlist = const <FreeMusicSong>[],
+    this.currentIndex = -1,
     this.title = '',
     this.artist = '',
     this.coverUrl = '',
@@ -61,6 +63,8 @@ class PlayerProbeSnapshot {
         artist: _stringValue(payload['artist']),
         duration: _intValue(payload['duration']),
       ),
+      playlist: _playlistValue(payload['playlist']),
+      currentIndex: _intValue(payload['currentIndex'], defaultValue: -1),
       title: _stringValue(payload['title']),
       artist: _stringValue(payload['artist']),
       coverUrl: _stringValue(payload['coverUrl']),
@@ -72,6 +76,8 @@ class PlayerProbeSnapshot {
   final String audioUrl;
   final bool playing;
   final FreeMusicSong? song;
+  final List<FreeMusicSong> playlist;
+  final int currentIndex;
   final String title;
   final String artist;
   final String coverUrl;
@@ -184,8 +190,17 @@ class NativeAudioController {
   final NativeAudioPlayer _player;
   final FreeMusicApi _api;
   String _loadedUrl = '';
+  List<FreeMusicSong> _playlist = const <FreeMusicSong>[];
+  int _currentIndex = -1;
+
+  @visibleForTesting
+  List<FreeMusicSong> get playlist => _playlist;
+
+  @visibleForTesting
+  int get currentIndex => _currentIndex;
 
   Future<bool> syncFromProbe(PlayerProbeSnapshot snapshot) async {
+    _syncQueue(snapshot);
     final String audioUrl = await _resolveAudioUrl(snapshot);
     if (audioUrl.isEmpty) {
       return false;
@@ -206,6 +221,14 @@ class NativeAudioController {
       debugPrint('[native-audio] paused ${snapshot.debugTitle}');
     }
     return true;
+  }
+
+  Future<bool> skipToNext() async {
+    return _skipToQueueOffset(1);
+  }
+
+  Future<bool> skipToPrevious() async {
+    return _skipToQueueOffset(-1);
   }
 
   Future<void> stop() async {
@@ -232,6 +255,70 @@ class NativeAudioController {
     }
     return url;
   }
+
+  void _syncQueue(PlayerProbeSnapshot snapshot) {
+    if (snapshot.playlist.isEmpty) {
+      return;
+    }
+    _playlist = List<FreeMusicSong>.unmodifiable(snapshot.playlist);
+    if (snapshot.currentIndex >= 0 &&
+        snapshot.currentIndex < _playlist.length) {
+      _currentIndex = snapshot.currentIndex;
+      return;
+    }
+    _currentIndex = _indexOfSong(snapshot.song);
+  }
+
+  Future<bool> _skipToQueueOffset(int offset) async {
+    if (_playlist.isEmpty || _currentIndex < 0) {
+      return false;
+    }
+    final int targetIndex = _currentIndex + offset;
+    if (targetIndex < 0 || targetIndex >= _playlist.length) {
+      return false;
+    }
+    return _loadQueueIndex(targetIndex);
+  }
+
+  Future<bool> _loadQueueIndex(int index) async {
+    final FreeMusicSong song = _playlist[index];
+    if (!song.canResolve) {
+      return false;
+    }
+    final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
+      audioUrl: '',
+      playing: true,
+      song: song,
+      playlist: _playlist,
+      currentIndex: index,
+      title: song.name,
+      artist: song.artist,
+      duration: Duration(seconds: song.duration),
+    );
+    final String audioUrl = await _resolveAudioUrl(snapshot);
+    if (audioUrl.isEmpty) {
+      return false;
+    }
+    _currentIndex = index;
+    _loadedUrl = audioUrl;
+    await _player.loadFromSnapshot(audioUrl, snapshot);
+    await _player.play();
+    debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
+    return true;
+  }
+
+  int _indexOfSong(FreeMusicSong? song) {
+    if (song == null) {
+      return -1;
+    }
+    for (int index = 0; index < _playlist.length; index += 1) {
+      final FreeMusicSong candidate = _playlist[index];
+      if (candidate.id == song.id && candidate.source == song.source) {
+        return index;
+      }
+    }
+    return -1;
+  }
 }
 
 String _stringValue(Object? value) {
@@ -254,7 +341,7 @@ Duration _durationFromSeconds(Object? value) {
   return Duration.zero;
 }
 
-int _intValue(Object? value) {
+int _intValue(Object? value, {int defaultValue = 0}) {
   if (value is int) {
     return value;
   }
@@ -262,7 +349,26 @@ int _intValue(Object? value) {
     return value.round();
   }
   if (value is String) {
-    return double.tryParse(value)?.round() ?? 0;
+    return double.tryParse(value)?.round() ?? defaultValue;
   }
-  return 0;
+  return defaultValue;
+}
+
+List<FreeMusicSong> _playlistValue(Object? value) {
+  if (value is! Iterable) {
+    return const <FreeMusicSong>[];
+  }
+  return value
+      .whereType<Map>()
+      .map(
+        (Map<Object?, Object?> item) => FreeMusicSong(
+          id: _stringValue(item['id']),
+          source: _stringValue(item['source']),
+          name: _stringValue(item['name'] ?? item['title']),
+          artist: _stringValue(item['artist']),
+          duration: _intValue(item['duration']),
+        ),
+      )
+      .where((FreeMusicSong song) => song.canResolve)
+      .toList(growable: false);
 }

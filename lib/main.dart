@@ -345,11 +345,31 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
   }
 
   Future<void> _skipToNextTrack() async {
+    final bool handled = await _nativeAudioController.skipToNext();
+    if (handled) {
+      unawaited(_pauseWebAudioIfAvailable());
+      return;
+    }
     await _runMusicControlScript('next', clickNextTrackScript);
   }
 
   Future<void> _skipToPreviousTrack() async {
+    final bool handled = await _nativeAudioController.skipToPrevious();
+    if (handled) {
+      unawaited(_pauseWebAudioIfAvailable());
+      return;
+    }
     await _runMusicControlScript('previous', clickPreviousTrackScript);
+  }
+
+  Future<void> _pauseWebAudioIfAvailable() async {
+    try {
+      await _controller
+          ?.evaluateJavascript(source: pauseWebAudioScript)
+          .timeout(const Duration(seconds: 1));
+    } catch (error) {
+      debugPrint('[native-audio] pause WebView audio skipped: $error');
+    }
   }
 
   Future<void> _runMusicControlScript(String action, String source) async {

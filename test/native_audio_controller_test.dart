@@ -7,22 +7,43 @@ import 'package:music_car_app/native_audio_controller.dart';
 
 void main() {
   test('PlayerProbeSnapshot parses probe payload', () {
-    final PlayerProbeSnapshot snapshot =
-        PlayerProbeSnapshot.fromPayload(<Object?, Object?>{
-          'audioUrl': 'https://example.com/song.mp3',
-          'playing': true,
-          'title': '晴天',
-          'artist': '周杰伦',
-          'coverUrl': 'https://example.com/cover.jpg',
-          'currentTime': 12.5,
-          'duration': '269',
-        });
+    final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot.fromPayload(
+      <Object?, Object?>{
+        'audioUrl': 'https://example.com/song.mp3',
+        'playing': true,
+        'title': '晴天',
+        'artist': '周杰伦',
+        'coverUrl': 'https://example.com/cover.jpg',
+        'currentTime': 12.5,
+        'duration': '269',
+        'currentIndex': 1,
+        'playlist': <Map<String, Object?>>[
+          <String, Object?>{
+            'id': '1',
+            'source': 'kuwo',
+            'name': '七里香',
+            'artist': '周杰伦',
+            'duration': 290,
+          },
+          <String, Object?>{
+            'id': '2',
+            'source': 'kuwo',
+            'name': '晴天',
+            'artist': '周杰伦',
+            'duration': 269,
+          },
+        ],
+      },
+    );
 
     expect(snapshot.hasAudioUrl, isTrue);
     expect(snapshot.playing, isTrue);
     expect(snapshot.debugTitle, '晴天 - 周杰伦');
     expect(snapshot.currentTime, const Duration(milliseconds: 12500));
     expect(snapshot.duration, const Duration(seconds: 269));
+    expect(snapshot.currentIndex, 1);
+    expect(snapshot.playlist, hasLength(2));
+    expect(snapshot.playlist.last.name, '晴天');
   });
 
   test('NativeAudioController ignores payloads without audio URLs', () async {
@@ -105,6 +126,68 @@ void main() {
     expect(handled, isTrue);
     expect(player.calls, <String>[
       'setUrl:https://example.com/resolved.mp3',
+      'play',
+    ]);
+  });
+
+  test('NativeAudioController skips tracks from synced page queue', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        final String id = request.url.queryParameters['id'] ?? '';
+        return http.Response(
+          '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
+          200,
+        );
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/1.mp3',
+        playing: true,
+        currentIndex: 0,
+        song: FreeMusicSong(
+          id: '1',
+          source: 'kuwo',
+          name: '七里香',
+          artist: '周杰伦',
+          duration: 290,
+        ),
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+        ],
+      ),
+    );
+
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.currentIndex, 1);
+    expect(await controller.skipToPrevious(), isTrue);
+    expect(controller.currentIndex, 0);
+    expect(await controller.skipToPrevious(), isFalse);
+    expect(player.calls, <String>[
+      'setUrl:https://example.com/1.mp3',
+      'play',
+      'setUrl:https://example.com/2.mp3',
+      'play',
+      'setUrl:https://example.com/1.mp3',
       'play',
     ]);
   });

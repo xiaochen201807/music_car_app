@@ -20,6 +20,14 @@ void main() {
     expect(playerProbeScriptSource, contains('title'));
     expect(playerProbeScriptSource, contains('artist'));
     expect(playerProbeScriptSource, contains('coverUrl'));
+    expect(
+      playerProbeScriptSource,
+      contains('playlist: playlistState.playlist'),
+    );
+    expect(
+      playerProbeScriptSource,
+      contains('currentIndex: playlistState.currentIndex'),
+    );
     expect(playerProbeScriptSource, contains('MutationObserver'));
   });
 

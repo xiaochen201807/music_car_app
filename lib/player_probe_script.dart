@@ -72,28 +72,32 @@ const String playerProbeScriptSource = r'''
     };
   }
 
-  function currentPlaylistSong() {
+  function currentPlaylistState() {
     try {
       var raw = window.localStorage.getItem('fm_player_playlist');
       if (!raw) {
-        return null;
+        return { playlist: [], currentIndex: -1, song: null };
       }
       var state = JSON.parse(raw);
       var playlist = Array.isArray(state.playlist) ? state.playlist : [];
       var index = Number.isFinite(state.current_index) ? state.current_index : -1;
-      if (index < 0 || index >= playlist.length) {
-        return null;
-      }
-      var song = playlist[index];
-      return song && typeof song === 'object' ? song : null;
+      var song = index >= 0 && index < playlist.length ? playlist[index] : null;
+      return {
+        playlist: playlist.filter(function(item) {
+          return item && typeof item === 'object';
+        }),
+        currentIndex: index,
+        song: song && typeof song === 'object' ? song : null
+      };
     } catch (error) {
-      return null;
+      return { playlist: [], currentIndex: -1, song: null };
     }
   }
 
   function collectPayload(reason) {
     var audioState = collectAudio() || {};
-    var song = currentPlaylistSong() || {};
+    var playlistState = currentPlaylistState();
+    var song = playlistState.song || {};
     return {
       reason: reason,
       href: window.location.href,
@@ -126,6 +130,8 @@ const String playerProbeScriptSource = r'''
       audioUrl: audioState.audioUrl || '',
       currentTime: audioState.currentTime || 0,
       duration: audioState.duration || song.duration || 0,
+      playlist: playlistState.playlist,
+      currentIndex: playlistState.currentIndex,
       playing: audioState.paused === false && audioState.ended !== true,
       muted: audioState.muted === true,
       volume: typeof audioState.volume === 'number' ? audioState.volume : null,
