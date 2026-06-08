@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'native_audio_controller.dart';
@@ -28,6 +29,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
+  bool _autoSkippingToNext = false;
 
   @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);
@@ -37,6 +39,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     String url,
     PlayerProbeSnapshot snapshot,
   ) async {
+    _autoSkippingToNext = false;
     mediaItem.add(
       MediaItem(
         id: url,
@@ -89,6 +92,10 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   void _broadcastPlaybackState(PlaybackEvent event) {
+    if (_player.processingState == ProcessingState.completed) {
+      unawaited(autoSkipToNextAfterCompletion());
+    }
+
     final bool playing = _player.playing;
     playbackState.add(
       PlaybackState(
@@ -113,6 +120,15 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         speed: _player.speed,
       ),
     );
+  }
+
+  @visibleForTesting
+  Future<void> autoSkipToNextAfterCompletion() async {
+    if (_autoSkippingToNext) {
+      return;
+    }
+    _autoSkippingToNext = true;
+    await onSkipToNextTrack?.call();
   }
 }
 
