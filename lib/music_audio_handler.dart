@@ -26,6 +26,8 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   final AudioPlayer _player;
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
+  Future<void> Function()? onSkipToNextTrack;
+  Future<void> Function()? onSkipToPreviousTrack;
 
   @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);
@@ -70,6 +72,16 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> skipToNext() async {
+    await onSkipToNextTrack?.call();
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    await onSkipToPreviousTrack?.call();
+  }
+
+  @override
   Future<void> dispose() async {
     await _playbackSubscription.cancel();
     await _player.dispose();
@@ -81,15 +93,19 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     playbackState.add(
       PlaybackState(
         controls: <MediaControl>[
+          MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
           MediaControl.stop,
         ],
         systemActions: const <MediaAction>{
           MediaAction.seek,
+          MediaAction.skipToNext,
+          MediaAction.skipToPrevious,
           MediaAction.seekForward,
           MediaAction.seekBackward,
         },
-        androidCompactActionIndices: const <int>[0],
+        androidCompactActionIndices: const <int>[0, 1, 2],
         processingState: _mapProcessingState(_player.processingState),
         playing: playing,
         updatePosition: _player.position,

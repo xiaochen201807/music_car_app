@@ -100,12 +100,20 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
   void initState() {
     super.initState();
     _nativeAudioController = NativeAudioController(player: widget.audioHandler);
+    widget.audioHandler?.onSkipToNextTrack = _skipToNextTrack;
+    widget.audioHandler?.onSkipToPreviousTrack = _skipToPreviousTrack;
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (widget.audioHandler?.onSkipToNextTrack == _skipToNextTrack) {
+      widget.audioHandler?.onSkipToNextTrack = null;
+    }
+    if (widget.audioHandler?.onSkipToPreviousTrack == _skipToPreviousTrack) {
+      widget.audioHandler?.onSkipToPreviousTrack = null;
+    }
     unawaited(WakelockPlus.disable());
     unawaited(_nativeAudioController.dispose());
     super.dispose();
@@ -166,6 +174,24 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
       _toolbarVisible = !_toolbarVisible;
     });
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  Future<void> _skipToNextTrack() async {
+    await _runMusicControlScript('next', clickNextTrackScript);
+  }
+
+  Future<void> _skipToPreviousTrack() async {
+    await _runMusicControlScript('previous', clickPreviousTrackScript);
+  }
+
+  Future<void> _runMusicControlScript(String action, String source) async {
+    final InAppWebViewController? controller = _controller;
+    if (controller == null) {
+      debugPrint('[native-audio] skip $action ignored: WebView not ready');
+      return;
+    }
+    final Object? result = await controller.evaluateJavascript(source: source);
+    debugPrint('[native-audio] skip $action dispatched: $result');
   }
 
   void _handlePlayerProbe(List<dynamic> arguments) {

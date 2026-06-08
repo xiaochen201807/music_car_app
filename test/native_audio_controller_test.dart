@@ -114,6 +114,13 @@ void main() {
     expect(pauseWebAudioScript, contains('audio.pause()'));
     expect(pauseWebAudioScript, contains('audio.muted = true'));
   });
+
+  test('track skip scripts click WebView player controls', () {
+    expect(clickNextTrackScript, contains('.music-btn-next'));
+    expect(clickNextTrackScript, contains('button.click()'));
+    expect(clickPreviousTrackScript, contains('.music-btn-prev'));
+    expect(clickPreviousTrackScript, contains('button.click()'));
+  });
 }
 
 class FakeNativeAudioPlayer implements NativeAudioPlayer {

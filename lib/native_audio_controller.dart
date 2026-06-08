@@ -16,6 +16,28 @@ const String pauseWebAudioScript = r'''
 })();
 ''';
 
+const String clickNextTrackScript = r'''
+(function() {
+  var button = document.querySelector('.music-btn-next');
+  if (!button) {
+    return false;
+  }
+  button.click();
+  return true;
+})();
+''';
+
+const String clickPreviousTrackScript = r'''
+(function() {
+  var button = document.querySelector('.music-btn-prev');
+  if (!button) {
+    return false;
+  }
+  button.click();
+  return true;
+})();
+''';
+
 class PlayerProbeSnapshot {
   const PlayerProbeSnapshot({
     required this.audioUrl,
