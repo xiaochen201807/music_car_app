@@ -416,7 +416,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
         'queue=${snapshot.playlist.length} index=${snapshot.currentIndex}',
       );
     }
-    _nativeAudioController.syncQueueFromProbe(snapshot);
+    unawaited(_nativeAudioController.syncQueueFromProbe(snapshot));
     if (snapshot.hasAudioUrl || snapshot.canResolveAudioUrl) {
       unawaited(_syncNativeAudio(snapshot));
     }

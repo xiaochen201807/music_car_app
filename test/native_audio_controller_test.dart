@@ -4,8 +4,15 @@ import 'package:http/testing.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/native_audio_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   test('PlayerProbeSnapshot parses probe payload', () {
     final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot.fromPayload(
       <Object?, Object?>{
@@ -231,7 +238,7 @@ void main() {
       api: api,
     );
 
-    controller.syncQueueFromProbe(
+    await controller.syncQueueFromProbe(
       const PlayerProbeSnapshot(
         audioUrl: '',
         playing: false,
@@ -258,6 +265,71 @@ void main() {
     expect(await controller.resumePlayback(), isTrue);
 
     expect(player.calls, <String>['setUrl:https://example.com/2.mp3', 'play']);
+  });
+
+  test('NativeAudioController restores persisted track and queue', () async {
+    final FakeNativeAudioPlayer firstPlayer = FakeNativeAudioPlayer();
+    final NativeAudioController firstController = NativeAudioController(
+      player: firstPlayer,
+    );
+
+    await firstController.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/1.mp3',
+        playing: false,
+        currentIndex: 0,
+        title: '七里香',
+        artist: '周杰伦',
+        song: FreeMusicSong(
+          id: '1',
+          source: 'kuwo',
+          name: '七里香',
+          artist: '周杰伦',
+          duration: 290,
+        ),
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+        ],
+      ),
+    );
+
+    final FakeNativeAudioPlayer restoredPlayer = FakeNativeAudioPlayer();
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        expect(request.url.queryParameters['id'], '2');
+        return http.Response(
+          '{"direct":true,"source":"kuwo","url":"https://example.com/2.mp3"}',
+          200,
+        );
+      }),
+    );
+    final NativeAudioController restoredController = NativeAudioController(
+      player: restoredPlayer,
+      api: api,
+    );
+
+    expect(await restoredController.resumePlayback(), isTrue);
+    expect(await restoredController.skipToNext(), isTrue);
+
+    expect(restoredPlayer.calls, <String>[
+      'setUrl:https://example.com/1.mp3',
+      'play',
+      'setUrl:https://example.com/2.mp3',
+      'play',
+    ]);
   });
 
   test('pauseWebAudioScript marks native audio as active', () {

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'free_music_api.dart';
 
@@ -183,12 +185,22 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
 }
 
 class NativeAudioController {
-  NativeAudioController({NativeAudioPlayer? player, FreeMusicApi? api})
-    : _player = player ?? JustAudioNativePlayer(),
-      _api = api ?? FreeMusicApi();
+  NativeAudioController({
+    NativeAudioPlayer? player,
+    FreeMusicApi? api,
+    SharedPreferences? preferences,
+  }) : _player = player ?? JustAudioNativePlayer(),
+       _api = api ?? FreeMusicApi(),
+       _preferences = preferences {
+    _restoreFuture = _restoreState();
+  }
+
+  static const String _statePreferenceKey = 'native_audio_state_v1';
 
   final NativeAudioPlayer _player;
   final FreeMusicApi _api;
+  final SharedPreferences? _preferences;
+  late final Future<void> _restoreFuture;
   String _loadedUrl = '';
   PlayerProbeSnapshot? _loadedSnapshot;
   List<FreeMusicSong> _playlist = const <FreeMusicSong>[];
@@ -201,6 +213,7 @@ class NativeAudioController {
   int get currentIndex => _currentIndex;
 
   Future<bool> syncFromProbe(PlayerProbeSnapshot snapshot) async {
+    await _restoreFuture;
     _syncQueue(snapshot);
     final String audioUrl = await _resolveAudioUrl(snapshot);
     if (audioUrl.isEmpty) {
@@ -217,6 +230,7 @@ class NativeAudioController {
         await _player.seek(snapshot.currentTime);
       }
       debugPrint('[native-audio] loaded ${snapshot.debugTitle}');
+      await _persistState();
     }
     if (snapshot.playing) {
       await _player.play();
@@ -228,11 +242,13 @@ class NativeAudioController {
     return true;
   }
 
-  void syncQueueFromProbe(PlayerProbeSnapshot snapshot) {
+  Future<void> syncQueueFromProbe(PlayerProbeSnapshot snapshot) async {
+    await _restoreFuture;
     _syncQueue(snapshot);
   }
 
   Future<bool> resumePlayback() async {
+    await _restoreFuture;
     if (_loadedUrl.isNotEmpty) {
       final PlayerProbeSnapshot? snapshot = _loadedSnapshot;
       if (_player.processingState == ProcessingState.idle && snapshot != null) {
@@ -258,10 +274,12 @@ class NativeAudioController {
   }
 
   Future<bool> skipToNext() async {
+    await _restoreFuture;
     return _skipToQueueOffset(1);
   }
 
   Future<bool> skipToPrevious() async {
+    await _restoreFuture;
     return _skipToQueueOffset(-1);
   }
 
@@ -303,6 +321,7 @@ class NativeAudioController {
         '[native-audio] queue synced: length=${_playlist.length} '
         'index=$_currentIndex',
       );
+      unawaited(_persistState());
       return;
     }
     _currentIndex = _indexOfSong(snapshot.song);
@@ -310,6 +329,7 @@ class NativeAudioController {
       '[native-audio] queue synced: length=${_playlist.length} '
       'index=$_currentIndex',
     );
+    unawaited(_persistState());
   }
 
   Future<bool> _skipToQueueOffset(int offset) async {
@@ -358,6 +378,7 @@ class NativeAudioController {
     _loadedSnapshot = snapshot;
     await _player.loadFromSnapshot(audioUrl, snapshot);
     await _player.play();
+    await _persistState();
     debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
     return true;
   }
@@ -373,6 +394,74 @@ class NativeAudioController {
       }
     }
     return -1;
+  }
+
+  Future<SharedPreferences> _getPreferences() async {
+    return _preferences ?? SharedPreferences.getInstance();
+  }
+
+  Future<void> _restoreState() async {
+    try {
+      final SharedPreferences preferences = await _getPreferences();
+      final String? raw = preferences.getString(_statePreferenceKey);
+      if (raw == null || raw.isEmpty) {
+        debugPrint('[native-audio] restore skipped: no saved state');
+        return;
+      }
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        debugPrint('[native-audio] restore skipped: invalid saved state');
+        return;
+      }
+      final List<FreeMusicSong> restoredPlaylist = _songsFromJson(
+        decoded['playlist'],
+      );
+      final PlayerProbeSnapshot? restoredSnapshot = _snapshotFromJson(
+        decoded['snapshot'],
+        fallbackPlaylist: restoredPlaylist,
+      );
+      _playlist = List<FreeMusicSong>.unmodifiable(restoredPlaylist);
+      _currentIndex = _intValue(decoded['currentIndex'], defaultValue: -1);
+      _loadedUrl = _stringValue(decoded['loadedUrl']);
+      _loadedSnapshot = restoredSnapshot;
+      if (_currentIndex < 0 && restoredSnapshot != null) {
+        _currentIndex = _indexOfSong(restoredSnapshot.song);
+      }
+      debugPrint(
+        '[native-audio] restored: loaded=${_loadedUrl.isNotEmpty} '
+        'queue=${_playlist.length} index=$_currentIndex',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[native-audio] restore failed: $error');
+      if (kDebugMode) {
+        debugPrint('$stackTrace');
+      }
+    }
+  }
+
+  Future<void> _persistState() async {
+    try {
+      if (_loadedUrl.isEmpty && _playlist.isEmpty) {
+        return;
+      }
+      final SharedPreferences preferences = await _getPreferences();
+      final Map<String, Object?> payload = <String, Object?>{
+        'loadedUrl': _loadedUrl,
+        'currentIndex': _currentIndex,
+        'playlist': _playlist.map(_songToJson).toList(growable: false),
+        'snapshot': _snapshotToJson(_loadedSnapshot),
+      };
+      await preferences.setString(_statePreferenceKey, jsonEncode(payload));
+      debugPrint(
+        '[native-audio] persisted: loaded=${_loadedUrl.isNotEmpty} '
+        'queue=${_playlist.length} index=$_currentIndex',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[native-audio] persist failed: $error');
+      if (kDebugMode) {
+        debugPrint('$stackTrace');
+      }
+    }
   }
 }
 
@@ -426,4 +515,78 @@ List<FreeMusicSong> _playlistValue(Object? value) {
       )
       .where((FreeMusicSong song) => song.canResolve)
       .toList(growable: false);
+}
+
+Map<String, Object?> _songToJson(FreeMusicSong song) {
+  return <String, Object?>{
+    'id': song.id,
+    'source': song.source,
+    'name': song.name,
+    'artist': song.artist,
+    'duration': song.duration,
+  };
+}
+
+List<FreeMusicSong> _songsFromJson(Object? value) {
+  if (value is! Iterable) {
+    return const <FreeMusicSong>[];
+  }
+  return value
+      .whereType<Map>()
+      .map((Map<Object?, Object?> item) => _songFromMap(item))
+      .where((FreeMusicSong song) => song.canResolve)
+      .toList(growable: false);
+}
+
+FreeMusicSong _songFromMap(Map<Object?, Object?> item) {
+  return FreeMusicSong(
+    id: _stringValue(item['id']),
+    source: _stringValue(item['source']),
+    name: _stringValue(item['name'] ?? item['title']),
+    artist: _stringValue(item['artist']),
+    duration: _intValue(item['duration']),
+  );
+}
+
+Map<String, Object?>? _snapshotToJson(PlayerProbeSnapshot? snapshot) {
+  if (snapshot == null) {
+    return null;
+  }
+  return <String, Object?>{
+    'audioUrl': snapshot.audioUrl,
+    'playing': snapshot.playing,
+    'song': snapshot.song == null ? null : _songToJson(snapshot.song!),
+    'playlist': snapshot.playlist.map(_songToJson).toList(growable: false),
+    'currentIndex': snapshot.currentIndex,
+    'title': snapshot.title,
+    'artist': snapshot.artist,
+    'coverUrl': snapshot.coverUrl,
+    'currentTimeMs': snapshot.currentTime.inMilliseconds,
+    'durationMs': snapshot.duration.inMilliseconds,
+  };
+}
+
+PlayerProbeSnapshot? _snapshotFromJson(
+  Object? value, {
+  required List<FreeMusicSong> fallbackPlaylist,
+}) {
+  if (value is! Map) {
+    return null;
+  }
+  final FreeMusicSong? song = value['song'] is Map
+      ? _songFromMap((value['song'] as Map).cast<Object?, Object?>())
+      : null;
+  final List<FreeMusicSong> playlist = _songsFromJson(value['playlist']);
+  return PlayerProbeSnapshot(
+    audioUrl: _stringValue(value['audioUrl']),
+    playing: value['playing'] == true,
+    song: song,
+    playlist: playlist.isEmpty ? fallbackPlaylist : playlist,
+    currentIndex: _intValue(value['currentIndex'], defaultValue: -1),
+    title: _stringValue(value['title'] ?? song?.name),
+    artist: _stringValue(value['artist'] ?? song?.artist),
+    coverUrl: _stringValue(value['coverUrl']),
+    currentTime: Duration(milliseconds: _intValue(value['currentTimeMs'])),
+    duration: Duration(milliseconds: _intValue(value['durationMs'])),
+  );
 }
