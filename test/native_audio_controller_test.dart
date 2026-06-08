@@ -125,6 +125,14 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> loadFromSnapshot(
+    String url,
+    PlayerProbeSnapshot snapshot,
+  ) async {
+    calls.add('setUrl:$url');
+  }
+
+  @override
   Future<void> pause() async {
     calls.add('pause');
   }

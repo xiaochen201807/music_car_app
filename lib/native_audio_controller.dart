@@ -78,6 +78,8 @@ class PlayerProbeSnapshot {
 abstract class NativeAudioPlayer {
   Future<Duration?> setUrl(String url);
 
+  Future<void> loadFromSnapshot(String url, PlayerProbeSnapshot snapshot);
+
   Future<void> seek(Duration position);
 
   Future<void> play();
@@ -97,6 +99,14 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
 
   @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);
+
+  @override
+  Future<void> loadFromSnapshot(
+    String url,
+    PlayerProbeSnapshot snapshot,
+  ) async {
+    await setUrl(url);
+  }
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
@@ -130,7 +140,7 @@ class NativeAudioController {
     }
     if (_loadedUrl != audioUrl) {
       _loadedUrl = audioUrl;
-      await _player.setUrl(audioUrl);
+      await _player.loadFromSnapshot(audioUrl, snapshot);
       if (snapshot.currentTime > Duration.zero) {
         await _player.seek(snapshot.currentTime);
       }

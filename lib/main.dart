@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'music_audio_handler.dart';
 import 'native_audio_controller.dart';
 import 'player_probe_script.dart';
 
@@ -35,13 +36,16 @@ Future<void> main() async {
     await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
   }
 
-  runApp(const MusicCarApp());
+  final MusicAudioHandler audioHandler = await initMusicAudioHandler();
+
+  runApp(MusicCarApp(audioHandler: audioHandler));
 }
 
 class MusicCarApp extends StatelessWidget {
-  const MusicCarApp({super.key, this.webViewOverride});
+  const MusicCarApp({super.key, this.webViewOverride, this.audioHandler});
 
   final Widget? webViewOverride;
+  final MusicAudioHandler? audioHandler;
 
   @override
   Widget build(BuildContext context) {
@@ -59,15 +63,23 @@ class MusicCarApp extends StatelessWidget {
         splashFactory: NoSplash.splashFactory,
         useMaterial3: true,
       ),
-      home: MusicCarWebViewPage(webViewOverride: webViewOverride),
+      home: MusicCarWebViewPage(
+        webViewOverride: webViewOverride,
+        audioHandler: audioHandler,
+      ),
     );
   }
 }
 
 class MusicCarWebViewPage extends StatefulWidget {
-  const MusicCarWebViewPage({super.key, this.webViewOverride});
+  const MusicCarWebViewPage({
+    super.key,
+    this.webViewOverride,
+    this.audioHandler,
+  });
 
   final Widget? webViewOverride;
+  final MusicAudioHandler? audioHandler;
 
   @override
   State<MusicCarWebViewPage> createState() => _MusicCarWebViewPageState();
@@ -76,7 +88,7 @@ class MusicCarWebViewPage extends StatefulWidget {
 class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     with WidgetsBindingObserver {
   InAppWebViewController? _controller;
-  final NativeAudioController _nativeAudioController = NativeAudioController();
+  late final NativeAudioController _nativeAudioController;
   double _progress = 0;
   bool _isLoading = true;
   bool _canGoBack = false;
@@ -87,6 +99,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
   @override
   void initState() {
     super.initState();
+    _nativeAudioController = NativeAudioController(player: widget.audioHandler);
     WidgetsBinding.instance.addObserver(this);
   }
 
