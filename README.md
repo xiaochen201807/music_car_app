@@ -31,6 +31,19 @@ flutter build apk --release
 
 The APK is uploaded as the `car-music-release-apk` workflow artifact.
 
+On `v*` tag builds, the workflow also creates or updates the GitHub Release and
+attaches both the APK and `update.json`. The app's online update checker can read
+GitHub's latest release directly, or read a custom manifest URL provided at
+build time with:
+
+```sh
+--dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=https://example.com/update.json
+```
+
+For GitHub Actions, set the repository variable `MUSIC_CAR_UPDATE_MANIFEST_URL`
+if you want the app to check a CDN/R2-hosted manifest before falling back to the
+GitHub latest release API.
+
 ### iOS Unsigned IPA
 
 The `iOS Unsigned IPA` workflow runs on `v*` tags and can also be triggered manually.

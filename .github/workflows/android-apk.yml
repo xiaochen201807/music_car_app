@@ -12,7 +12,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android-apk:
@@ -56,7 +56,14 @@ jobs:
         run: flutter test
 
       - name: Build Release APK
-        run: flutter build apk --release
+        run: |
+          build_args="--release"
+          if [ -n "${MUSIC_CAR_UPDATE_MANIFEST_URL:-}" ]; then
+            build_args="$build_args --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=$MUSIC_CAR_UPDATE_MANIFEST_URL"
+          fi
+          flutter build apk $build_args
+        env:
+          MUSIC_CAR_UPDATE_MANIFEST_URL: ${{ vars.MUSIC_CAR_UPDATE_MANIFEST_URL }}
 
       - name: List APK Outputs
         run: ls -lh build/app/outputs/flutter-apk/*.apk
@@ -67,3 +74,98 @@ jobs:
           name: car-music-release-apk
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
+
+      - name: Generate Update Manifest
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version_full="$(awk '/^version:/ { print $2; exit }' pubspec.yaml)"
+          version_name="${version_full%%+*}"
+          version_code="${version_full#*+}"
+          if [ "$version_code" = "$version_full" ]; then
+            version_code=""
+          fi
+
+          tag="${GITHUB_REF_NAME}"
+          release_url="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+          github_download_base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
+          manifest_dir="build/update-manifest"
+          mkdir -p "$manifest_dir"
+          export VERSION_NAME="$version_name"
+          export VERSION_CODE="$version_code"
+          export TAG_NAME="$tag"
+          export RELEASE_URL="$release_url"
+          export GITHUB_DOWNLOAD_BASE="$github_download_base"
+          export PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+
+          apk_paths = sorted(pathlib.Path("build/app/outputs/flutter-apk").glob("*.apk"))
+          if not apk_paths:
+              raise SystemExit("No APKs found")
+
+          def abi_from_name(name):
+              for abi in ("arm64-v8a", "armeabi-v7a", "x86_64", "x86"):
+                  if abi in name:
+                      return abi
+              return ""
+
+          github_download_base = os.environ["GITHUB_DOWNLOAD_BASE"].rstrip("/")
+          assets = []
+          for apk_path in apk_paths:
+              data = apk_path.read_bytes()
+              name = apk_path.name
+              assets.append({
+                  "abi": abi_from_name(name),
+                  "name": name,
+                  "url": f"{github_download_base}/{name}",
+                  "fallbackUrls": [],
+                  "sha256": hashlib.sha256(data).hexdigest(),
+                  "size": len(data),
+              })
+
+          version_code = os.environ["VERSION_CODE"]
+          payload = {
+              "versionName": os.environ["VERSION_NAME"],
+              "versionCode": int(version_code) if version_code.isdigit() else None,
+              "tagName": os.environ["TAG_NAME"],
+              "releaseName": f"music_car_app {os.environ['TAG_NAME']}",
+              "releaseUrl": os.environ["RELEASE_URL"],
+              "publishedAt": os.environ["PUBLISHED_AT"],
+              "assets": assets,
+          }
+          pathlib.Path("build/update-manifest/update.json").write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Upload Update Manifest Artifact
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-manifest
+          path: build/update-manifest/update.json
+          if-no-files-found: error
+
+      - name: Publish APK To GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: music_car_app ${{ github.ref_name }}
+          append_body: true
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/update-manifest/update.json
+          body: |
+            Android APK built from ${{ github.sha }}.
+
+            The release also includes `update.json`, which is the manifest used
+            by the in-app online update checker.

@@ -8,8 +8,11 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'music_audio_handler.dart';
+import 'models/app_update_info.dart';
 import 'native_audio_controller.dart';
 import 'player_probe_script.dart';
+import 'services/app_installer_service.dart';
+import 'services/update_check_service.dart';
 
 final WebUri _musicHomeUrl = WebUri('https://music.sy110.eu.org/music');
 
@@ -42,10 +45,16 @@ Future<void> main() async {
 }
 
 class MusicCarApp extends StatelessWidget {
-  const MusicCarApp({super.key, this.webViewOverride, this.audioHandler});
+  const MusicCarApp({
+    super.key,
+    this.webViewOverride,
+    this.audioHandler,
+    this.autoCheckForUpdates = true,
+  });
 
   final Widget? webViewOverride;
   final MusicAudioHandler? audioHandler;
+  final bool autoCheckForUpdates;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +75,7 @@ class MusicCarApp extends StatelessWidget {
       home: MusicCarWebViewPage(
         webViewOverride: webViewOverride,
         audioHandler: audioHandler,
+        autoCheckForUpdates: autoCheckForUpdates,
       ),
     );
   }
@@ -76,10 +86,12 @@ class MusicCarWebViewPage extends StatefulWidget {
     super.key,
     this.webViewOverride,
     this.audioHandler,
+    this.autoCheckForUpdates = true,
   });
 
   final Widget? webViewOverride;
   final MusicAudioHandler? audioHandler;
+  final bool autoCheckForUpdates;
 
   @override
   State<MusicCarWebViewPage> createState() => _MusicCarWebViewPageState();
@@ -89,8 +101,13 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     with WidgetsBindingObserver {
   InAppWebViewController? _controller;
   late final NativeAudioController _nativeAudioController;
+  final UpdateCheckService _updateCheckService = UpdateCheckService();
+  final AppInstallerService _appInstallerService = const AppInstallerService();
   double _progress = 0;
   bool _isLoading = true;
+  bool _isCheckingUpdate = false;
+  bool _isInstallingUpdate = false;
+  bool _hasAutoCheckedUpdate = false;
   bool _canGoBack = false;
   bool _canGoForward = false;
   bool _toolbarVisible = true;
@@ -103,6 +120,11 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     widget.audioHandler?.onSkipToNextTrack = _skipToNextTrack;
     widget.audioHandler?.onSkipToPreviousTrack = _skipToPreviousTrack;
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.autoCheckForUpdates) {
+        unawaited(_autoCheckForUpdate());
+      }
+    });
   }
 
   @override
@@ -116,6 +138,7 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
     }
     unawaited(WakelockPlus.disable());
     unawaited(_nativeAudioController.dispose());
+    _updateCheckService.dispose();
     super.dispose();
   }
 
@@ -174,6 +197,151 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
       _toolbarVisible = !_toolbarVisible;
     });
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  Future<void> _autoCheckForUpdate() async {
+    if (_hasAutoCheckedUpdate || !mounted) {
+      return;
+    }
+    _hasAutoCheckedUpdate = true;
+    await _checkForUpdate(silentNoUpdate: true, silentErrors: true);
+  }
+
+  Future<void> _checkForUpdate({
+    bool silentNoUpdate = false,
+    bool silentErrors = false,
+  }) async {
+    if (_isCheckingUpdate) {
+      return;
+    }
+    setState(() {
+      _isCheckingUpdate = true;
+    });
+
+    try {
+      final AppUpdateInfo updateInfo = await _updateCheckService
+          .checkLatestRelease();
+      if (!mounted) {
+        return;
+      }
+      if (silentNoUpdate && !updateInfo.hasUpdate) {
+        return;
+      }
+      await _showUpdateDialog(updateInfo);
+    } on UpdateCheckException catch (error) {
+      if (!silentErrors && mounted) {
+        _showSnack(error.message);
+      }
+    } catch (error) {
+      if (!silentErrors && mounted) {
+        _showSnack('检查更新失败：$error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingUpdate = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showUpdateDialog(AppUpdateInfo updateInfo) async {
+    final String assetText = updateInfo.apkAssets.isEmpty
+        ? '未找到 Android APK 下载资源'
+        : updateInfo.apkAssets
+              .map((AppReleaseAsset asset) {
+                final String size = asset.sizeText.isEmpty
+                    ? ''
+                    : ' (${asset.sizeText})';
+                final String abi = asset.abi.isEmpty ? '' : ' ${asset.abi}';
+                return '${asset.name}$abi$size';
+              })
+              .join('\n');
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(updateInfo.hasUpdate ? '发现新版本' : '已是最新版本'),
+          content: SingleChildScrollView(
+            child: Text(
+              <String>[
+                '当前版本：${updateInfo.currentVersion}',
+                '最新版本：${updateInfo.latestVersion}',
+                if (updateInfo.releaseName.isNotEmpty)
+                  '发布名称：${updateInfo.releaseName}',
+                if (updateInfo.publishedAt != null)
+                  '发布时间：${updateInfo.publishedAt!.toLocal()}',
+                '',
+                assetText,
+              ].join('\n'),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('关闭'),
+            ),
+            if (updateInfo.hasUpdate && updateInfo.hasDownloadAssets)
+              FilledButton(
+                onPressed: _isInstallingUpdate
+                    ? null
+                    : () {
+                        Navigator.of(dialogContext).pop();
+                        unawaited(_installUpdate(updateInfo));
+                      },
+                child: const Text('立即更新'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _installUpdate(AppUpdateInfo updateInfo) async {
+    if (_isInstallingUpdate) {
+      return;
+    }
+    setState(() {
+      _isInstallingUpdate = true;
+    });
+
+    try {
+      await _appInstallerService.downloadAndInstallBestApk(
+        updateInfo.apkAssets,
+      );
+      if (mounted) {
+        _showSnack('安装包开始下载，完成后会自动打开安装界面。');
+      }
+    } on PlatformException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code == 'install_permission_required') {
+        _showSnack(error.message ?? '请允许安装未知来源应用后重试。');
+      } else if (updateInfo.releaseUrl.isNotEmpty) {
+        await Clipboard.setData(ClipboardData(text: updateInfo.releaseUrl));
+        _showSnack('自动下载安装失败，发布页链接已复制。');
+      } else {
+        _showSnack(error.message ?? '下载安装包失败。');
+      }
+    } on AppInstallerException catch (error) {
+      if (mounted) {
+        _showSnack(error.message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInstallingUpdate = false;
+        });
+      }
+    }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _skipToNextTrack() async {
@@ -439,10 +607,12 @@ class _MusicCarWebViewPageState extends State<MusicCarWebViewPage>
                     child: _ControlStrip(
                       canGoBack: _canGoBack,
                       canGoForward: _canGoForward,
+                      updateBusy: _isCheckingUpdate || _isInstallingUpdate,
                       onBack: _goBack,
                       onForward: _goForward,
                       onHome: _goHome,
                       onReload: _reload,
+                      onCheckUpdate: _checkForUpdate,
                       onHide: _toggleToolbar,
                     ),
                   ),
@@ -469,19 +639,23 @@ class _ControlStrip extends StatelessWidget {
   const _ControlStrip({
     required this.canGoBack,
     required this.canGoForward,
+    required this.updateBusy,
     required this.onBack,
     required this.onForward,
     required this.onHome,
     required this.onReload,
+    required this.onCheckUpdate,
     required this.onHide,
   });
 
   final bool canGoBack;
   final bool canGoForward;
+  final bool updateBusy;
   final VoidCallback onBack;
   final VoidCallback onForward;
   final VoidCallback onHome;
   final VoidCallback onReload;
+  final VoidCallback onCheckUpdate;
   final VoidCallback onHide;
 
   @override
@@ -518,6 +692,12 @@ class _ControlStrip extends StatelessWidget {
               icon: Icons.refresh,
               tooltip: '刷新',
               onPressed: onReload,
+            ),
+            _RoundIconButton(
+              icon: Icons.system_update,
+              tooltip: '检查更新',
+              enabled: !updateBusy,
+              onPressed: onCheckUpdate,
             ),
             _RoundIconButton(
               icon: Icons.fullscreen,

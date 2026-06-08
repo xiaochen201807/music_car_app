@@ -7,12 +7,16 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MusicCarApp(webViewOverride: ColoredBox(color: Colors.black)),
+      const MusicCarApp(
+        webViewOverride: ColoredBox(color: Colors.black),
+        autoCheckForUpdates: false,
+      ),
     );
 
     expect(find.byType(MusicCarWebViewPage), findsOneWidget);
     expect(find.byIcon(Icons.home), findsOneWidget);
     expect(find.byIcon(Icons.refresh), findsOneWidget);
+    expect(find.byIcon(Icons.system_update), findsOneWidget);
     expect(find.byIcon(Icons.fullscreen), findsNWidgets(2));
   });
 }
