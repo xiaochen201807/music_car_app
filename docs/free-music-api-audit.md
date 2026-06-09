@@ -242,18 +242,70 @@ Observed fields from `/qualities`:
 
 ### Stage 3: Playback Reliability
 
-- Use `/qualities` and user preference to choose bitrate.
-- Try `/switch_source` when `/song_url` fails or returns an unusable URL.
-- Add timeout/backoff to slow endpoints, especially playlist detail and URL
-  resolution.
-- Keep the native queue as the single source of truth for UI, media controls,
-  and later CarLife sync.
+This is the hard prerequisite for CarLife. CarLife projects **data** (queue +
+current track metadata + playback state) onto the head unit's native controls,
+not the Flutter UI. If this layer is unstable, the projection breaks even when
+the in-app UI looks fine. Stage 3 is **not done** until every item below is
+checked.
+
+#### Current state (verified against code on 2026-06-10)
+
+- `/switch_source` fallback: **NOT wired** (zero references in `lib/`). This is
+  the core Stage 3 gap.
+- `/song_url` (`free_music_api.dart`): resolves a URL but **throws on failure
+  with no fallback** — a dead source makes playback silently fail.
+- Request timeouts: only `update_check_service.dart` uses `.timeout()`. **No
+  playback-path API call has a timeout**, so a slow endpoint spins forever on
+  the head unit.
+- Android background/lock-screen media notification: missing transport buttons.
+  Root cause is `androidNotificationOngoing: false` in
+  `music_audio_handler.dart` (the `controls` array and manifest are correct).
+
+#### Acceptance checklist (Definition of Done — playback)
+
+Bitrate & source resolution:
+- [ ] Use `/qualities` + user preference to choose playback bitrate (currently
+      retrieved for display only; playback still uses the default `br`).
+- [ ] Wire `/switch_source` so that when `/song_url` fails or returns an
+      unusable/empty/non-HTTP URL, the handler retries via the alternate source
+      before surfacing an error to the user.
+- [ ] `/song_url` failure no longer throws to the UI as an unhandled error; it
+      degrades to switch-source, then to a clear "this track can't play, skipping"
+      state.
+
+Resilience:
+- [ ] Add a timeout (suggest 10–12s) to every playback-path request:
+      `/song_url`, `/switch_source`, `/playlist`, `/playlist/page`, `/lyric`,
+      `/yrc`, `/qualities`.
+- [ ] On timeout/failure of a slow endpoint, the UI shows a recoverable error
+      with retry — never an infinite spinner.
+- [ ] Playback stall monitor (already present in `music_audio_handler.dart`)
+      cooperates with switch-source: a stalled track auto-recovers or skips,
+      it does not hang.
+
+Queue as single source of truth:
+- [ ] The native queue is the one source read by: in-app UI, the Android media
+      notification, and (later) CarLife. No second queue state anywhere.
+- [ ] Search → play → next/prev → switch-source → reorder/clear queue all keep
+      the three consumers consistent (in-app, notification, lock screen agree
+      on title/artist/cover/position).
+
+Background / lock-screen media controls (also the manual CarLife smoke test):
+- [ ] Set `androidNotificationOngoing: true` so the media notification renders
+      as a full foreground media notification on all tested ROMs.
+- [ ] Lock screen / background notification shows three working transport
+      buttons (previous / play-pause / next) and they actually control playback.
+- [ ] Notification shows correct title, artist, and cover art (`artUri`).
+- [ ] **Smoke test rule:** lock the phone and operate playback using ONLY the
+      Android notification. If that is flawless, the queue/media-session data is
+      stable enough to drive CarLife.
 
 ### Stage 4: CarLife Resume Point
 
 - Keep the existing CarLife SDK bridge and jar location.
-- Resume CarLife only after the API/data/UI/playback stages are usable, so the
-  projection layer receives complete and stable queue metadata.
+- Resume CarLife only after **every Stage 3 checkbox is closed**, so the
+  projection layer receives complete and stable queue metadata. A polished UI
+  alone does NOT qualify — Stage 3 reliability is the gate.
 
 ## Latest Direct Verification
 

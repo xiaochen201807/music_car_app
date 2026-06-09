@@ -3,8 +3,10 @@ import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'free_music_api.dart';
@@ -29,7 +31,25 @@ Future<void> main() async {
 
   final MusicAudioHandler audioHandler = await initMusicAudioHandler();
 
+  await _ensureNotificationPermission();
+
   runApp(MusicCarApp(audioHandler: audioHandler));
+}
+
+/// Android 13+ (API 33) gates the media-playback notification behind the
+/// runtime [Permission.notification]. Without it the foreground media
+/// notification renders without transport controls, so background play has no
+/// pause / skip buttons. audio_service neither declares nor requests this
+/// permission, so the app must do it. No-op on platforms that grant it
+/// implicitly.
+Future<void> _ensureNotificationPermission() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+    return;
+  }
+  final PermissionStatus status = await Permission.notification.status;
+  if (status.isDenied) {
+    await Permission.notification.request();
+  }
 }
 
 class MusicCarApp extends StatelessWidget {
