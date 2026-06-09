@@ -38,15 +38,19 @@ The native car-media architecture is:
 1. `[x]` Flutter owns the visible UI.
 2. `[ ]` Flutter loads search, playlist, artwork, and lyric data from native API
    clients.
-3. `[ ]` Flutter creates a complete native playback queue.
-4. `[ ]` `audio_service.queue` exposes the complete queue instead of a single
+3. `[~]` Flutter creates a complete native playback queue.
+4. `[x]` `audio_service.queue` exposes the complete queue instead of a single
    current item.
-5. `[ ]` `PlaybackState.queueIndex` points at the active queue item.
-6. `[ ]` `skipToQueueItem(index)` plays a selected queue item directly.
+5. `[x]` `PlaybackState.queueIndex` points at the active queue item.
+6. `[x]` `skipToQueueItem(index)` plays a selected queue item directly.
 7. `[ ]` `skipToNext`, `skipToPrevious`, and automatic completion use the native
    queue only.
 8. `[ ]` Repeat, shuffle, and sequential modes are represented natively.
 9. `[ ]` Queue and playback state persist locally for app/process restarts.
+
+Implementation record:
+
+- See `docs/work-log.md` for the chronological work log and current evidence.
 
 ## Main Risks
 

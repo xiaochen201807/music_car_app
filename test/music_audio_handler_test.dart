@@ -1,5 +1,6 @@
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/music_audio_handler.dart';
 import 'package:music_car_app/native_audio_controller.dart';
 
@@ -16,6 +17,9 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   @override
   Stream<PlaybackEvent> get playbackEventStream =>
       const Stream<PlaybackEvent>.empty();
+
+  @override
+  PlaybackEvent get playbackEvent => PlaybackEvent();
 
   @override
   Duration get position => currentPosition;
@@ -99,6 +103,109 @@ void main() {
 
     await handler.dispose();
   });
+
+  test(
+    'loadFromSnapshot publishes complete probe queue and active index',
+    () async {
+      final MusicAudioHandler handler = MusicAudioHandler(
+        player: _FakeNativeAudioPlayer(),
+      );
+
+      await handler.loadFromSnapshot(
+        'https://example.com/2.mp3',
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/2.mp3',
+          playing: true,
+          currentIndex: 1,
+          song: FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+          playlist: <FreeMusicSong>[
+            FreeMusicSong(
+              id: '1',
+              source: 'kuwo',
+              name: '七里香',
+              artist: '周杰伦',
+              duration: 290,
+            ),
+            FreeMusicSong(
+              id: '2',
+              source: 'kuwo',
+              name: '晴天',
+              artist: '周杰伦',
+              duration: 269,
+            ),
+          ],
+        ),
+      );
+
+      final children = await handler.getChildren('root');
+
+      expect(children, hasLength(2));
+      expect(children.first.title, '七里香');
+      expect(children.last.id, 'https://example.com/2.mp3');
+      expect(children.last.extras?['songId'], '2');
+      expect(handler.playbackState.value.queueIndex, 1);
+
+      await handler.dispose();
+    },
+  );
+
+  test(
+    'skipToQueueItem calls native queue callback for another item',
+    () async {
+      final MusicAudioHandler handler = MusicAudioHandler(
+        player: _FakeNativeAudioPlayer(),
+      );
+      final List<int> selectedIndexes = <int>[];
+      handler.onSkipToQueueItem = (int index) async {
+        selectedIndexes.add(index);
+      };
+
+      await handler.loadFromSnapshot(
+        'https://example.com/1.mp3',
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/1.mp3',
+          playing: true,
+          currentIndex: 0,
+          song: FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          playlist: <FreeMusicSong>[
+            FreeMusicSong(
+              id: '1',
+              source: 'kuwo',
+              name: '七里香',
+              artist: '周杰伦',
+              duration: 290,
+            ),
+            FreeMusicSong(
+              id: '2',
+              source: 'kuwo',
+              name: '晴天',
+              artist: '周杰伦',
+              duration: 269,
+            ),
+          ],
+        ),
+      );
+
+      await handler.skipToQueueItem(1);
+      await handler.skipToQueueItem(9);
+
+      expect(selectedIndexes, <int>[1]);
+
+      await handler.dispose();
+    },
+  );
 
   test('play uses external resume callback when it handles playback', () async {
     final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();

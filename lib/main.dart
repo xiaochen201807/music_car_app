@@ -108,6 +108,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     widget.audioHandler?.onPlayTrack = _resumeNativePlayback;
     widget.audioHandler?.onSkipToNextTrack = _skipToNextTrack;
     widget.audioHandler?.onSkipToPreviousTrack = _skipToPreviousTrack;
+    widget.audioHandler?.onSkipToQueueItem = _skipToQueueItem;
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshCarLifeStatus());
@@ -128,6 +129,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     if (widget.audioHandler?.onPlayTrack == _resumeNativePlayback) {
       widget.audioHandler?.onPlayTrack = null;
+    }
+    if (widget.audioHandler?.onSkipToQueueItem == _skipToQueueItem) {
+      widget.audioHandler?.onSkipToQueueItem = null;
     }
     unawaited(WakelockPlus.disable());
     unawaited(_nativeAudioController.dispose());
@@ -169,6 +173,16 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     setState(() {
       _selectedQueueIndex = math.max(_selectedQueueIndex - 1, 0);
+    });
+  }
+
+  Future<void> _skipToQueueItem(int index) async {
+    final bool handled = await _nativeAudioController.skipToQueueIndex(index);
+    if (!mounted || !handled) {
+      return;
+    }
+    setState(() {
+      _selectedQueueIndex = index;
     });
   }
 
@@ -386,9 +400,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
                 });
               },
               onSelectQueueIndex: (int index) {
-                setState(() {
-                  _selectedQueueIndex = index;
-                });
+                unawaited(_skipToQueueItem(index));
               },
               onPlayPause: () => _togglePlayback(playbackState.playing),
               onPrevious: _skipToPreviousTrack,

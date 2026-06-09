@@ -75,6 +75,8 @@ class PlayerProbeSnapshot {
 abstract class NativeAudioPlayer {
   Stream<PlaybackEvent> get playbackEventStream;
 
+  PlaybackEvent get playbackEvent;
+
   ProcessingState get processingState;
 
   bool get playing;
@@ -108,6 +110,9 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
 
   @override
   Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
+
+  @override
+  PlaybackEvent get playbackEvent => _player.playbackEvent;
 
   @override
   ProcessingState get processingState => _player.processingState;
@@ -248,6 +253,18 @@ class NativeAudioController {
   Future<bool> skipToPrevious() async {
     await _restoreFuture;
     return _skipToQueueOffset(-1);
+  }
+
+  Future<bool> skipToQueueIndex(int index) async {
+    await _restoreFuture;
+    if (index < 0 || index >= _playlist.length) {
+      debugPrint(
+        '[native-audio] queue item ignored: index=$index '
+        'length=${_playlist.length}',
+      );
+      return false;
+    }
+    return _loadQueueIndex(index);
   }
 
   Future<void> stop() async {

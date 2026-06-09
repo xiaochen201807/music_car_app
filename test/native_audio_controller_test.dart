@@ -199,6 +199,53 @@ void main() {
     ]);
   });
 
+  test('NativeAudioController plays a selected queue index directly', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        final String id = request.url.queryParameters['id'] ?? '';
+        return http.Response(
+          '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
+          200,
+        );
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    await controller.syncQueueFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: false,
+        currentIndex: 0,
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+        ],
+      ),
+    );
+
+    expect(await controller.skipToQueueIndex(1), isTrue);
+    expect(controller.currentIndex, 1);
+    expect(await controller.skipToQueueIndex(3), isFalse);
+
+    expect(player.calls, <String>['setUrl:https://example.com/2.mp3', 'play']);
+  });
+
   test('NativeAudioController resumes from loaded track', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
     final NativeAudioController controller = NativeAudioController(
@@ -345,6 +392,9 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
   @override
   Stream<PlaybackEvent> get playbackEventStream =>
       const Stream<PlaybackEvent>.empty();
+
+  @override
+  PlaybackEvent get playbackEvent => PlaybackEvent();
 
   @override
   Duration get position => Duration.zero;

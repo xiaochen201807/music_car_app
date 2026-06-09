@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'free_music_api.dart';
 import 'native_audio_controller.dart';
 
 Future<MusicAudioHandler> initMusicAudioHandler() async {
@@ -49,13 +50,18 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<bool> Function()? onPlayTrack;
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
+  Future<void> Function(int index)? onSkipToQueueItem;
   bool _handlingPlayCallback = false;
   bool _autoSkippingToNext = false;
+  int? _activeQueueIndex;
   Duration? _lastObservedPosition;
   DateTime? _lastPlaybackProgressAt;
 
   @override
   Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
+
+  @override
+  PlaybackEvent get playbackEvent => _player.playbackEvent;
 
   @override
   ProcessingState get processingState => _player.processingState;
@@ -101,7 +107,17 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     );
     mediaItem.add(item);
     queueTitle.add('当前播放');
-    queue.add(<MediaItem>[item]);
+    final List<MediaItem> publishedQueue = _mediaQueueFromSnapshot(
+      snapshot,
+      fallbackItem: item,
+    );
+    _activeQueueIndex = _queueIndexFromSnapshot(
+      snapshot,
+      publishedQueue: publishedQueue,
+      fallbackItem: item,
+    );
+    queue.add(publishedQueue);
+    _broadcastPlaybackState(_player.playbackEvent);
     await setUrl(url);
   }
 
@@ -152,15 +168,26 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @override
   Future<void> skipToQueueItem(int index) async {
-    if (index == 0 && mediaItem.valueOrNull != null) {
-      await play();
+    final List<MediaItem> items = queue.valueOrNull ?? const <MediaItem>[];
+    if (index < 0 || index >= items.length) {
+      return;
     }
+    if (index == _activeQueueIndex && mediaItem.valueOrNull != null) {
+      await play();
+      return;
+    }
+    await onSkipToQueueItem?.call(index);
   }
 
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
-    if (this.mediaItem.valueOrNull?.id == mediaItem.id) {
-      await play();
+    final List<MediaItem> items = queue.valueOrNull ?? const <MediaItem>[];
+    final int index = items.indexWhere((MediaItem item) {
+      return item.id == mediaItem.id ||
+          item.extras?['songId'] == mediaItem.extras?['songId'];
+    });
+    if (index >= 0) {
+      await skipToQueueItem(index);
     }
   }
 
@@ -175,7 +202,15 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   @override
   Future<MediaItem?> getMediaItem(String mediaId) async {
     final MediaItem? current = mediaItem.valueOrNull;
-    return current?.id == mediaId ? current : null;
+    if (current?.id == mediaId) {
+      return current;
+    }
+    for (final MediaItem item in queue.valueOrNull ?? const <MediaItem>[]) {
+      if (item.id == mediaId) {
+        return item;
+      }
+    }
+    return null;
   }
 
   @override
@@ -213,7 +248,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
         speed: _player.speed,
-        queueIndex: mediaItem.valueOrNull == null ? null : 0,
+        queueIndex: _activeQueueIndex,
       ),
     );
   }
@@ -266,6 +301,64 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _lastObservedPosition = null;
     _lastPlaybackProgressAt = now;
   }
+}
+
+List<MediaItem> _mediaQueueFromSnapshot(
+  PlayerProbeSnapshot snapshot, {
+  required MediaItem fallbackItem,
+}) {
+  if (snapshot.playlist.isEmpty) {
+    return <MediaItem>[fallbackItem];
+  }
+  return snapshot.playlist
+      .map((FreeMusicSong song) {
+        final bool isCurrent =
+            snapshot.song?.id == song.id &&
+            snapshot.song?.source == song.source;
+        return MediaItem(
+          id: isCurrent ? fallbackItem.id : '${song.source}:${song.id}',
+          title: song.name.isEmpty ? '未知歌曲' : song.name,
+          artist: song.artist.isEmpty ? null : song.artist,
+          duration: song.duration > 0 ? Duration(seconds: song.duration) : null,
+          playable: true,
+          extras: <String, Object?>{
+            'source': song.source,
+            'songId': song.id,
+            if (isCurrent) 'audioUrl': fallbackItem.id,
+            AndroidContentStyle.playableHintKey:
+                AndroidContentStyle.listItemHintValue,
+          },
+        );
+      })
+      .toList(growable: false);
+}
+
+int? _queueIndexFromSnapshot(
+  PlayerProbeSnapshot snapshot, {
+  required List<MediaItem> publishedQueue,
+  required MediaItem fallbackItem,
+}) {
+  if (publishedQueue.isEmpty) {
+    return null;
+  }
+  if (snapshot.currentIndex >= 0 &&
+      snapshot.currentIndex < publishedQueue.length) {
+    return snapshot.currentIndex;
+  }
+  final FreeMusicSong? song = snapshot.song;
+  if (song != null) {
+    final int index = publishedQueue.indexWhere((MediaItem item) {
+      return item.extras?['source'] == song.source &&
+          item.extras?['songId'] == song.id;
+    });
+    if (index >= 0) {
+      return index;
+    }
+  }
+  final int fallbackIndex = publishedQueue.indexWhere(
+    (MediaItem item) => item.id == fallbackItem.id,
+  );
+  return fallbackIndex >= 0 ? fallbackIndex : 0;
 }
 
 AudioProcessingState _mapProcessingState(ProcessingState state) {
