@@ -199,6 +199,166 @@ void main() {
     ]);
   });
 
+  test('NativeAudioController repeats all from queue boundaries', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FreeMusicApi api = _resolvingApi();
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/2.mp3',
+        playing: true,
+        currentIndex: 1,
+        song: FreeMusicSong(
+          id: '2',
+          source: 'kuwo',
+          name: '晴天',
+          artist: '周杰伦',
+          duration: 269,
+        ),
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+        ],
+      ),
+    );
+    await controller.setPlaybackMode(NativePlaybackMode.repeatAll);
+
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.currentIndex, 0);
+    expect(await controller.skipToPrevious(), isTrue);
+    expect(controller.currentIndex, 1);
+  });
+
+  test(
+    'NativeAudioController repeat one reloads the current queue item',
+    () async {
+      final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+      final FreeMusicApi api = _resolvingApi();
+      final NativeAudioController controller = NativeAudioController(
+        player: player,
+        api: api,
+      );
+
+      await controller.syncFromProbe(
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/1.mp3',
+          playing: true,
+          currentIndex: 0,
+          song: FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          playlist: <FreeMusicSong>[
+            FreeMusicSong(
+              id: '1',
+              source: 'kuwo',
+              name: '七里香',
+              artist: '周杰伦',
+              duration: 290,
+            ),
+            FreeMusicSong(
+              id: '2',
+              source: 'kuwo',
+              name: '晴天',
+              artist: '周杰伦',
+              duration: 269,
+            ),
+          ],
+        ),
+      );
+      await controller.setPlaybackMode(NativePlaybackMode.repeatOne);
+      player.calls.clear();
+
+      expect(await controller.skipToNext(), isTrue);
+      expect(controller.currentIndex, 0);
+      expect(player.calls, <String>[
+        'setUrl:https://example.com/1.mp3',
+        'play',
+      ]);
+    },
+  );
+
+  test('NativeAudioController shuffle skips to another queue item', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FreeMusicApi api = _resolvingApi();
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/1.mp3',
+        playing: true,
+        currentIndex: 0,
+        song: FreeMusicSong(
+          id: '1',
+          source: 'kuwo',
+          name: '七里香',
+          artist: '周杰伦',
+          duration: 290,
+        ),
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+        ],
+      ),
+    );
+    await controller.setPlaybackMode(NativePlaybackMode.shuffle);
+
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.currentIndex, 1);
+  });
+
+  test('NativeAudioController persists playback mode', () async {
+    final NativeAudioController firstController = NativeAudioController(
+      player: FakeNativeAudioPlayer(),
+    );
+
+    await firstController.setPlaybackMode(NativePlaybackMode.shuffle);
+
+    final NativeAudioController restoredController = NativeAudioController(
+      player: FakeNativeAudioPlayer(),
+    );
+
+    await restoredController.syncQueueFromProbe(
+      const PlayerProbeSnapshot(audioUrl: '', playing: false),
+    );
+
+    expect(restoredController.playbackMode, NativePlaybackMode.shuffle);
+  });
+
   test('NativeAudioController plays a selected queue index directly', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
     final FreeMusicApi api = FreeMusicApi(
@@ -378,6 +538,18 @@ void main() {
       'play',
     ]);
   });
+}
+
+FreeMusicApi _resolvingApi() {
+  return FreeMusicApi(
+    client: MockClient((http.Request request) async {
+      final String id = request.url.queryParameters['id'] ?? '';
+      return http.Response(
+        '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
+        200,
+      );
+    }),
+  );
 }
 
 class FakeNativeAudioPlayer implements NativeAudioPlayer {

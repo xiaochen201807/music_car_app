@@ -102,11 +102,13 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isCheckingCarLife = false;
   bool _hasAutoCheckedUpdate = false;
   bool _isSearchingMusic = false;
+  bool _syncingSessionPlaybackMode = false;
   int _searchRequestId = 0;
   String _searchError = '';
   String _lastSearchQuery = '';
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
   List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
+  NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
   int _selectedTab = 0;
   int _selectedQueueIndex = 0;
 
@@ -118,6 +120,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     widget.audioHandler?.onSkipToNextTrack = _skipToNextTrack;
     widget.audioHandler?.onSkipToPreviousTrack = _skipToPreviousTrack;
     widget.audioHandler?.onSkipToQueueItem = _skipToQueueItem;
+    widget.audioHandler?.onSetRepeatMode = _setRepeatModeFromSession;
+    widget.audioHandler?.onSetShuffleMode = _setShuffleModeFromSession;
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshCarLifeStatus());
@@ -141,6 +145,12 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     if (widget.audioHandler?.onSkipToQueueItem == _skipToQueueItem) {
       widget.audioHandler?.onSkipToQueueItem = null;
+    }
+    if (widget.audioHandler?.onSetRepeatMode == _setRepeatModeFromSession) {
+      widget.audioHandler?.onSetRepeatMode = null;
+    }
+    if (widget.audioHandler?.onSetShuffleMode == _setShuffleModeFromSession) {
+      widget.audioHandler?.onSetShuffleMode = null;
     }
     unawaited(WakelockPlus.disable());
     unawaited(_nativeAudioController.dispose());
@@ -275,6 +285,81 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     setState(() {
       _selectedQueueIndex = index;
     });
+  }
+
+  Future<void> _cyclePlaybackMode() async {
+    final NativePlaybackMode mode = await _nativeAudioController
+        .cyclePlaybackMode();
+    if (!mounted) {
+      return;
+    }
+    await _syncAudioSessionPlaybackMode(mode);
+    setState(() {
+      _playbackMode = mode;
+    });
+  }
+
+  Future<void> _setRepeatModeFromSession(
+    AudioServiceRepeatMode repeatMode,
+  ) async {
+    if (_syncingSessionPlaybackMode) {
+      return;
+    }
+    final NativePlaybackMode mode;
+    switch (repeatMode) {
+      case AudioServiceRepeatMode.one:
+        mode = NativePlaybackMode.repeatOne;
+      case AudioServiceRepeatMode.all:
+      case AudioServiceRepeatMode.group:
+        mode = NativePlaybackMode.repeatAll;
+      case AudioServiceRepeatMode.none:
+        mode = _playbackMode == NativePlaybackMode.shuffle
+            ? NativePlaybackMode.shuffle
+            : NativePlaybackMode.sequential;
+    }
+    await _applyPlaybackMode(mode, syncSession: false);
+  }
+
+  Future<void> _setShuffleModeFromSession(
+    AudioServiceShuffleMode shuffleMode,
+  ) async {
+    if (_syncingSessionPlaybackMode) {
+      return;
+    }
+    final NativePlaybackMode mode = shuffleMode == AudioServiceShuffleMode.none
+        ? NativePlaybackMode.sequential
+        : NativePlaybackMode.shuffle;
+    await _applyPlaybackMode(mode, syncSession: false);
+  }
+
+  Future<void> _applyPlaybackMode(
+    NativePlaybackMode mode, {
+    required bool syncSession,
+  }) async {
+    await _nativeAudioController.setPlaybackMode(mode);
+    if (!mounted) {
+      return;
+    }
+    if (syncSession) {
+      await _syncAudioSessionPlaybackMode(mode);
+    }
+    setState(() {
+      _playbackMode = mode;
+    });
+  }
+
+  Future<void> _syncAudioSessionPlaybackMode(NativePlaybackMode mode) async {
+    final MusicAudioHandler? handler = widget.audioHandler;
+    if (handler == null) {
+      return;
+    }
+    _syncingSessionPlaybackMode = true;
+    try {
+      await handler.setRepeatMode(_repeatModeForNativeMode(mode));
+      await handler.setShuffleMode(_shuffleModeForNativeMode(mode));
+    } finally {
+      _syncingSessionPlaybackMode = false;
+    }
   }
 
   Future<void> _togglePlayback(bool playing) async {
@@ -488,6 +573,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               searchError: _searchError,
               lastSearchQuery: _lastSearchQuery,
               playbackState: playbackState,
+              playbackMode: _playbackMode,
               currentTrack: currentTrack,
               carLifeStatus: _carLifeStatus,
               updateBusy: _isCheckingUpdate || _isInstallingUpdate,
@@ -505,6 +591,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
                 unawaited(_playSearchResult(index));
               },
               onPlayPause: () => _togglePlayback(playbackState.playing),
+              onPlaybackMode: () {
+                unawaited(_cyclePlaybackMode());
+              },
               onPrevious: _skipToPreviousTrack,
               onNext: _skipToNextTrack,
               onOpenCarLife: _openCarLife,
@@ -596,6 +685,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.searchError,
     required this.lastSearchQuery,
     required this.playbackState,
+    required this.playbackMode,
     required this.currentTrack,
     required this.carLifeStatus,
     required this.updateBusy,
@@ -605,6 +695,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onSearch,
     required this.onPlaySearchResult,
     required this.onPlayPause,
+    required this.onPlaybackMode,
     required this.onPrevious,
     required this.onNext,
     required this.onOpenCarLife,
@@ -621,6 +712,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final String searchError;
   final String lastSearchQuery;
   final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
   final _DemoTrack currentTrack;
   final CarLifeStatus carLifeStatus;
   final bool updateBusy;
@@ -630,6 +722,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final VoidCallback onSearch;
   final ValueChanged<int> onPlaySearchResult;
   final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onOpenCarLife;
@@ -684,7 +777,9 @@ class _NativeMusicScaffold extends StatelessWidget {
                             child: _NowPlayingPanel(
                               track: currentTrack,
                               playbackState: playbackState,
+                              playbackMode: playbackMode,
                               onPlayPause: onPlayPause,
+                              onPlaybackMode: onPlaybackMode,
                               onPrevious: onPrevious,
                               onNext: onNext,
                             ),
@@ -707,7 +802,9 @@ class _NativeMusicScaffold extends StatelessWidget {
                     _MiniPlayerBar(
                       track: currentTrack,
                       playbackState: playbackState,
+                      playbackMode: playbackMode,
                       onPlayPause: onPlayPause,
+                      onPlaybackMode: onPlaybackMode,
                       onPrevious: onPrevious,
                       onNext: onNext,
                     ),
@@ -1715,14 +1812,18 @@ class _NowPlayingPanel extends StatelessWidget {
   const _NowPlayingPanel({
     required this.track,
     required this.playbackState,
+    required this.playbackMode,
     required this.onPlayPause,
+    required this.onPlaybackMode,
     required this.onPrevious,
     required this.onNext,
   });
 
   final _DemoTrack track;
   final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
   final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -1811,6 +1912,12 @@ class _NowPlayingPanel extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
+              _TransportButton(
+                icon: _iconForPlaybackMode(playbackMode),
+                label: _labelForPlaybackMode(playbackMode),
+                onTap: onPlaybackMode,
+              ),
+              const SizedBox(width: 18),
               _TransportButton(
                 icon: Icons.skip_previous_rounded,
                 label: '上一曲',
@@ -2042,14 +2149,18 @@ class _MiniPlayerBar extends StatelessWidget {
   const _MiniPlayerBar({
     required this.track,
     required this.playbackState,
+    required this.playbackMode,
     required this.onPlayPause,
+    required this.onPlaybackMode,
     required this.onPrevious,
     required this.onNext,
   });
 
   final _DemoTrack track;
   final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
   final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -2106,6 +2217,8 @@ class _MiniPlayerBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 22),
+          _ModePill(mode: playbackMode, onTap: onPlaybackMode),
+          const SizedBox(width: 10),
           _MiniTransportButton(
             icon: Icons.skip_previous_rounded,
             onTap: onPrevious,
@@ -2198,6 +2311,51 @@ class _MiniTransportButton extends StatelessWidget {
               ? _AppColors.primary
               : Colors.white.withValues(alpha: 0.08),
           shape: const CircleBorder(),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModePill extends StatelessWidget {
+  const _ModePill({required this.mode, required this.onTap});
+
+  final NativePlaybackMode mode;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: _labelForPlaybackMode(mode),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                _iconForPlaybackMode(mode),
+                color: _AppColors.textSecondary,
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _labelForPlaybackMode(mode),
+                style: const TextStyle(
+                  color: _AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2465,4 +2623,48 @@ String _formatDuration(Duration duration) {
   final int minutes = duration.inMinutes;
   final int seconds = duration.inSeconds.remainder(60);
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+IconData _iconForPlaybackMode(NativePlaybackMode mode) {
+  switch (mode) {
+    case NativePlaybackMode.sequential:
+      return Icons.trending_flat_rounded;
+    case NativePlaybackMode.repeatAll:
+      return Icons.repeat_rounded;
+    case NativePlaybackMode.repeatOne:
+      return Icons.repeat_one_rounded;
+    case NativePlaybackMode.shuffle:
+      return Icons.shuffle_rounded;
+  }
+}
+
+String _labelForPlaybackMode(NativePlaybackMode mode) {
+  switch (mode) {
+    case NativePlaybackMode.sequential:
+      return '顺序';
+    case NativePlaybackMode.repeatAll:
+      return '列表循环';
+    case NativePlaybackMode.repeatOne:
+      return '单曲循环';
+    case NativePlaybackMode.shuffle:
+      return '随机';
+  }
+}
+
+AudioServiceRepeatMode _repeatModeForNativeMode(NativePlaybackMode mode) {
+  switch (mode) {
+    case NativePlaybackMode.repeatOne:
+      return AudioServiceRepeatMode.one;
+    case NativePlaybackMode.repeatAll:
+      return AudioServiceRepeatMode.all;
+    case NativePlaybackMode.sequential:
+    case NativePlaybackMode.shuffle:
+      return AudioServiceRepeatMode.none;
+  }
+}
+
+AudioServiceShuffleMode _shuffleModeForNativeMode(NativePlaybackMode mode) {
+  return mode == NativePlaybackMode.shuffle
+      ? AudioServiceShuffleMode.all
+      : AudioServiceShuffleMode.none;
 }

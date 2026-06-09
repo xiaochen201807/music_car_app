@@ -1,11 +1,43 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'free_music_api.dart';
+
+enum NativePlaybackMode {
+  sequential,
+  repeatOne,
+  repeatAll,
+  shuffle;
+
+  String get storageValue => name;
+
+  NativePlaybackMode get nextMode {
+    switch (this) {
+      case NativePlaybackMode.sequential:
+        return NativePlaybackMode.repeatAll;
+      case NativePlaybackMode.repeatAll:
+        return NativePlaybackMode.repeatOne;
+      case NativePlaybackMode.repeatOne:
+        return NativePlaybackMode.shuffle;
+      case NativePlaybackMode.shuffle:
+        return NativePlaybackMode.sequential;
+    }
+  }
+
+  static NativePlaybackMode fromStorageValue(String value) {
+    for (final NativePlaybackMode mode in NativePlaybackMode.values) {
+      if (mode.storageValue == value) {
+        return mode;
+      }
+    }
+    return NativePlaybackMode.sequential;
+  }
+}
 
 class PlayerProbeSnapshot {
   const PlayerProbeSnapshot({
@@ -177,12 +209,33 @@ class NativeAudioController {
   PlayerProbeSnapshot? _loadedSnapshot;
   List<FreeMusicSong> _playlist = const <FreeMusicSong>[];
   int _currentIndex = -1;
+  NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
+  final math.Random _random = math.Random();
 
   @visibleForTesting
   List<FreeMusicSong> get playlist => _playlist;
 
   @visibleForTesting
   int get currentIndex => _currentIndex;
+
+  @visibleForTesting
+  NativePlaybackMode get playbackMode => _playbackMode;
+
+  Future<NativePlaybackMode> cyclePlaybackMode() async {
+    await _restoreFuture;
+    await setPlaybackMode(_playbackMode.nextMode);
+    return _playbackMode;
+  }
+
+  Future<void> setPlaybackMode(NativePlaybackMode mode) async {
+    await _restoreFuture;
+    if (_playbackMode == mode) {
+      return;
+    }
+    _playbackMode = mode;
+    await _persistState();
+    debugPrint('[native-audio] playback mode set: ${mode.storageValue}');
+  }
 
   Future<bool> syncFromProbe(PlayerProbeSnapshot snapshot) async {
     await _restoreFuture;
@@ -324,15 +377,42 @@ class NativeAudioController {
       );
       return false;
     }
-    final int targetIndex = _currentIndex + offset;
-    if (targetIndex < 0 || targetIndex >= _playlist.length) {
+    final int targetIndex = _targetIndexForOffset(offset);
+    if (targetIndex < 0) {
       debugPrint(
-        '[native-audio] skip ignored: target=$targetIndex out of range '
-        'length=${_playlist.length}',
+        '[native-audio] skip ignored: target=$targetIndex mode='
+        '${_playbackMode.storageValue} length=${_playlist.length}',
       );
       return false;
     }
     return _loadQueueIndex(targetIndex);
+  }
+
+  int _targetIndexForOffset(int offset) {
+    if (_playlist.isEmpty || _currentIndex < 0) {
+      return -1;
+    }
+    if (_playbackMode == NativePlaybackMode.repeatOne) {
+      return _currentIndex;
+    }
+    if (_playbackMode == NativePlaybackMode.shuffle && _playlist.length > 1) {
+      int targetIndex = _random.nextInt(_playlist.length - 1);
+      if (targetIndex >= _currentIndex) {
+        targetIndex += 1;
+      }
+      return targetIndex;
+    }
+    final int targetIndex = _currentIndex + offset;
+    if (targetIndex >= 0 && targetIndex < _playlist.length) {
+      return targetIndex;
+    }
+    if (_playbackMode == NativePlaybackMode.repeatAll) {
+      if (targetIndex < 0) {
+        return _playlist.length - 1;
+      }
+      return 0;
+    }
+    return -1;
   }
 
   Future<bool> _loadQueueIndex(int index) async {
@@ -406,6 +486,9 @@ class NativeAudioController {
       );
       _playlist = List<FreeMusicSong>.unmodifiable(restoredPlaylist);
       _currentIndex = _intValue(decoded['currentIndex'], defaultValue: -1);
+      _playbackMode = NativePlaybackMode.fromStorageValue(
+        _stringValue(decoded['playbackMode']),
+      );
       _loadedUrl = _stringValue(decoded['loadedUrl']);
       _loadedSnapshot = restoredSnapshot;
       if (_currentIndex < 0 && restoredSnapshot != null) {
@@ -413,7 +496,8 @@ class NativeAudioController {
       }
       debugPrint(
         '[native-audio] restored: loaded=${_loadedUrl.isNotEmpty} '
-        'queue=${_playlist.length} index=$_currentIndex',
+        'queue=${_playlist.length} index=$_currentIndex '
+        'mode=${_playbackMode.storageValue}',
       );
     } catch (error, stackTrace) {
       debugPrint('[native-audio] restore failed: $error');
@@ -425,20 +509,24 @@ class NativeAudioController {
 
   Future<void> _persistState() async {
     try {
-      if (_loadedUrl.isEmpty && _playlist.isEmpty) {
+      if (_loadedUrl.isEmpty &&
+          _playlist.isEmpty &&
+          _playbackMode == NativePlaybackMode.sequential) {
         return;
       }
       final SharedPreferences preferences = await _getPreferences();
       final Map<String, Object?> payload = <String, Object?>{
         'loadedUrl': _loadedUrl,
         'currentIndex': _currentIndex,
+        'playbackMode': _playbackMode.storageValue,
         'playlist': _playlist.map(_songToJson).toList(growable: false),
         'snapshot': _snapshotToJson(_loadedSnapshot),
       };
       await preferences.setString(_statePreferenceKey, jsonEncode(payload));
       debugPrint(
         '[native-audio] persisted: loaded=${_loadedUrl.isNotEmpty} '
-        'queue=${_playlist.length} index=$_currentIndex',
+        'queue=${_playlist.length} index=$_currentIndex '
+        'mode=${_playbackMode.storageValue}',
       );
     } catch (error, stackTrace) {
       debugPrint('[native-audio] persist failed: $error');

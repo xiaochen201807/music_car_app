@@ -45,7 +45,7 @@ The native car-media architecture is:
 6. `[x]` `skipToQueueItem(index)` plays a selected queue item directly.
 7. `[~]` `skipToNext`, `skipToPrevious`, and automatic completion use the native
    queue path; real media-button/head-unit validation is still pending.
-8. `[ ]` Repeat, shuffle, and sequential modes are represented natively.
+8. `[x]` Repeat, shuffle, and sequential modes are represented natively.
 9. `[x]` Queue and playback state persist locally for app/process restarts.
 
 Implementation record:
@@ -101,7 +101,7 @@ Exit criteria:
 - `[x]` Publish complete `audio_service.queue` metadata.
 - `[x]` Publish correct `PlaybackState.queueIndex`.
 - `[x]` Implement `skipToQueueItem(index)`.
-- `[ ]` Implement repeat, shuffle, and sequential playback modes.
+- `[x]` Implement repeat, shuffle, and sequential playback modes.
 - `[~]` Let the native queue decide the next item after completion.
 - `[x]` Persist queue and current playback item locally.
 

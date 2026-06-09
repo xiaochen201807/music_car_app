@@ -17,6 +17,8 @@ Current evidence:
 - Playback uses `audio_service` plus `just_audio`.
 - `NativeAudioController` can resolve FreeMusic song URLs, persist a queue, and
   skip through a synced probe queue.
+- Native playback modes now cover sequential, repeat-all, repeat-one, and
+  shuffle behavior, and the selected mode is persisted.
 - Android exposes a CarLife MethodChannel for package probe, launch fallback,
   and a placeholder playback sync call.
 - `docs/development-roadmap.md` tracks the larger implementation phases.
@@ -25,7 +27,7 @@ Open gaps toward the full goal:
 
 - Recommendations, playlists, artwork image rendering, and lyrics are not yet
   fully API-backed in the Flutter UI.
-- Repeat modes and shuffle mode need native behavior.
+- Repeat and shuffle behavior still need real media-button/head-unit validation.
 - CarLife SDK/AAR integration is still missing; current support is package
   probe and launch fallback only.
 - Real Android head-unit and CarLife-capable device validation is still needed.
@@ -71,6 +73,31 @@ Implemented in this increment:
 Verification in this increment:
 
 - `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+Implemented in this increment:
+
+- Added `NativePlaybackMode` with sequential, repeat-all, repeat-one, and
+  shuffle modes.
+- `NativeAudioController.skipToNext` and `skipToPrevious` now respect the
+  selected playback mode, including queue wrapping and random item selection.
+- Playback mode is persisted with the native queue state and restored after app
+  restart.
+- `MusicAudioHandler` now publishes `AudioServiceRepeatMode` and
+  `AudioServiceShuffleMode` through `PlaybackState`, and accepts media-session
+  repeat/shuffle commands.
+- The native UI exposes a playback-mode control in both the main now-playing
+  panel and mini-player.
+
+Verification in this increment:
+
+- `dart format lib/native_audio_controller.dart lib/music_audio_handler.dart lib/main.dart test/native_audio_controller_test.dart test/music_audio_handler_test.dart`
 - `flutter analyze`
 - `flutter test`
 

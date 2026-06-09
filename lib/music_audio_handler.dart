@@ -51,9 +51,13 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
   Future<void> Function(int index)? onSkipToQueueItem;
+  Future<void> Function(AudioServiceRepeatMode repeatMode)? onSetRepeatMode;
+  Future<void> Function(AudioServiceShuffleMode shuffleMode)? onSetShuffleMode;
   bool _handlingPlayCallback = false;
   bool _autoSkippingToNext = false;
   int? _activeQueueIndex;
+  AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
+  AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
   Duration? _lastObservedPosition;
   DateTime? _lastPlaybackProgressAt;
 
@@ -192,6 +196,20 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    _repeatMode = repeatMode;
+    _broadcastPlaybackState(_player.playbackEvent);
+    await onSetRepeatMode?.call(repeatMode);
+  }
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    _shuffleMode = shuffleMode;
+    _broadcastPlaybackState(_player.playbackEvent);
+    await onSetShuffleMode?.call(shuffleMode);
+  }
+
+  @override
   Future<List<MediaItem>> getChildren(
     String parentMediaId, [
     Map<String, dynamic>? options,
@@ -249,6 +267,8 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         bufferedPosition: _player.bufferedPosition,
         speed: _player.speed,
         queueIndex: _activeQueueIndex,
+        repeatMode: _repeatMode,
+        shuffleMode: _shuffleMode,
       ),
     );
   }

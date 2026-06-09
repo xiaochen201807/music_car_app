@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_car_app/free_music_api.dart';
@@ -243,6 +244,36 @@ void main() {
       await handler.dispose();
     },
   );
+
+  test('setRepeatMode and setShuffleMode publish playback state', () async {
+    final MusicAudioHandler handler = MusicAudioHandler(
+      player: _FakeNativeAudioPlayer(),
+    );
+    final List<AudioServiceRepeatMode> repeatModes = <AudioServiceRepeatMode>[];
+    final List<AudioServiceShuffleMode> shuffleModes =
+        <AudioServiceShuffleMode>[];
+    handler.onSetRepeatMode = (AudioServiceRepeatMode repeatMode) async {
+      repeatModes.add(repeatMode);
+    };
+    handler.onSetShuffleMode = (AudioServiceShuffleMode shuffleMode) async {
+      shuffleModes.add(shuffleMode);
+    };
+
+    await handler.setRepeatMode(AudioServiceRepeatMode.all);
+    await handler.setShuffleMode(AudioServiceShuffleMode.all);
+
+    expect(handler.playbackState.value.repeatMode, AudioServiceRepeatMode.all);
+    expect(
+      handler.playbackState.value.shuffleMode,
+      AudioServiceShuffleMode.all,
+    );
+    expect(repeatModes, <AudioServiceRepeatMode>[AudioServiceRepeatMode.all]);
+    expect(shuffleModes, <AudioServiceShuffleMode>[
+      AudioServiceShuffleMode.all,
+    ]);
+
+    await handler.dispose();
+  });
 
   test(
     'checkForPlaybackStall skips next after ten seconds without progress',
