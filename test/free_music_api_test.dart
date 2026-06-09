@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:music_car_app/free_music_api.dart';
@@ -121,6 +122,68 @@ void main() {
     expect(resolved?.url, 'https://example.com/song.mp3');
     expect(resolved?.source, 'kuwo');
     expect(resolved?.direct, isTrue);
+  });
+
+  test('FreeMusicApi fetches and parses synced lyrics', () async {
+    late Uri requestedUri;
+    late Map<String, String> requestedHeaders;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        requestedHeaders = request.headers;
+        return http.Response.bytes(
+          utf8.encode('[00:01.50]第一句\n[00:03][00:04.25]第二句'),
+          200,
+          headers: <String, String>{
+            'content-type': 'text/plain; charset=utf-8',
+          },
+        );
+      }),
+    );
+
+    final FreeMusicLyrics lyrics = await api.fetchLyrics(
+      const FreeMusicSong(
+        id: '228908',
+        source: 'kuwo',
+        name: '晴天',
+        artist: '周杰伦',
+        duration: 269,
+      ),
+    );
+
+    expect(requestedUri.path, '/api/v1/freemusic/lyric');
+    expect(requestedUri.queryParameters['id'], '228908');
+    expect(requestedUri.queryParameters['source'], 'kuwo');
+    expect(requestedUri.queryParameters['name'], '晴天');
+    expect(requestedUri.queryParameters['artist'], '周杰伦');
+    expect(requestedHeaders['Referer'], 'https://music.sy110.eu.org/music');
+    expect(lyrics.raw, contains('第一句'));
+    expect(lyrics.lines, hasLength(3));
+    expect(lyrics.lines.first.time, const Duration(milliseconds: 1500));
+    expect(lyrics.lines.first.text, '第一句');
+    expect(lyrics.lines.last.time, const Duration(milliseconds: 4250));
+    expect(lyrics.lines.last.text, '第二句');
+  });
+
+  test('FreeMusicApi returns empty lyrics for incomplete songs', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        fail('Request should not be sent for incomplete songs');
+      }),
+    );
+
+    final FreeMusicLyrics lyrics = await api.fetchLyrics(
+      const FreeMusicSong(
+        id: '',
+        source: '',
+        name: '',
+        artist: '',
+        duration: 0,
+      ),
+    );
+
+    expect(lyrics.isEmpty, isTrue);
   });
 
   test('FreeMusicApi returns null when song cannot be resolved', () async {

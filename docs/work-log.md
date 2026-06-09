@@ -17,6 +17,8 @@ Current evidence:
 - Search result artwork is retained in the native song model, persisted with the
   queue, published to `audio_service.queue`, and shown in the native UI when a
   cover URL is available.
+- The app can fetch FreeMusic synced LRC lyrics and show them in a native lyric
+  sheet from the mini-player.
 - Playback uses `audio_service` plus `just_audio`.
 - `NativeAudioController` can resolve FreeMusic song URLs, persist a queue, and
   skip through a synced probe queue.
@@ -28,9 +30,9 @@ Current evidence:
 
 Open gaps toward the full goal:
 
-- Recommendations, playlists, artwork image rendering, and lyrics are not yet
-  fully API-backed in the Flutter UI.
-- Lyrics and recommendation/playlist surfaces are not fully API-backed yet.
+- Recommendations and playlist surfaces are not fully API-backed yet.
+- Lyrics are API-backed for the current search/playback queue, but lyric timing
+  is not yet synchronized to the playback position.
 - Repeat, shuffle, artwork loading, and queue behavior still need real
   media-button/head-unit and real-service validation.
 - CarLife SDK/AAR integration is still missing; current support is package
@@ -39,9 +41,9 @@ Open gaps toward the full goal:
 
 Next implementation focus:
 
-- Publish the complete playback queue through `audio_service`.
-- Route `skipToQueueItem` through the native queue.
-- Add repeat/shuffle state handling in the native audio controller.
+- Add recommendation and playlist loading.
+- Synchronize lyric highlighting to playback position.
+- Continue CarLife SDK integration beyond package probe and launch fallback.
 - Keep tests and roadmap status updated with each increment.
 
 Implemented in this increment:
@@ -74,6 +76,29 @@ Implemented in this increment:
   page into the native queue.
 - The queue panel now shows the real search-backed queue after playback starts,
   with the existing demo queue retained only as an empty-state placeholder.
+
+Verification in this increment:
+
+- `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+Implemented in this increment:
+
+- Discovered the FreeMusic lyric endpoint used by the remote frontend:
+  `/lyric?id=...&source=...&name=...&artist=...`.
+- Added `FreeMusicApi.fetchLyrics`, `FreeMusicLyrics`, and
+  `FreeMusicLyricLine` with LRC timestamp parsing and multi-timestamp line
+  expansion.
+- Search result playback and queue item selection now trigger lyric loading for
+  the active `FreeMusicSong`.
+- The mini-player lyric control opens a native lyric sheet with loading, error,
+  empty, raw-text, and parsed synced-line states.
 
 Verification in this increment:
 

@@ -102,10 +102,14 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isCheckingCarLife = false;
   bool _hasAutoCheckedUpdate = false;
   bool _isSearchingMusic = false;
+  bool _isLoadingLyrics = false;
   bool _syncingSessionPlaybackMode = false;
   int _searchRequestId = 0;
   String _searchError = '';
+  String _lyricsError = '';
   String _lastSearchQuery = '';
+  FreeMusicLyrics? _currentLyrics;
+  FreeMusicSong? _currentSong;
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
   List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
   NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
@@ -274,7 +278,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     setState(() {
       _playbackQueue = List<FreeMusicSong>.unmodifiable(_searchResults);
       _selectedQueueIndex = index;
+      _currentSong = song;
     });
+    unawaited(_loadLyricsForSong(song));
   }
 
   Future<void> _skipToQueueItem(int index) async {
@@ -284,7 +290,69 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     setState(() {
       _selectedQueueIndex = index;
+      if (index >= 0 && index < _playbackQueue.length) {
+        _currentSong = _playbackQueue[index];
+      }
     });
+    if (index >= 0 && index < _playbackQueue.length) {
+      unawaited(_loadLyricsForSong(_playbackQueue[index]));
+    }
+  }
+
+  Future<void> _loadLyricsForSong(FreeMusicSong song) async {
+    if (!song.canResolve) {
+      return;
+    }
+    setState(() {
+      _isLoadingLyrics = true;
+      _lyricsError = '';
+      _currentLyrics = null;
+    });
+    try {
+      final FreeMusicLyrics lyrics = await _freeMusicApi.fetchLyrics(song);
+      if (!mounted ||
+          _currentSong?.id != song.id ||
+          _currentSong?.source != song.source) {
+        return;
+      }
+      setState(() {
+        _currentLyrics = lyrics;
+        _isLoadingLyrics = false;
+      });
+    } on FreeMusicApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lyricsError = error.message;
+        _isLoadingLyrics = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lyricsError = '歌词加载失败：$error';
+        _isLoadingLyrics = false;
+      });
+    }
+  }
+
+  void _showLyricsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return _LyricsSheet(
+          songTitle: _currentSong?.name ?? '',
+          artist: _currentSong?.artist ?? '',
+          lyrics: _currentLyrics,
+          loading: _isLoadingLyrics,
+          error: _lyricsError,
+        );
+      },
+    );
   }
 
   Future<void> _cyclePlaybackMode() async {
@@ -574,6 +642,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               lastSearchQuery: _lastSearchQuery,
               playbackState: playbackState,
               playbackMode: _playbackMode,
+              lyricsAvailable: _currentLyrics?.lines.isNotEmpty ?? false,
+              lyricsBusy: _isLoadingLyrics,
               currentTrack: currentTrack,
               carLifeStatus: _carLifeStatus,
               updateBusy: _isCheckingUpdate || _isInstallingUpdate,
@@ -594,6 +664,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPlaybackMode: () {
                 unawaited(_cyclePlaybackMode());
               },
+              onLyrics: _showLyricsSheet,
               onPrevious: _skipToPreviousTrack,
               onNext: _skipToNextTrack,
               onOpenCarLife: _openCarLife,
@@ -689,6 +760,8 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.lastSearchQuery,
     required this.playbackState,
     required this.playbackMode,
+    required this.lyricsAvailable,
+    required this.lyricsBusy,
     required this.currentTrack,
     required this.carLifeStatus,
     required this.updateBusy,
@@ -699,6 +772,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onPlaySearchResult,
     required this.onPlayPause,
     required this.onPlaybackMode,
+    required this.onLyrics,
     required this.onPrevious,
     required this.onNext,
     required this.onOpenCarLife,
@@ -716,6 +790,8 @@ class _NativeMusicScaffold extends StatelessWidget {
   final String lastSearchQuery;
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
+  final bool lyricsAvailable;
+  final bool lyricsBusy;
   final _DemoTrack currentTrack;
   final CarLifeStatus carLifeStatus;
   final bool updateBusy;
@@ -726,6 +802,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final ValueChanged<int> onPlaySearchResult;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
+  final VoidCallback onLyrics;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onOpenCarLife;
@@ -806,8 +883,11 @@ class _NativeMusicScaffold extends StatelessWidget {
                       track: currentTrack,
                       playbackState: playbackState,
                       playbackMode: playbackMode,
+                      lyricsAvailable: lyricsAvailable,
+                      lyricsBusy: lyricsBusy,
                       onPlayPause: onPlayPause,
                       onPlaybackMode: onPlaybackMode,
+                      onLyrics: onLyrics,
                       onPrevious: onPrevious,
                       onNext: onNext,
                     ),
@@ -2171,8 +2251,11 @@ class _MiniPlayerBar extends StatelessWidget {
     required this.track,
     required this.playbackState,
     required this.playbackMode,
+    required this.lyricsAvailable,
+    required this.lyricsBusy,
     required this.onPlayPause,
     required this.onPlaybackMode,
+    required this.onLyrics,
     required this.onPrevious,
     required this.onNext,
   });
@@ -2180,8 +2263,11 @@ class _MiniPlayerBar extends StatelessWidget {
   final _DemoTrack track;
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
+  final bool lyricsAvailable;
+  final bool lyricsBusy;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
+  final VoidCallback onLyrics;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -2234,13 +2320,10 @@ class _MiniPlayerBar extends StatelessWidget {
               ],
             ),
           ),
-          const Text(
-            '歌词',
-            style: TextStyle(
-              color: _AppColors.textSecondary,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
+          _LyricsButton(
+            available: lyricsAvailable,
+            busy: lyricsBusy,
+            onTap: onLyrics,
           ),
           const SizedBox(width: 22),
           _ModePill(mode: playbackMode, onTap: onPlaybackMode),
@@ -2384,6 +2467,229 @@ class _ModePill extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LyricsButton extends StatelessWidget {
+  const _LyricsButton({
+    required this.available,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final bool available;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: available
+              ? _AppColors.primary.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: available
+                ? _AppColors.primary.withValues(alpha: 0.36)
+                : Colors.white.withValues(alpha: 0.10),
+          ),
+        ),
+        child: Row(
+          children: <Widget>[
+            if (busy)
+              const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(
+                Icons.subtitles_rounded,
+                color: available
+                    ? _AppColors.primary
+                    : _AppColors.textSecondary,
+                size: 18,
+              ),
+            const SizedBox(width: 6),
+            Text(
+              '歌词',
+              style: TextStyle(
+                color: available
+                    ? _AppColors.textPrimary
+                    : _AppColors.textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LyricsSheet extends StatelessWidget {
+  const _LyricsSheet({
+    required this.songTitle,
+    required this.artist,
+    required this.lyrics,
+    required this.loading,
+    required this.error,
+  });
+
+  final String songTitle;
+  final String artist;
+  final FreeMusicLyrics? lyrics;
+  final bool loading;
+  final String error;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: _GlassCard(
+          height: MediaQuery.sizeOf(context).height * 0.78,
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          songTitle.isEmpty ? '歌词' : songTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _AppColors.textPrimary,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          artist.isEmpty ? '当前歌曲' : artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _AppColors.textSecondary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                    color: _AppColors.textSecondary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _LyricsContent(
+                  lyrics: lyrics,
+                  loading: loading,
+                  error: error,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LyricsContent extends StatelessWidget {
+  const _LyricsContent({
+    required this.lyrics,
+    required this.loading,
+    required this.error,
+  });
+
+  final FreeMusicLyrics? lyrics;
+  final bool loading;
+  final String error;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error.isNotEmpty) {
+      return _SearchMessage(
+        icon: Icons.subtitles_off_rounded,
+        title: '歌词加载失败',
+        message: error,
+      );
+    }
+    final FreeMusicLyrics? current = lyrics;
+    if (current == null || current.isEmpty) {
+      return const _SearchMessage(
+        icon: Icons.subtitles_off_rounded,
+        title: '暂无歌词',
+        message: '播放搜索结果后会自动加载歌词。',
+      );
+    }
+    final List<FreeMusicLyricLine> lines = current.lines;
+    if (lines.isEmpty) {
+      return SingleChildScrollView(
+        child: Text(
+          current.raw,
+          style: const TextStyle(
+            color: _AppColors.textSecondary,
+            fontSize: 18,
+            height: 1.7,
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: lines.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (BuildContext context, int index) {
+        final FreeMusicLyricLine line = lines[index];
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SizedBox(
+              width: 58,
+              child: Text(
+                _formatDuration(line.time),
+                style: const TextStyle(
+                  color: _AppColors.textMuted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                line.text,
+                style: const TextStyle(
+                  color: _AppColors.textPrimary,
+                  fontSize: 20,
+                  height: 1.38,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

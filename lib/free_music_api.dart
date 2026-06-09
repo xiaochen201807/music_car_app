@@ -48,6 +48,22 @@ class FreeMusicResolvedUrl {
   final bool direct;
 }
 
+class FreeMusicLyricLine {
+  const FreeMusicLyricLine({required this.time, required this.text});
+
+  final Duration time;
+  final String text;
+}
+
+class FreeMusicLyrics {
+  const FreeMusicLyrics({required this.raw, required this.lines});
+
+  final String raw;
+  final List<FreeMusicLyricLine> lines;
+
+  bool get isEmpty => raw.trim().isEmpty && lines.isEmpty;
+}
+
 class FreeMusicApi {
   FreeMusicApi({
     http.Client? client,
@@ -152,9 +168,75 @@ class FreeMusicApi {
     );
   }
 
+  Future<FreeMusicLyrics> fetchLyrics(FreeMusicSong song) async {
+    if (!song.canResolve) {
+      return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
+    }
+    final Uri uri = Uri.parse('$baseUri/lyric').replace(
+      queryParameters: <String, String>{
+        'id': song.id,
+        'source': song.source,
+        'name': song.name,
+        'artist': song.artist,
+      },
+    );
+    final http.Response response = await _client.get(
+      uri,
+      headers: const <String, String>{
+        'Accept': 'text/plain, application/json',
+        'Referer': 'https://music.sy110.eu.org/music',
+        'User-Agent': 'Mozilla/5.0 MusicCarApp',
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        'lyric failed with HTTP ${response.statusCode}',
+      );
+    }
+    final String raw = response.body.trim();
+    return FreeMusicLyrics(raw: raw, lines: _parseLyricLines(raw));
+  }
+
   void close() {
     _client.close();
   }
+}
+
+List<FreeMusicLyricLine> _parseLyricLines(String raw) {
+  final RegExp timePattern = RegExp(r'\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]');
+  final List<FreeMusicLyricLine> lines = <FreeMusicLyricLine>[];
+  for (final String rawLine in raw.split(RegExp(r'\r?\n'))) {
+    final Iterable<RegExpMatch> matches = timePattern.allMatches(rawLine);
+    if (matches.isEmpty) {
+      continue;
+    }
+    final String text = rawLine.replaceAll(timePattern, '').trim();
+    if (text.isEmpty) {
+      continue;
+    }
+    for (final RegExpMatch match in matches) {
+      final int minutes = int.tryParse(match.group(1) ?? '') ?? 0;
+      final int seconds = int.tryParse(match.group(2) ?? '') ?? 0;
+      final String fraction = match.group(3) ?? '';
+      final int milliseconds = fraction.isEmpty
+          ? 0
+          : int.parse(fraction.padRight(3, '0').substring(0, 3));
+      lines.add(
+        FreeMusicLyricLine(
+          time: Duration(
+            minutes: minutes,
+            seconds: seconds,
+            milliseconds: milliseconds,
+          ),
+          text: text,
+        ),
+      );
+    }
+  }
+  lines.sort((FreeMusicLyricLine a, FreeMusicLyricLine b) {
+    return a.time.compareTo(b.time);
+  });
+  return List<FreeMusicLyricLine>.unmodifiable(lines);
 }
 
 List<FreeMusicSong> _songsFromJson(Object? value) {
