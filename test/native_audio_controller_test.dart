@@ -164,6 +164,8 @@ void main() {
           name: '七里香',
           artist: '周杰伦',
           duration: 290,
+          album: '七里香',
+          cover: 'https://example.com/cover-1.jpg',
         ),
         playlist: <FreeMusicSong>[
           FreeMusicSong(
@@ -172,6 +174,8 @@ void main() {
             name: '七里香',
             artist: '周杰伦',
             duration: 290,
+            album: '七里香',
+            cover: 'https://example.com/cover-1.jpg',
           ),
           FreeMusicSong(
             id: '2',
@@ -316,6 +320,8 @@ void main() {
           name: '七里香',
           artist: '周杰伦',
           duration: 290,
+          album: '七里香',
+          cover: 'https://example.com/cover-1.jpg',
         ),
         playlist: <FreeMusicSong>[
           FreeMusicSong(
@@ -324,6 +330,8 @@ void main() {
             name: '七里香',
             artist: '周杰伦',
             duration: 290,
+            album: '七里香',
+            cover: 'https://example.com/cover-1.jpg',
           ),
           FreeMusicSong(
             id: '2',
@@ -493,6 +501,8 @@ void main() {
           name: '七里香',
           artist: '周杰伦',
           duration: 290,
+          album: '七里香',
+          cover: 'https://example.com/cover-1.jpg',
         ),
         playlist: <FreeMusicSong>[
           FreeMusicSong(
@@ -501,6 +511,8 @@ void main() {
             name: '七里香',
             artist: '周杰伦',
             duration: 290,
+            album: '七里香',
+            cover: 'https://example.com/cover-1.jpg',
           ),
           FreeMusicSong(
             id: '2',
@@ -529,6 +541,11 @@ void main() {
     );
 
     expect(await restoredController.resumePlayback(), isTrue);
+    expect(restoredController.playlist.first.album, '七里香');
+    expect(
+      restoredController.playlist.first.cover,
+      'https://example.com/cover-1.jpg',
+    );
     expect(await restoredController.skipToNext(), isTrue);
 
     expect(restoredPlayer.calls, <String>[

@@ -63,6 +63,7 @@ class PlayerProbeSnapshot {
         name: _stringValue(payload['title']),
         artist: _stringValue(payload['artist']),
         duration: _intValue(payload['duration']),
+        cover: _stringValue(payload['coverUrl'] ?? payload['cover']),
       ),
       playlist: _playlistValue(payload['playlist']),
       currentIndex: _intValue(payload['currentIndex'], defaultValue: -1),
@@ -428,6 +429,7 @@ class NativeAudioController {
       currentIndex: index,
       title: song.name,
       artist: song.artist,
+      coverUrl: song.cover,
       duration: Duration(seconds: song.duration),
     );
     final String audioUrl = await _resolveAudioUrl(snapshot);
@@ -583,6 +585,8 @@ List<FreeMusicSong> _playlistValue(Object? value) {
           name: _stringValue(item['name'] ?? item['title']),
           artist: _stringValue(item['artist']),
           duration: _intValue(item['duration']),
+          album: _stringValue(item['album']),
+          cover: _stringValue(item['cover'] ?? item['coverUrl']),
         ),
       )
       .where((FreeMusicSong song) => song.canResolve)
@@ -596,6 +600,8 @@ Map<String, Object?> _songToJson(FreeMusicSong song) {
     'name': song.name,
     'artist': song.artist,
     'duration': song.duration,
+    'album': song.album,
+    'cover': song.cover,
   };
 }
 
@@ -617,6 +623,8 @@ FreeMusicSong _songFromMap(Map<Object?, Object?> item) {
     name: _stringValue(item['name'] ?? item['title']),
     artist: _stringValue(item['artist']),
     duration: _intValue(item['duration']),
+    album: _stringValue(item['album']),
+    cover: _stringValue(item['cover'] ?? item['coverUrl']),
   );
 }
 

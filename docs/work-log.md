@@ -14,6 +14,9 @@ Current evidence:
   WebView.
 - The search tab can call the FreeMusic `/search` endpoint directly and select
   real songs into the native playback queue.
+- Search result artwork is retained in the native song model, persisted with the
+  queue, published to `audio_service.queue`, and shown in the native UI when a
+  cover URL is available.
 - Playback uses `audio_service` plus `just_audio`.
 - `NativeAudioController` can resolve FreeMusic song URLs, persist a queue, and
   skip through a synced probe queue.
@@ -27,7 +30,9 @@ Open gaps toward the full goal:
 
 - Recommendations, playlists, artwork image rendering, and lyrics are not yet
   fully API-backed in the Flutter UI.
-- Repeat and shuffle behavior still need real media-button/head-unit validation.
+- Lyrics and recommendation/playlist surfaces are not fully API-backed yet.
+- Repeat, shuffle, artwork loading, and queue behavior still need real
+  media-button/head-unit and real-service validation.
 - CarLife SDK/AAR integration is still missing; current support is package
   probe and launch fallback only.
 - Real Android head-unit and CarLife-capable device validation is still needed.
@@ -73,6 +78,29 @@ Implemented in this increment:
 Verification in this increment:
 
 - `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+Implemented in this increment:
+
+- `PlayerProbeSnapshot` and persisted queue JSON now retain `FreeMusicSong`
+  album and cover metadata.
+- Queue item loading passes song cover URLs into the playback snapshot, so the
+  current `MediaItem` can expose artwork.
+- `MusicAudioHandler` now publishes album and `artUri` metadata for every item
+  in `audio_service.queue`.
+- The native UI now uses a shared artwork view that loads network cover images
+  for search results, queue rows, the now-playing panel, and the mini-player,
+  with the previous gradient tile retained as a fallback.
+
+Verification in this increment:
+
+- `dart format lib/native_audio_controller.dart lib/music_audio_handler.dart lib/main.dart test/music_audio_handler_test.dart test/native_audio_controller_test.dart`
 - `flutter analyze`
 - `flutter test`
 

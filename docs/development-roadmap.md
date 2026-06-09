@@ -86,14 +86,15 @@ Exit criteria:
 
 - `[x]` Add native search API methods.
 - `[ ]` Add recommendation and playlist loading.
-- `[ ]` Add artwork and lyric loading.
+- `[~]` Add artwork loading from search metadata; lyric loading is still
+  pending.
 - `[~]` Replace demo UI data with real API-backed models for search and queue.
 - `[~]` Add loading, empty, retry, and offline states for search.
 
 Exit criteria:
 
 - `[x]` The app can search and select real songs without a WebView.
-- `[ ]` Song metadata and artwork appear in the native UI before playback.
+- `[~]` Song metadata and artwork appear in the native UI before playback.
 
 ### Phase 3: Complete Native Queue
 

@@ -650,6 +650,7 @@ class PlaybackUiState {
     this.playing = false,
     this.title = '',
     this.artist = '',
+    this.coverUrl = '',
     this.position = Duration.zero,
     this.duration,
   });
@@ -662,6 +663,7 @@ class PlaybackUiState {
       playing: state?.playing ?? false,
       title: item?.title ?? '',
       artist: item?.artist ?? '',
+      coverUrl: item?.artUri?.toString() ?? '',
       position: state?.position ?? Duration.zero,
       duration: item?.duration,
     );
@@ -670,6 +672,7 @@ class PlaybackUiState {
   final bool playing;
   final String title;
   final String artist;
+  final String coverUrl;
   final Duration position;
   final Duration? duration;
 }
@@ -1636,7 +1639,12 @@ class _SongResultTile extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            _ArtworkTile(track: visual, size: 54, radius: 16),
+            _ArtworkView(
+              track: visual,
+              imageUrl: song.cover,
+              size: 54,
+              radius: 16,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1858,7 +1866,12 @@ class _NowPlayingPanel extends StatelessWidget {
           const SizedBox(height: 18),
           Expanded(
             child: Center(
-              child: _ArtworkTile(track: track, size: 220, radius: 48),
+              child: _ArtworkView(
+                track: track,
+                imageUrl: playbackState.coverUrl,
+                size: 220,
+                radius: 48,
+              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -2056,6 +2069,7 @@ class _SongQueueList extends StatelessWidget {
           subtitle: song.artist.isEmpty
               ? song.source
               : '${song.artist} · ${song.source}',
+          imageUrl: song.cover,
           visual: _demoQueue[index % _demoQueue.length],
           selected: selectedIndex == index,
           onTap: () => onSelect(index),
@@ -2070,6 +2084,7 @@ class _QueueTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.visual,
+    this.imageUrl = '',
     required this.selected,
     required this.onTap,
   });
@@ -2077,6 +2092,7 @@ class _QueueTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final _DemoTrack visual;
+  final String imageUrl;
   final bool selected;
   final VoidCallback onTap;
 
@@ -2101,7 +2117,12 @@ class _QueueTile extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            _ArtworkTile(track: visual, size: 48, radius: 15),
+            _ArtworkView(
+              track: visual,
+              imageUrl: imageUrl,
+              size: 48,
+              radius: 15,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -2177,7 +2198,12 @@ class _MiniPlayerBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(
         children: <Widget>[
-          _ArtworkTile(track: track, size: 56, radius: 16),
+          _ArtworkView(
+            track: track,
+            imageUrl: playbackState.coverUrl,
+            size: 56,
+            radius: 16,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2418,6 +2444,52 @@ class _ArtworkTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ArtworkView extends StatelessWidget {
+  const _ArtworkView({
+    required this.track,
+    required this.imageUrl,
+    required this.size,
+    required this.radius,
+  });
+
+  final _DemoTrack track;
+  final String imageUrl;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final Uri? uri = Uri.tryParse(imageUrl);
+    final bool canLoadImage = uri != null && uri.hasAbsolutePath;
+    if (!canLoadImage || !(uri.isScheme('http') || uri.isScheme('https'))) {
+      return _ArtworkTile(track: track, size: size, radius: radius);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: track.color.withValues(alpha: 0.24),
+              blurRadius: size * 0.16,
+              offset: Offset(0, size * 0.06),
+            ),
+          ],
+        ),
+        child: Image.network(
+          imageUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) {
+            return _ArtworkTile(track: track, size: size, radius: radius);
+          },
+        ),
       ),
     );
   }

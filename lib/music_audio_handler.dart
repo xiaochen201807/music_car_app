@@ -339,6 +339,8 @@ List<MediaItem> _mediaQueueFromSnapshot(
           id: isCurrent ? fallbackItem.id : '${song.source}:${song.id}',
           title: song.name.isEmpty ? '未知歌曲' : song.name,
           artist: song.artist.isEmpty ? null : song.artist,
+          album: song.album.isEmpty ? null : song.album,
+          artUri: song.cover.isEmpty ? null : Uri.tryParse(song.cover),
           duration: song.duration > 0 ? Duration(seconds: song.duration) : null,
           playable: true,
           extras: <String, Object?>{

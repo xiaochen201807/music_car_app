@@ -132,6 +132,8 @@ void main() {
               name: '七里香',
               artist: '周杰伦',
               duration: 290,
+              album: '七里香',
+              cover: 'https://example.com/cover-1.jpg',
             ),
             FreeMusicSong(
               id: '2',
@@ -148,6 +150,11 @@ void main() {
 
       expect(children, hasLength(2));
       expect(children.first.title, '七里香');
+      expect(children.first.album, '七里香');
+      expect(
+        children.first.artUri,
+        Uri.parse('https://example.com/cover-1.jpg'),
+      );
       expect(children.last.id, 'https://example.com/2.mp3');
       expect(children.last.extras?['songId'], '2');
       expect(handler.playbackState.value.queueIndex, 1);
