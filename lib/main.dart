@@ -305,11 +305,40 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _loadStartupMusicContent() async {
+    unawaited(_restorePlaybackSession());
     await _loadApiBootstrap();
     if (!mounted) {
       return;
     }
     await _loadRecommendations();
+  }
+
+  /// Restores the previous playback session (queue + current song) from
+  /// [NativeAudioController]'s persisted state, then attempts to resume
+  /// playback automatically so the user hears the same song they left off on.
+  Future<void> _restorePlaybackSession() async {
+    await _nativeAudioController.waitForRestore();
+    if (!mounted) {
+      return;
+    }
+    final List<FreeMusicSong> restored = _nativeAudioController.playlist;
+    final int restoredIndex = _nativeAudioController.currentIndex;
+    if (restored.isEmpty ||
+        restoredIndex < 0 ||
+        restoredIndex >= restored.length) {
+      return;
+    }
+    final FreeMusicSong song = restored[restoredIndex];
+    setState(() {
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(restored);
+      _selectedQueueIndex = restoredIndex;
+      _currentSong = song;
+    });
+    unawaited(_loadLyricsForSong(song));
+    unawaited(_loadQualitiesForSong(song));
+    // Resume playback — NativeAudioController will re-resolve the audio URL
+    // if needed, so this is safe to fire-and-forget.
+    unawaited(_nativeAudioController.resumePlayback());
   }
 
   Future<void> _searchSongs() async {
@@ -431,7 +460,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     });
     try {
       final FreeMusicRecommendResult result = await _freeMusicApi
-          .fetchRecommendations(sources: _activeSourceIds);
+          .fetchRecommendations(sources: const <String>['netease']);
       if (!mounted) {
         return;
       }
@@ -587,6 +616,47 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     await _playSongQueue(_searchResults, index);
   }
+
+  /// Appends [_searchResults[index]] to the end of the playback queue without
+  /// changing the currently playing track.
+  Future<void> _addSearchResultToQueue(int index) async {
+    if (index < 0 || index >= _searchResults.length) {
+      return;
+    }
+    final FreeMusicSong song = _searchResults[index];
+    // Avoid duplicates: skip if the exact same song is already the last item.
+    if (_playbackQueue.isNotEmpty &&
+        _playbackQueue.last.id == song.id &&
+        _playbackQueue.last.source == song.source) {
+      _showSnack('该歌曲已在队列末尾');
+      return;
+    }
+    final List<FreeMusicSong> newQueue = <FreeMusicSong>[
+      ..._playbackQueue,
+      song,
+    ];
+    final int currentIdx =
+        _selectedQueueIndex >= 0 && _selectedQueueIndex < _playbackQueue.length
+        ? _selectedQueueIndex
+        : 0;
+    await _nativeAudioController.syncQueueFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: false,
+        song: _currentSong,
+        playlist: newQueue,
+        currentIndex: currentIdx,
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(newQueue);
+    });
+    _showSnack('已加入播放队列：${song.name}');
+  }
+
 
   Future<void> _playSongQueue(List<FreeMusicSong> songs, int index) async {
     if (index < 0 || index >= songs.length) {
@@ -1251,6 +1321,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPlaySearchResult: (int index) {
                 unawaited(_playSearchResult(index));
               },
+              onAddToQueue: (int index) {
+                unawaited(_addSearchResultToQueue(index));
+              },
+
               onSelectPlaylist: (FreeMusicPlaylist playlist) {
                 unawaited(_playRecommendedPlaylist(playlist));
               },
@@ -1384,6 +1458,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onSearch,
     required this.onLoadMoreSearchResults,
     required this.onPlaySearchResult,
+    required this.onAddToQueue,
     required this.onSelectPlaylist,
     required this.onPlayPause,
     required this.onPlaybackMode,
@@ -1433,6 +1508,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onLoadMoreSearchResults;
   final ValueChanged<int> onPlaySearchResult;
+  final ValueChanged<int> onAddToQueue;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
@@ -1518,7 +1594,9 @@ class _NativeMusicScaffold extends StatelessWidget {
                 onSearch: runSearchFromCurrentSurface,
                 onLoadMoreSearchResults: onLoadMoreSearchResults,
                 onPlaySearchResult: onPlaySearchResult,
+                onAddToQueue: onAddToQueue,
                 onSelectPlaylist: onSelectPlaylist,
+
                 onOpenCarLife: onOpenCarLife,
                 onSyncCarLife: onSyncCarLife,
                 onRefreshCarLife: onRefreshCarLife,
@@ -1875,6 +1953,7 @@ class _HomePanel extends StatelessWidget {
     required this.onSearch,
     required this.onLoadMoreSearchResults,
     required this.onPlaySearchResult,
+    required this.onAddToQueue,
     required this.onSelectPlaylist,
     required this.onOpenCarLife,
     required this.onSyncCarLife,
@@ -1903,6 +1982,7 @@ class _HomePanel extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onLoadMoreSearchResults;
   final ValueChanged<int> onPlaySearchResult;
+  final ValueChanged<int> onAddToQueue;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onOpenCarLife;
   final VoidCallback onSyncCarLife;
@@ -1960,7 +2040,9 @@ class _HomePanel extends StatelessWidget {
               onHotKeyword: searchKeyword,
               onLoadMore: onLoadMoreSearchResults,
               onPlay: onPlaySearchResult,
+              onAddToQueue: onAddToQueue,
             ),
+
           )
         else
           Expanded(
@@ -2018,13 +2100,15 @@ class _HomeDiscoveryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Show all playlists in hero row (scrollable), squares section shows
+    // remaining playlists starting from index 3 onwards.
     final List<FreeMusicPlaylist> heroes = recommendedPlaylists
-        .take(3)
+        .take(math.max(3, recommendedPlaylists.length))
         .toList(growable: false);
     final List<FreeMusicPlaylist> squares = recommendedPlaylists
         .skip(3)
-        .take(5)
         .toList(growable: false);
+
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool compact = constraints.maxHeight < 500;
@@ -2101,27 +2185,34 @@ class _HeroPlaylistGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double cardWidth = (constraints.maxWidth - (AppSpace.lg * 2)) / 3;
-        return Row(
-          children: <Widget>[
-            for (int index = 0; index < playlists.length; index += 1) ...[
-              SizedBox(
-                width: cardWidth,
-                child: _HeroPlaylistCard(
-                  playlist: playlists[index],
-                  visual: _demoQueue[index % _demoQueue.length],
-                  onTap: busy ? null : () => onSelect(playlists[index]),
+        // Each card takes ~1/3 of available width, minimum 180px.
+        final double cardWidth =
+            math.max(180, (constraints.maxWidth - (AppSpace.lg * 2)) / 3);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: Row(
+            children: <Widget>[
+              for (int index = 0; index < playlists.length; index += 1) ...[
+                SizedBox(
+                  width: cardWidth,
+                  child: _HeroPlaylistCard(
+                    playlist: playlists[index],
+                    visual: _demoQueue[index % _demoQueue.length],
+                    onTap: busy ? null : () => onSelect(playlists[index]),
+                  ),
                 ),
-              ),
-              if (index < playlists.length - 1)
-                const SizedBox(width: AppSpace.lg),
+                if (index < playlists.length - 1)
+                  const SizedBox(width: AppSpace.lg),
+              ],
             ],
-          ],
+          ),
         );
       },
     );
   }
 }
+
 
 class _HeroPlaylistCard extends StatelessWidget {
   const _HeroPlaylistCard({
@@ -2198,28 +2289,33 @@ class _SquarePlaylistGrid extends StatelessWidget {
           96,
           (constraints.maxWidth - (AppSpace.lg * 4)) / 5,
         );
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            for (int index = 0; index < playlists.length; index += 1) ...[
-              SizedBox(
-                width: tileSize,
-                child: _SquarePlaylistCard(
-                  playlist: playlists[index],
-                  visual: _demoQueue[index % _demoQueue.length],
-                  tileSize: tileSize,
-                  onTap: busy ? null : () => onSelect(playlists[index]),
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              for (int index = 0; index < playlists.length; index += 1) ...[
+                SizedBox(
+                  width: tileSize,
+                  child: _SquarePlaylistCard(
+                    playlist: playlists[index],
+                    visual: _demoQueue[index % _demoQueue.length],
+                    tileSize: tileSize,
+                    onTap: busy ? null : () => onSelect(playlists[index]),
+                  ),
                 ),
-              ),
-              if (index < playlists.length - 1)
-                const SizedBox(width: AppSpace.lg),
+                if (index < playlists.length - 1)
+                  const SizedBox(width: AppSpace.lg),
+              ],
             ],
-          ],
+          ),
         );
       },
     );
   }
 }
+
 
 class _SquarePlaylistCard extends StatelessWidget {
   const _SquarePlaylistCard({
@@ -2720,6 +2816,7 @@ class _SearchPanel extends StatelessWidget {
     required this.onHotKeyword,
     required this.onLoadMore,
     required this.onPlay,
+    required this.onAddToQueue,
   });
 
   final TextEditingController controller;
@@ -2735,6 +2832,7 @@ class _SearchPanel extends StatelessWidget {
   final ValueChanged<String> onHotKeyword;
   final VoidCallback onLoadMore;
   final ValueChanged<int> onPlay;
+  final ValueChanged<int> onAddToQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -2845,6 +2943,7 @@ class _SearchPanel extends StatelessWidget {
                         onLoadMore: onLoadMore,
                         onHotKeyword: onHotKeyword,
                         onPlay: onPlay,
+                        onAddToQueue: onAddToQueue,
                       ),
                     ),
                   ],
@@ -2871,6 +2970,7 @@ class _SearchResultsBody extends StatelessWidget {
     required this.onLoadMore,
     required this.onHotKeyword,
     required this.onPlay,
+    required this.onAddToQueue,
   });
 
   final List<FreeMusicSong> songs;
@@ -2884,6 +2984,7 @@ class _SearchResultsBody extends StatelessWidget {
   final VoidCallback onLoadMore;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<int> onPlay;
+  final ValueChanged<int> onAddToQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -2926,7 +3027,12 @@ class _SearchResultsBody extends StatelessWidget {
           );
         }
         final FreeMusicSong song = songs[index];
-        return _SongResultTile(song: song, index: index, onPlay: onPlay);
+        return _SongResultTile(
+          song: song,
+          index: index,
+          onPlay: onPlay,
+          onAddToQueue: onAddToQueue,
+        );
       },
     );
   }
@@ -3046,85 +3152,111 @@ class _SongResultTile extends StatelessWidget {
     required this.song,
     required this.index,
     required this.onPlay,
+    required this.onAddToQueue,
   });
 
   final FreeMusicSong song;
   final int index;
   final ValueChanged<int> onPlay;
+  final ValueChanged<int> onAddToQueue;
 
   @override
   Widget build(BuildContext context) {
     final _DemoTrack visual = _demoQueue[index % _demoQueue.length];
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      onTap: () => onPlay(index),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColor.fillNeutral,
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          border: Border.all(color: AppColor.strokeHairline),
-        ),
-        child: Row(
-          children: <Widget>[
-            _ArtworkView(
-              track: visual,
-              imageUrl: song.cover,
-              size: 54,
-              radius: 16,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColor.fillNeutral,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColor.strokeHairline),
+      ),
+      child: Row(
+        children: <Widget>[
+          _ArtworkView(
+            track: visual,
+            imageUrl: song.cover,
+            size: 48,
+            radius: 14,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  song.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  <String>[
+                    song.artist,
+                    if (song.album.isNotEmpty) song.album,
+                    song.source,
+                  ].where((String value) => value.isNotEmpty).join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    song.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _AppColors.textPrimary,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    <String>[
-                      song.artist,
-                      if (song.album.isNotEmpty) song.album,
-                      song.source,
-                    ].where((String value) => value.isNotEmpty).join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _formatDuration(Duration(seconds: song.duration)),
+            style: const TextStyle(
+              color: _AppColors.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 4),
+          // 加入列表按钮
+          _SmallGlassIconButton(
+            tooltip: '加入播放队列',
+            icon: Icons.playlist_add_rounded,
+            busy: false,
+            onTap: () => onAddToQueue(index),
+          ),
+          const SizedBox(width: 6),
+          // 播放按钮（主操作）
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.tile),
+              onTap: () => onPlay(index),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: AppColor.accentGradient,
+                  borderRadius: BorderRadius.circular(AppRadius.tile),
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
             ),
-            Text(
-              _formatDuration(Duration(seconds: song.duration)),
-              style: const TextStyle(
-                color: _AppColors.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Icon(
-              Icons.play_circle_fill_rounded,
-              color: AppColor.textSecondary,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
+
 
 class _PlaylistSheet extends StatelessWidget {
   const _PlaylistSheet({
@@ -3203,6 +3335,29 @@ class _PlaylistSheet extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (songs.isNotEmpty) ...<Widget>[
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () {
+                              Navigator.of(context).pop();
+                              onPlay(0);
+                            },
+                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                      label: const Text('播放全部'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.tile),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 4),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close_rounded),
@@ -3210,6 +3365,7 @@ class _PlaylistSheet extends StatelessWidget {
                   ),
                 ],
               ),
+
               const SizedBox(height: 16),
               Expanded(
                 child: songs.isEmpty && busy

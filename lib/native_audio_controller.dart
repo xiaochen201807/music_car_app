@@ -217,10 +217,13 @@ class NativeAudioController {
   List<String>? _cachedSources;
   static const List<String> _fallbackSources = <String>['netease', 'kuwo'];
 
-  @visibleForTesting
   List<FreeMusicSong> get playlist => _playlist;
 
   int get currentIndex => _currentIndex;
+
+  /// Waits for the restore-state future to complete. Call this before reading
+  /// [playlist] or [currentIndex] to ensure persisted data has been loaded.
+  Future<void> waitForRestore() => _restoreFuture;
 
   @visibleForTesting
   NativePlaybackMode get playbackMode => _playbackMode;
