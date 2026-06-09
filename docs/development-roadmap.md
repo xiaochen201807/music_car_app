@@ -119,7 +119,12 @@ Exit criteria:
 - `[~]` Replace demo UI data with real API-backed models for paged search,
   queue, and recommended playlists.
 - `[~]` Add loading, empty, retry, and offline states for search and the
-  prototype-aligned recommendation surface.
+  prototype-aligned recommendation surface. Home recommendation cards and the
+  search results area now stay visible above the mini-player; richer offline
+  recovery remains pending.
+- `[x]` Apply the cold glassmorphism UI design system with shared tokens,
+  `GlassCard`, cached artwork placeholders, and the rebuilt home
+  recommendation grid.
 - `[~]` Use audited API data in the prototype UI: source labels, hot search
   chips, recommendation playlists, queue songs, quality chips, and lyric
   preview are wired to FreeMusic responses where client coverage exists.

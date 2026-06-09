@@ -14,25 +14,30 @@ $Headers = @{
     "Referer" = "https://music.sy110.eu.org/music"
 }
 
+$JayChou = -join ([char[]](0x5468, 0x6770, 0x4F26))
+$Zhou = [string][char]0x5468
+$YeHuiMei = -join ([char[]](0x53F6, 0x60E0, 0x7F8E))
+$SunnyDay = -join ([char[]](0x6674, 0x5929))
+
 $Tests = @(
     @{ Name = "sources"; Method = "GET"; Path = "/sources"; Expect = @(200) },
-    @{ Name = "search-song"; Method = "GET"; Path = "/search"; Query = @{ q = "周杰伦"; type = "song"; page = "0" }; Expect = @(200) },
-    @{ Name = "search-playlist"; Method = "GET"; Path = "/search"; Query = @{ q = "周杰伦"; type = "playlist"; page = "0" }; Expect = @(200) },
-    @{ Name = "search-album"; Method = "GET"; Path = "/search"; Query = @{ q = "周杰伦"; type = "album"; page = "0" }; Expect = @(200) },
-    @{ Name = "search-artist"; Method = "GET"; Path = "/search"; Query = @{ q = "周杰伦"; type = "artist"; page = "0" }; Expect = @(200) },
+    @{ Name = "search-song"; Method = "GET"; Path = "/search"; Query = @{ q = $JayChou; type = "song"; page = "0" }; Expect = @(200) },
+    @{ Name = "search-playlist"; Method = "GET"; Path = "/search"; Query = @{ q = $JayChou; type = "playlist"; page = "0" }; Expect = @(200) },
+    @{ Name = "search-album"; Method = "GET"; Path = "/search"; Query = @{ q = $JayChou; type = "album"; page = "0" }; Expect = @(200) },
+    @{ Name = "search-artist"; Method = "GET"; Path = "/search"; Query = @{ q = $JayChou; type = "artist"; page = "0" }; Expect = @(200) },
     @{ Name = "search-hot"; Method = "GET"; Path = "/search/hot"; Expect = @(200) },
-    @{ Name = "search-suggest"; Method = "GET"; Path = "/search/suggest"; Query = @{ q = "周" }; Expect = @(200) },
+    @{ Name = "search-suggest"; Method = "GET"; Path = "/search/suggest"; Query = @{ q = $Zhou }; Expect = @(200) },
     @{ Name = "recommend"; Method = "GET"; Path = "/recommend"; Expect = @(200) },
     @{ Name = "playlist"; Method = "GET"; Path = "/playlist"; Query = @{ id = "1012368062"; source = "kuwo" }; Expect = @(200) },
     @{ Name = "playlist-page"; Method = "GET"; Path = "/playlist/page"; Query = @{ id = "1012368062"; source = "kuwo"; offset = "0"; size = "5" }; Expect = @(200) },
     @{ Name = "resolve-playlist"; Method = "GET"; Path = "/playlist/resolve"; Query = @{ link = "http://www.kuwo.cn/playlist_detail/1012368062" }; Expect = @(200, 400) },
-    @{ Name = "album-songs"; Method = "GET"; Path = "/album/songs"; Query = @{ name = "叶惠美"; artist = "周杰伦"; page = "0"; size = "5" }; Expect = @(200) },
-    @{ Name = "qualities"; Method = "GET"; Path = "/qualities"; Query = @{ name = "晴天"; artist = "周杰伦"; duration = "269" }; Expect = @(200) },
-    @{ Name = "song-url"; Method = "GET"; Path = "/song_url"; Query = @{ id = "228908"; source = "kuwo"; name = "晴天"; artist = "周杰伦"; duration = "269"; br = "320kmp3" }; Expect = @(200) },
+    @{ Name = "album-songs"; Method = "GET"; Path = "/album/songs"; Query = @{ name = $YeHuiMei; artist = $JayChou; page = "0"; size = "5" }; Expect = @(200) },
+    @{ Name = "qualities"; Method = "GET"; Path = "/qualities"; Query = @{ name = $SunnyDay; artist = $JayChou; duration = "269" }; Expect = @(200) },
+    @{ Name = "song-url"; Method = "GET"; Path = "/song_url"; Query = @{ id = "228908"; source = "kuwo"; name = $SunnyDay; artist = $JayChou; duration = "269"; br = "320kmp3" }; Expect = @(200) },
     @{ Name = "play-url"; Method = "GET"; Path = "/play_url"; Query = @{ rid = "228908"; br = "320kmp3" }; Expect = @(200) },
-    @{ Name = "lyric"; Method = "GET"; Path = "/lyric"; Query = @{ id = "228908"; source = "kuwo"; name = "晴天"; artist = "周杰伦" }; Expect = @(200) },
+    @{ Name = "lyric"; Method = "GET"; Path = "/lyric"; Query = @{ id = "228908"; source = "kuwo"; name = $SunnyDay; artist = $JayChou }; Expect = @(200) },
     @{ Name = "yrc"; Method = "GET"; Path = "/yrc"; Query = @{ id = "228908"; source = "kuwo" }; Expect = @(200) },
-    @{ Name = "switch-source"; Method = "GET"; Path = "/switch_source"; Query = @{ name = "晴天"; artist = "周杰伦"; source = "kuwo"; target = "netease"; duration = "269" }; Expect = @(200, 404) },
+    @{ Name = "switch-source"; Method = "GET"; Path = "/switch_source"; Query = @{ name = $SunnyDay; artist = $JayChou; source = "kuwo"; target = "netease"; duration = "269" }; Expect = @(200, 404) },
     @{ Name = "toplist-netease"; Method = "GET"; Path = "/toplist/netease"; Expect = @(200) },
     @{ Name = "toplist-kuwo-menu"; Method = "GET"; Path = "/toplist/kuwo/menu"; Expect = @(200) },
     @{ Name = "toplist-kuwo-songs"; Method = "GET"; Path = "/toplist/kuwo/songs"; Query = @{ bangid = "16"; page = "0"; size = "5" }; Expect = @(200) },
@@ -52,7 +57,7 @@ $Tests = @(
     @{ Name = "settings"; Method = "GET"; Path = "/settings"; Auth = $true; Expect = @(200, 401) },
     @{ Name = "mounted-directories"; Method = "GET"; Path = "/mounted/directories"; Auth = $true; Expect = @(200, 401) },
     @{ Name = "mounted-tracks"; Method = "GET"; Path = "/mounted/tracks"; Query = @{ directory_id = "1"; keyword = "" }; Auth = $true; Expect = @(200, 400, 401, 404) },
-    @{ Name = "download-url-shape"; Method = "HEAD"; Path = "/download"; Query = @{ id = "228908"; source = "kuwo"; name = "晴天"; artist = "周杰伦"; duration = "269"; br = "320kmp3" }; Expect = @(200, 302, 400, 401, 405) },
+    @{ Name = "download-url-shape"; Method = "HEAD"; Path = "/download"; Query = @{ id = "228908"; source = "kuwo"; name = $SunnyDay; artist = $JayChou; duration = "269"; br = "320kmp3" }; Expect = @(200, 302, 400, 401, 405) },
 
     @{ Name = "add-favorite"; Method = "POST"; Path = "/favorites"; Auth = $true; Mutates = $true; Expect = @(200, 201, 401) },
     @{ Name = "remove-favorite"; Method = "DELETE"; Path = "/favorites"; Query = @{ id = "228908"; source = "kuwo" }; Auth = $true; Mutates = $true; Expect = @(200, 204, 401) },
@@ -115,6 +120,7 @@ function Invoke-FreeMusicApiProbe($Test) {
             -Headers $Headers `
             -Body $body `
             -ContentType "application/json" `
+            -UseBasicParsing `
             -Proxy $null `
             -TimeoutSec $TimeoutSec
         $status = [int]$response.StatusCode

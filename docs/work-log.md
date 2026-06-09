@@ -282,6 +282,81 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
 
+## 2026-06-09 - Design-System UI Rebuild
+
+Implemented in this increment:
+
+- Added `lib/theme/design_tokens.dart` as the UI token source for the cold
+  palette, spacing, radii, type styles, shadows, glass alpha values, and
+  restricted accent gradient.
+- Added `lib/widgets/glass_card.dart` with shared `GlassCard` and `GlassPill`
+  implementations using clipped `BackdropFilter` blur.
+- Reworked `lib/main.dart` to use the cold atmosphere background, neutral
+  glass surfaces, tokenized radii, the spec-aligned 3 hero + 5 square home
+  recommendation grid, gradient progress bars, and unified circular transport
+  controls.
+- Closed the mini-player ghost-circle bug by replacing the mini transport
+  `IconButton.styleFrom(fixedSize: ...)` path with a single
+  `_CircleControlButton` based on `Container + CircleBorder + InkWell`.
+- Added `cached_network_image: 3.4.1` and routed artwork through cached image
+  loading with placeholder and error states.
+- Removed the old warm demo colors and restricted the accent gradient to the
+  approved UI locations: primary play controls, progress played segments, and
+  active navigation/queue indicators.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/theme/design_tokens.dart lib/widgets/glass_card.dart`
+- `flutter pub get`
+- `flutter analyze`
+- `flutter test`
+- `rg "0xFFFF5C93|0xFFFFB86B|Image\\.network|IconButton\\.styleFrom\\(" lib`
+- `rg --pcre2 "BorderRadius\\.circular\\((?!AppRadius|radius|borderRadius)" lib`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-09 - Home/Search Visibility Fix
+
+Implemented in this increment:
+
+- Changed startup music loading to initialize FreeMusic sources and hot-search
+  keywords before requesting recommendations, so `/recommend` uses the same
+  active source list as search.
+- Reworked the home music surface into a compact search strip plus a dedicated
+  recommendation-card area, keeping playlist cards visible above the persistent
+  mini-player on landscape screens.
+- Reworked the search surface into a compact search strip plus a dedicated
+  results area with a visible result count, clearer landing state, and retained
+  load-more behavior.
+- Removed the unused home readiness strip after the layout was simplified.
+- Made `scripts/test_free_music_api.ps1` compatible with default Windows
+  PowerShell by avoiding raw non-ASCII query literals and adding
+  `-UseBasicParsing` for `Invoke-WebRequest`.
+- Bumped the app version to `1.0.15+15` for the follow-up UI/API visibility
+  release.
+
+Verification in this increment:
+
+- `dart format lib/main.dart`
+- `flutter analyze`
+- `flutter test`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test_free_music_api.ps1`
+
+Observed API status:
+
+- The repeatable FreeMusic probe now passes for the non-mutating endpoints,
+  including `/sources`, `/search`, `/search/hot`, `/recommend`,
+  `/playlist/page`, `/song_url`, `/lyric`, `/yrc`, qualities, charts, and
+  authenticated endpoints that are expected to return `401` without login.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-09 - Playlist Detail Pagination
 
 Implemented in this increment:

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -13,6 +14,8 @@ import 'native_audio_controller.dart';
 import 'services/app_installer_service.dart';
 import 'services/carlife_service.dart';
 import 'services/update_check_service.dart';
+import 'theme/design_tokens.dart';
+import 'widgets/glass_card.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,12 +52,12 @@ class MusicCarApp extends StatelessWidget {
       theme: ThemeData(
         fontFamily: 'sans',
         colorScheme: const ColorScheme.dark(
-          primary: _AppColors.primary,
-          secondary: _AppColors.accent,
-          surface: _AppColors.surface,
-          error: _AppColors.error,
+          primary: AppColor.accentVioletStart,
+          secondary: AppColor.accentRoseEnd,
+          surface: AppColor.glassTint,
+          error: AppColor.error,
         ),
-        scaffoldBackgroundColor: _AppColors.background,
+        scaffoldBackgroundColor: AppColor.bgBase,
         splashFactory: NoSplash.splashFactory,
         useMaterial3: true,
       ),
@@ -150,8 +153,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     _carLifeService.setControlHandler(_handleCarLifeControl);
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_loadApiBootstrap());
-      unawaited(_loadRecommendations());
+      unawaited(_loadStartupMusicContent());
       unawaited(_refreshCarLifeStatus());
       if (widget.autoCheckForUpdates) {
         unawaited(_autoCheckForUpdate());
@@ -280,6 +282,14 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
         _isLoadingApiBootstrap = false;
       });
     }
+  }
+
+  Future<void> _loadStartupMusicContent() async {
+    await _loadApiBootstrap();
+    if (!mounted) {
+      return;
+    }
+    await _loadRecommendations();
   }
 
   Future<void> _searchSongs() async {
@@ -1569,22 +1579,32 @@ class _AtmosphereBackground extends StatelessWidget {
           center: const Alignment(-0.62, -0.74),
           radius: 1.35,
           colors: <Color>[
-            track.color.withValues(alpha: 0.58),
-            _AppColors.background,
-            const Color(0xFF02040A),
+            AppColor.glowViolet.withValues(alpha: AppGlass.glowVioletAlpha),
+            AppColor.bgBase,
+            AppColor.bgDeep,
           ],
           stops: const <double>[0, 0.52, 1],
         ),
       ),
-      child: CustomPaint(painter: _NoiseRibbonPainter(track.color)),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0.86, 0.78),
+            radius: 1.10,
+            colors: <Color>[
+              AppColor.glowCyan.withValues(alpha: AppGlass.glowCyanAlpha),
+              Colors.transparent,
+            ],
+          ),
+        ),
+        child: CustomPaint(painter: const _NoiseRibbonPainter()),
+      ),
     );
   }
 }
 
 class _NoiseRibbonPainter extends CustomPainter {
-  const _NoiseRibbonPainter(this.color);
-
-  final Color color;
+  const _NoiseRibbonPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1593,8 +1613,8 @@ class _NoiseRibbonPainter extends CustomPainter {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: <Color>[
-          Colors.white.withValues(alpha: 0.10),
-          color.withValues(alpha: 0.18),
+          Colors.white.withValues(alpha: AppGlass.ribbonWhiteAlpha),
+          AppColor.glowViolet.withValues(alpha: AppGlass.ribbonVioletAlpha),
           Colors.transparent,
         ],
       ).createShader(Offset.zero & size);
@@ -1630,9 +1650,7 @@ class _NoiseRibbonPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_NoiseRibbonPainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
+  bool shouldRepaint(_NoiseRibbonPainter oldDelegate) => false;
 }
 
 class _SideNavigationRail extends StatelessWidget {
@@ -1660,20 +1678,15 @@ class _SideNavigationRail extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
-          Container(
+          _GlassCard(
             width: compact ? 48 : 58,
             height: compact ? 48 : 58,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(compact ? 18 : 22),
-              gradient: const LinearGradient(
-                colors: <Color>[_AppColors.primary, _AppColors.accent],
-              ),
-            ),
+            borderRadius: AppRadius.tile,
             child: Icon(Icons.music_note_rounded, size: compact ? 28 : 34),
           ),
           SizedBox(height: compact ? 6 : 8),
           Text(
-            '车载音乐',
+            '音乐',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: _AppColors.textPrimary,
@@ -1720,38 +1733,55 @@ class _RailButton extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 6 : 10),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: compact ? 64 : 74,
           padding: EdgeInsets.symmetric(vertical: compact ? 7 : 10),
           decoration: BoxDecoration(
-            color: selected
-                ? _AppColors.primary.withValues(alpha: 0.24)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
+            color: selected ? AppColor.fillNeutral : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.card),
             border: Border.all(
-              color: selected
-                  ? Colors.white.withValues(alpha: 0.20)
-                  : Colors.transparent,
+              color: selected ? AppColor.strokeStrong : Colors.transparent,
             ),
           ),
-          child: Column(
+          child: Stack(
             children: <Widget>[
-              Icon(
-                item.icon,
-                color: selected ? Colors.white : _AppColors.textMuted,
-                size: compact ? 22 : 26,
-              ),
-              SizedBox(height: compact ? 2 : 4),
-              Text(
-                item.label,
-                style: TextStyle(
-                  color: selected ? Colors.white : _AppColors.textMuted,
-                  fontSize: compact ? 11 : 12,
-                  fontWeight: FontWeight.w700,
+              if (selected)
+                const Positioned(
+                  left: AppSpace.xs,
+                  top: AppSpace.sm,
+                  bottom: AppSpace.sm,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: AppColor.accentGradient,
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(AppRadius.pill),
+                      ),
+                    ),
+                    child: SizedBox(width: AppSpace.xs),
+                  ),
                 ),
+              Column(
+                children: <Widget>[
+                  Icon(
+                    item.icon,
+                    color: selected
+                        ? AppColor.textPrimary
+                        : AppColor.textTertiary,
+                    size: compact ? 22 : 26,
+                  ),
+                  SizedBox(height: compact ? 2 : 4),
+                  Text(
+                    item.label,
+                    style: AppType.micro.copyWith(
+                      color: selected
+                          ? AppColor.textPrimary
+                          : AppColor.textTertiary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1776,11 +1806,9 @@ class _RailIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = enabled
-        ? _AppColors.textMuted
-        : const Color(0x66FFFFFF);
+    final Color color = enabled ? _AppColors.textMuted : AppColor.disabledWhite;
     return InkWell(
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: enabled ? onTap : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1879,24 +1907,15 @@ class _HomePanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    activeItem.label,
-                    style: TextStyle(
-                      color: _AppColors.textPrimary,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.8,
-                    ),
+                    searchMode ? activeItem.label : '车载音乐',
+                    style: AppType.h1,
                   ),
                   const SizedBox(height: 5),
                   Text(
                     searchMode
                         ? '输入歌名、歌手或专辑，结果直接进入原生队列。'
                         : '在线曲库 · 推荐歌单 · 横屏车机布局',
-                    style: const TextStyle(
-                      color: _AppColors.textSecondary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AppType.caption,
                   ),
                 ],
               ),
@@ -1979,155 +1998,76 @@ class _HomeDiscoveryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<FreeMusicPlaylist> featured = recommendedPlaylists
-        .take(8)
+    final List<FreeMusicPlaylist> heroes = recommendedPlaylists
+        .take(3)
         .toList(growable: false);
-    final List<String> activeSources =
-        musicSources?.activeSources ?? const <String>[];
-    return _GlassCard(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  '在线曲库',
-                  style: TextStyle(
-                    color: _AppColors.textPrimary,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-              if (recommendationsBusy || playlistSongsBusy)
-                const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                _ChipLabel(text: '${recommendedPlaylists.length} 个推荐源'),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => onSearch(),
-                  style: const TextStyle(
-                    color: _AppColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '搜索音乐',
-                    hintStyle: const TextStyle(
-                      color: _AppColors.textMuted,
-                      fontWeight: FontWeight.w800,
+    final List<FreeMusicPlaylist> squares = recommendedPlaylists
+        .skip(3)
+        .take(5)
+        .toList(growable: false);
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxHeight < 500;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Expanded(child: Text('为你推荐', style: AppType.h2)),
+                const _ChipLabel(text: '在线曲库'),
+                const SizedBox(width: AppSpace.sm),
+                if (recommendationsBusy || playlistSongsBusy)
+                  const _ChipLabel(text: '加载中')
+                else if (recommendationError.isNotEmpty)
+                  const _ChipLabel(text: '推荐可重试')
+                else
+                  _ChipLabel(text: '${recommendedPlaylists.length} 个推荐'),
+              ],
+            ),
+            const SizedBox(height: AppSpace.md),
+            SizedBox(
+              height: compact ? 132 : 150,
+              child: recommendationError.isNotEmpty && heroes.isEmpty
+                  ? _InlineMessage(text: recommendationError)
+                  : heroes.isEmpty
+                  ? const _FallbackHeroGrid()
+                  : _HeroPlaylistGrid(
+                      playlists: heroes,
+                      busy: playlistSongsBusy,
+                      onSelect: onSelectPlaylist,
                     ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: _AppColors.textSecondary,
+            ),
+            const SizedBox(height: AppSpace.xl),
+            const Text('近期播放 / 推荐歌单', style: AppType.h2),
+            const SizedBox(height: AppSpace.md),
+            Expanded(
+              child: squares.isEmpty
+                  ? const _FallbackSquareGrid()
+                  : _SquarePlaylistGrid(
+                      playlists: squares,
+                      busy: playlistSongsBusy,
+                      onSelect: onSelectPlaylist,
                     ),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.09),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(26),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 18,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: onSearch,
-                icon: const Icon(Icons.manage_search_rounded),
-                label: const Text('搜索'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 20,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
+            ),
+            if (!compact) ...<Widget>[
+              const SizedBox(height: AppSpace.md),
+              _DiscoveryMetaChips(
+                musicSources: musicSources,
+                sourceBusy: sourceBusy,
+                sourceError: sourceError,
+                hotSearchKeywords: hotSearchKeywords,
+                onHotKeyword: onHotKeyword,
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              if (sourceBusy)
-                const _ChipLabel(text: '来源加载中')
-              else if (sourceError.isNotEmpty)
-                const _ChipLabel(text: '来源可重试')
-              else
-                for (final String source in activeSources.take(4))
-                  _ChipLabel(text: musicSources?.labelFor(source) ?? source),
-              for (final String keyword in hotSearchKeywords.take(4))
-                _ActionChipLabel(
-                  text: keyword,
-                  onTap: () => onHotKeyword(keyword),
-                ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  '为你推荐',
-                  style: TextStyle(
-                    color: _AppColors.textPrimary,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (recommendationError.isNotEmpty)
-                _ChipLabel(text: '推荐加载失败')
-              else
-                const _ChipLabel(text: '横向浏览'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: recommendationError.isNotEmpty && featured.isEmpty
-                ? _InlineMessage(text: recommendationError)
-                : featured.isEmpty
-                ? const _FallbackRecommendationRail()
-                : _PlaylistCardRail(
-                    playlists: featured,
-                    busy: playlistSongsBusy,
-                    onSelect: onSelectPlaylist,
-                  ),
-          ),
-          const SizedBox(height: 14),
-          _HomeReadinessStrip(
-            recommendationsBusy: recommendationsBusy,
-            recommendationError: recommendationError,
-            carLifeStatus: carLifeStatus,
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
 
-class _PlaylistCardRail extends StatelessWidget {
-  const _PlaylistCardRail({
+class _HeroPlaylistGrid extends StatelessWidget {
+  const _HeroPlaylistGrid({
     required this.playlists,
     required this.busy,
     required this.onSelect,
@@ -2139,24 +2079,32 @@ class _PlaylistCardRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      itemCount: playlists.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 14),
-      itemBuilder: (BuildContext context, int index) {
-        final FreeMusicPlaylist playlist = playlists[index];
-        return _FeaturedPlaylistCard(
-          playlist: playlist,
-          visual: _demoQueue[index % _demoQueue.length],
-          onTap: busy ? null : () => onSelect(playlist),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double cardWidth = (constraints.maxWidth - (AppSpace.lg * 2)) / 3;
+        return Row(
+          children: <Widget>[
+            for (int index = 0; index < playlists.length; index += 1) ...[
+              SizedBox(
+                width: cardWidth,
+                child: _HeroPlaylistCard(
+                  playlist: playlists[index],
+                  visual: _demoQueue[index % _demoQueue.length],
+                  onTap: busy ? null : () => onSelect(playlists[index]),
+                ),
+              ),
+              if (index < playlists.length - 1)
+                const SizedBox(width: AppSpace.lg),
+            ],
+          ],
         );
       },
     );
   }
 }
 
-class _FeaturedPlaylistCard extends StatelessWidget {
-  const _FeaturedPlaylistCard({
+class _HeroPlaylistCard extends StatelessWidget {
+  const _HeroPlaylistCard({
     required this.playlist,
     required this.visual,
     required this.onTap,
@@ -2169,52 +2117,39 @@ class _FeaturedPlaylistCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: onTap,
-      child: Container(
-        width: 188,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: _GlassCard(
+        borderRadius: AppRadius.card,
+        child: Stack(
           children: <Widget>[
-            Expanded(
-              child: _ArtworkView(
-                track: visual,
+            Positioned.fill(
+              child: _ArtworkCover(
+                visual: visual,
                 imageUrl: playlist.cover,
-                size: 164,
-                radius: 18,
+                radius: AppRadius.card,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              playlist.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[Colors.transparent, AppColor.scrimStrong],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              <String>[
-                if (playlist.creator.isNotEmpty) playlist.creator,
-                playlist.source,
-                if (playlist.trackCount > 0)
-                  '${_formatCount(playlist.trackCount)}首',
-              ].join(' · '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+            Positioned(
+              left: AppSpace.lg,
+              right: AppSpace.lg,
+              bottom: AppSpace.md,
+              child: Text(
+                playlist.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.cardTitle,
               ),
             ),
           ],
@@ -2224,126 +2159,244 @@ class _FeaturedPlaylistCard extends StatelessWidget {
   }
 }
 
-class _FallbackRecommendationRail extends StatelessWidget {
-  const _FallbackRecommendationRail();
+class _SquarePlaylistGrid extends StatelessWidget {
+  const _SquarePlaylistGrid({
+    required this.playlists,
+    required this.busy,
+    required this.onSelect,
+  });
+
+  final List<FreeMusicPlaylist> playlists;
+  final bool busy;
+  final ValueChanged<FreeMusicPlaylist> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      itemCount: _recentTracks.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 14),
-      itemBuilder: (BuildContext context, int index) {
-        final _DemoTrack track = _recentTracks[index];
-        return Container(
-          width: 188,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: _ArtworkTile(track: track, size: 164, radius: 18),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                track.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double tileSize = math.min(
+          96,
+          (constraints.maxWidth - (AppSpace.lg * 4)) / 5,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (int index = 0; index < playlists.length; index += 1) ...[
+              SizedBox(
+                width: tileSize,
+                child: _SquarePlaylistCard(
+                  playlist: playlists[index],
+                  visual: _demoQueue[index % _demoQueue.length],
+                  tileSize: tileSize,
+                  onTap: busy ? null : () => onSelect(playlists[index]),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                track.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              if (index < playlists.length - 1)
+                const SizedBox(width: AppSpace.lg),
             ],
-          ),
+          ],
         );
       },
     );
   }
 }
 
-class _HomeReadinessStrip extends StatelessWidget {
-  const _HomeReadinessStrip({
-    required this.recommendationsBusy,
-    required this.recommendationError,
-    required this.carLifeStatus,
+class _SquarePlaylistCard extends StatelessWidget {
+  const _SquarePlaylistCard({
+    required this.playlist,
+    required this.visual,
+    required this.tileSize,
+    required this.onTap,
   });
 
-  final bool recommendationsBusy;
-  final String recommendationError;
-  final CarLifeStatus carLifeStatus;
+  final FreeMusicPlaylist playlist;
+  final _DemoTrack visual;
+  final double tileSize;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final String apiText = recommendationsBusy
-        ? 'API 加载中'
-        : recommendationError.isEmpty
-        ? 'API 已接入'
-        : 'API 可重试';
-    final String carLifeText = carLifeStatus.reason == 'unchecked'
-        ? 'CarLife 待检测'
-        : 'CarLife ${carLifeStatus.displayText}';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.tile),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Icon(
-            Icons.cloud_done_rounded,
-            color: _AppColors.textSecondary,
-            size: 19,
+          _ArtworkCover(
+            visual: visual,
+            imageUrl: playlist.cover,
+            width: tileSize,
+            height: tileSize,
+            radius: AppRadius.tile,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(
-            apiText,
-            style: const TextStyle(
-              color: _AppColors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+            playlist.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.caption.copyWith(color: AppColor.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FallbackHeroGrid extends StatelessWidget {
+  const _FallbackHeroGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double cardWidth = (constraints.maxWidth - (AppSpace.lg * 2)) / 3;
+        return Row(
+          children: <Widget>[
+            for (int index = 0; index < 3; index += 1) ...[
+              SizedBox(
+                width: cardWidth,
+                child: _FallbackHeroCard(track: _demoQueue[index]),
+              ),
+              if (index < 2) const SizedBox(width: AppSpace.lg),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FallbackHeroCard extends StatelessWidget {
+  const _FallbackHeroCard({required this.track});
+
+  final _DemoTrack track;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      borderRadius: AppRadius.card,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: _ArtworkPlaceholder(
+              mark: track.mark,
+              width: double.infinity,
+              height: double.infinity,
+              radius: AppRadius.card,
             ),
           ),
-          const SizedBox(width: 14),
-          const Icon(
-            Icons.directions_car_filled_rounded,
-            color: _AppColors.textMuted,
-            size: 18,
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[Colors.transparent, AppColor.scrimStrong],
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
+          Positioned(
+            left: AppSpace.lg,
+            right: AppSpace.lg,
+            bottom: AppSpace.md,
             child: Text(
-              carLifeText,
+              track.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _AppColors.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
+              style: AppType.cardTitle,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FallbackSquareGrid extends StatelessWidget {
+  const _FallbackSquareGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final List<_DemoTrack> tracks = <_DemoTrack>[
+          ..._recentTracks,
+          ..._demoQueue,
+        ];
+        final double tileSize = math.min(
+          96,
+          (constraints.maxWidth - (AppSpace.lg * 4)) / 5,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (int index = 0; index < 5; index += 1) ...[
+              SizedBox(
+                width: tileSize,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    _ArtworkPlaceholder(
+                      mark: tracks[index].mark,
+                      width: tileSize,
+                      height: tileSize,
+                      radius: AppRadius.tile,
+                    ),
+                    const SizedBox(height: AppSpace.sm),
+                    Text(
+                      tracks[index].title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.caption.copyWith(
+                        color: AppColor.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (index < 4) const SizedBox(width: AppSpace.lg),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DiscoveryMetaChips extends StatelessWidget {
+  const _DiscoveryMetaChips({
+    required this.musicSources,
+    required this.sourceBusy,
+    required this.sourceError,
+    required this.hotSearchKeywords,
+    required this.onHotKeyword,
+  });
+
+  final FreeMusicSources? musicSources;
+  final bool sourceBusy;
+  final String sourceError;
+  final List<String> hotSearchKeywords;
+  final ValueChanged<String> onHotKeyword;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> activeSources =
+        musicSources?.activeSources ?? const <String>[];
+    return Wrap(
+      spacing: AppSpace.sm,
+      runSpacing: AppSpace.sm,
+      children: <Widget>[
+        if (sourceBusy)
+          const _ChipLabel(text: '来源加载中')
+        else if (sourceError.isNotEmpty)
+          const _ChipLabel(text: '来源可重试')
+        else
+          for (final String source in activeSources.take(3))
+            _ChipLabel(text: musicSources?.labelFor(source) ?? source),
+        for (final String keyword in hotSearchKeywords.take(4))
+          _ActionChipLabel(text: keyword, onTap: () => onHotKeyword(keyword)),
+      ],
     );
   }
 }
@@ -2377,8 +2430,10 @@ class _CarLifeCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: _AppColors.carlife.withValues(alpha: 0.24),
+                  borderRadius: BorderRadius.circular(AppRadius.tile),
+                  color: _AppColors.carlife.withValues(
+                    alpha: AppGlass.carlifeAlpha,
+                  ),
                 ),
                 child: const Icon(
                   Icons.directions_car_filled_rounded,
@@ -2433,42 +2488,25 @@ class _CarLifeCard extends StatelessWidget {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppRadius.tile),
                     ),
                   ),
                   child: Text(status.launchable ? '打开' : '安装'),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
+              _SmallGlassIconButton(
                 tooltip: '同步当前播放',
-                onPressed: busy ? null : onSync,
-                icon: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync_rounded),
-                color: _AppColors.textSecondary,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                icon: Icons.sync_rounded,
+                busy: busy,
+                onTap: onSync,
               ),
               const SizedBox(width: 8),
-              IconButton(
+              _SmallGlassIconButton(
                 tooltip: '刷新状态',
-                onPressed: busy ? null : onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
-                color: _AppColors.textSecondary,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                icon: Icons.refresh_rounded,
+                busy: false,
+                onTap: busy ? null : onRefresh,
               ),
             ],
           ),
@@ -2555,8 +2593,8 @@ class _SettingsPanel extends StatelessWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(17),
-                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(AppRadius.tile),
+                        color: AppColor.fillNeutral,
                       ),
                       child: const Icon(
                         Icons.system_update_rounded,
@@ -2596,7 +2634,7 @@ class _SettingsPanel extends StatelessWidget {
                           vertical: 15,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(AppRadius.tile),
                         ),
                       ),
                       child: Text(updateBusy ? '检查中' : '检查更新'),
@@ -2621,7 +2659,7 @@ class _SearchPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(AppRadius.pill),
       onTap: onTap,
       child: _GlassCard(
         width: compact ? 178 : 250,
@@ -2680,98 +2718,122 @@ class _SearchPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => onSearch(),
-                  style: const TextStyle(
-                    color: _AppColors.textPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '输入歌名、歌手或专辑',
-                    hintStyle: const TextStyle(color: _AppColors.textMuted),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: _AppColors.textSecondary,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxHeight < 500;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            _GlassCard(
+              padding: EdgeInsets.all(compact ? 14 : 18),
+              borderRadius: 28,
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => onSearch(),
+                      style: const TextStyle(
+                        color: _AppColors.textPrimary,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '输入歌名、歌手或专辑',
+                        hintStyle: const TextStyle(
+                          color: _AppColors.textMuted,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: _AppColors.textSecondary,
+                        ),
+                        filled: true,
+                        fillColor: AppColor.fillNeutral,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: compact ? 13 : 16,
+                        ),
+                      ),
                     ),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.08),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: BorderSide.none,
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: busy ? null : onSearch,
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.manage_search_rounded),
+                    label: Text(busy ? '搜索中' : '搜索'),
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 18 : 24,
+                        vertical: compact ? 16 : 19,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card),
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 16,
-                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: busy ? null : onSearch,
-                icon: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.manage_search_rounded),
-                label: Text(busy ? '搜索中' : '搜索'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 18,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: <Widget>[
-              const Text(
-                '在线曲库',
-                style: TextStyle(
-                  color: _AppColors.textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 10),
-              _ChipLabel(text: query.isEmpty ? 'FreeMusic' : query),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _SearchResultsBody(
-              songs: songs,
-              busy: busy,
-              loadMoreBusy: loadMoreBusy,
-              canLoadMore: canLoadMore,
-              error: error,
-              loadMoreError: loadMoreError,
-              query: query,
-              hotSearchKeywords: hotSearchKeywords,
-              onLoadMore: onLoadMore,
-              onHotKeyword: onHotKeyword,
-              onPlay: onPlay,
             ),
-          ),
-        ],
-      ),
+            SizedBox(height: compact ? 10 : 14),
+            Expanded(
+              child: _GlassCard(
+                padding: EdgeInsets.all(compact ? 14 : 18),
+                borderRadius: 30,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            query.isEmpty ? '搜索发现' : '搜索结果',
+                            style: const TextStyle(
+                              color: _AppColors.textPrimary,
+                              fontSize: 23,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (query.isNotEmpty)
+                          _ChipLabel(text: '${songs.length} 首')
+                        else
+                          const _ChipLabel(text: 'FreeMusic'),
+                      ],
+                    ),
+                    SizedBox(height: compact ? 8 : 12),
+                    Expanded(
+                      child: _SearchResultsBody(
+                        songs: songs,
+                        busy: busy,
+                        loadMoreBusy: loadMoreBusy,
+                        canLoadMore: canLoadMore,
+                        error: error,
+                        loadMoreError: loadMoreError,
+                        query: query,
+                        hotSearchKeywords: hotSearchKeywords,
+                        onLoadMore: onLoadMore,
+                        onHotKeyword: onHotKeyword,
+                        onPlay: onPlay,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2974,14 +3036,14 @@ class _SongResultTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final _DemoTrack visual = _demoQueue[index % _demoQueue.length];
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: () => onPlay(index),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          color: AppColor.fillNeutral,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: AppColor.strokeHairline),
         ),
         child: Row(
           children: <Widget>[
@@ -3035,7 +3097,7 @@ class _SongResultTile extends StatelessWidget {
             const SizedBox(width: 10),
             const Icon(
               Icons.play_circle_fill_rounded,
-              color: _AppColors.primary,
+              color: AppColor.textSecondary,
             ),
           ],
         ),
@@ -3083,7 +3145,7 @@ class _PlaylistSheet extends StatelessWidget {
                     track: _demoQueue.first,
                     imageUrl: current?.cover ?? '',
                     size: 62,
-                    radius: 18,
+                    radius: AppRadius.tile,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -3183,14 +3245,14 @@ class _PlaylistSongRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          color: AppColor.fillNeutral,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(color: AppColor.strokeHairline),
         ),
         child: Row(
           children: <Widget>[
@@ -3400,15 +3462,7 @@ class _NowPlayingPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              minHeight: 7,
-              value: progress,
-              backgroundColor: Colors.white.withValues(alpha: 0.12),
-              valueColor: AlwaysStoppedAnimation<Color>(track.color),
-            ),
-          ),
+          _GradientProgressBar(value: progress, height: 5),
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3602,7 +3656,7 @@ class _NowPlayingFullScreenPanel extends StatelessWidget {
                             ? '暂无当前歌词'
                             : activeLyric,
                         style: TextStyle(
-                          color: _AppColors.textPrimary.withValues(alpha: 0.88),
+                          color: AppColor.textPrimary,
                           fontSize: 25,
                           fontWeight: FontWeight.w900,
                         ),
@@ -3619,17 +3673,7 @@ class _NowPlayingFullScreenPanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 30),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          minHeight: 7,
-                          value: progress,
-                          backgroundColor: Colors.white.withValues(alpha: 0.12),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            track.color,
-                          ),
-                        ),
-                      ),
+                      _GradientProgressBar(value: progress, height: 5),
                       const SizedBox(height: 10),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3881,25 +3925,33 @@ class _QueueTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         constraints: const BoxConstraints(minHeight: 68),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: selected
-              ? _AppColors.primary.withValues(alpha: 0.13)
-              : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(18),
+          color: selected ? AppColor.fillNeutral : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
           border: Border.all(
-            color: selected
-                ? visual.color.withValues(alpha: 0.72)
-                : Colors.white.withValues(alpha: 0.06),
+            color: selected ? AppColor.strokeStrong : AppColor.strokeHairline,
           ),
         ),
         child: Row(
           children: <Widget>[
+            if (selected) ...<Widget>[
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: AppColor.accentGradient,
+                  borderRadius: BorderRadius.all(
+                    Radius.circular(AppRadius.pill),
+                  ),
+                ),
+                child: SizedBox(width: AppSpace.xs, height: AppSpace.xl3),
+              ),
+              const SizedBox(width: AppSpace.sm),
+            ],
             SizedBox(
               width: 28,
               child: Text(
@@ -3954,7 +4006,7 @@ class _QueueTile extends StatelessWidget {
             if (selected)
               const Icon(
                 Icons.graphic_eq_rounded,
-                color: _AppColors.primary,
+                color: AppColor.textPrimary,
                 size: 22,
               ),
             const SizedBox(width: 12),
@@ -3979,14 +4031,14 @@ class _QueueHeaderAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          color: AppColor.fillNeutral,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(color: AppColor.strokeHairline),
         ),
         child: Text(
           label,
@@ -4095,17 +4147,7 @@ class _MiniPlayerBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: LinearProgressIndicator(
-                      minHeight: 5,
-                      value: progress,
-                      backgroundColor: Colors.white.withValues(alpha: 0.12),
-                      valueColor: AlwaysStoppedAnimation<Color>(track.color),
-                    ),
-                  ),
-                ),
+                Expanded(child: _GradientProgressBar(value: progress)),
                 const SizedBox(width: 10),
                 Text(
                   _formatDuration(duration),
@@ -4123,6 +4165,7 @@ class _MiniPlayerBar extends StatelessWidget {
             icon: Icons.skip_previous_rounded,
             onTap: onPrevious,
           ),
+          const SizedBox(width: AppSpace.sm),
           _MiniTransportButton(
             icon: playbackState.playing
                 ? Icons.pause_rounded
@@ -4130,6 +4173,7 @@ class _MiniPlayerBar extends StatelessWidget {
             primary: true,
             onTap: onPlayPause,
           ),
+          const SizedBox(width: AppSpace.sm),
           _MiniTransportButton(icon: Icons.skip_next_rounded, onTap: onNext),
           const SizedBox(width: 8),
           _ModePill(mode: playbackMode, onTap: onPlaybackMode),
@@ -4160,34 +4204,129 @@ class _TransportButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _CircleControlButton(
+      icon: icon,
+      label: label,
+      onTap: onTap,
+      size: primary ? 76 : 56,
+      iconSize: primary ? 42 : 30,
+      primary: primary,
+    );
+  }
+}
+
+class _SmallGlassIconButton extends StatelessWidget {
+  const _SmallGlassIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+        onTap: busy ? null : onTap,
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColor.fillNeutral,
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            border: Border.all(color: AppColor.strokeHairline),
+          ),
+          child: busy
+              ? const Center(
+                  child: SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : Icon(icon, color: AppColor.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientProgressBar extends StatelessWidget {
+  const _GradientProgressBar({required this.value, this.height = 5});
+
+  final double value;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final double clamped = value.clamp(0, 1).toDouble();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            const DecoratedBox(
+              decoration: BoxDecoration(color: AppColor.progressTrack),
+            ),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: clamped,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(gradient: AppColor.accentGradient),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleControlButton extends StatelessWidget {
+  const _CircleControlButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.size,
+    required this.iconSize,
+    required this.primary,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final double size;
+  final double iconSize;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
     return Tooltip(
       message: label,
       child: InkWell(
-        borderRadius: BorderRadius.circular(primary ? 34 : 28),
+        customBorder: const CircleBorder(),
         onTap: onTap,
         child: Container(
-          width: primary ? 76 : 62,
-          height: primary ? 76 : 62,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: primary
-                ? const LinearGradient(
-                    colors: <Color>[_AppColors.primary, _AppColors.accent],
-                  )
-                : null,
-            color: primary ? null : Colors.white.withValues(alpha: 0.10),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            gradient: primary ? AppColor.accentGradient : null,
+            color: primary ? null : AppColor.fillNeutral,
+            border: Border.all(color: AppColor.strokeHairline),
             boxShadow: primary
-                ? <BoxShadow>[
-                    BoxShadow(
-                      color: _AppColors.primary.withValues(alpha: 0.32),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : null,
+                ? <BoxShadow>[AppShadow.controlPrimary]
+                : const <BoxShadow>[],
           ),
-          child: Icon(icon, size: primary ? 42 : 34, color: Colors.white),
+          child: Icon(icon, size: iconSize, color: AppColor.textPrimary),
         ),
       ),
     );
@@ -4210,15 +4349,15 @@ class _CircleIconButton extends StatelessWidget {
     return Tooltip(
       message: label,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         onTap: onTap,
         child: Container(
           width: 50,
           height: 50,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.10),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            color: AppColor.fillNeutral,
+            border: Border.all(color: AppColor.strokeHairline),
           ),
           child: Icon(icon, color: _AppColors.textPrimary, size: 30),
         ),
@@ -4240,20 +4379,13 @@ class _MiniTransportButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 10),
-      child: IconButton(
-        onPressed: onTap,
-        icon: Icon(icon, size: primary ? 34 : 30),
-        color: Colors.white,
-        style: IconButton.styleFrom(
-          fixedSize: Size.square(primary ? 58 : 50),
-          backgroundColor: primary
-              ? _AppColors.primary
-              : Colors.white.withValues(alpha: 0.08),
-          shape: const CircleBorder(),
-        ),
-      ),
+    return _CircleControlButton(
+      icon: icon,
+      label: primary ? '播放/暂停' : '切歌',
+      onTap: onTap,
+      size: primary ? 58 : 50,
+      iconSize: primary ? 30 : 30,
+      primary: primary,
     );
   }
 }
@@ -4269,15 +4401,15 @@ class _ModePill extends StatelessWidget {
     return Tooltip(
       message: _labelForPlaybackMode(mode),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.tile),
         onTap: onTap,
         child: Container(
           height: 42,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            color: AppColor.fillNeutral,
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            border: Border.all(color: AppColor.strokeHairline),
           ),
           child: Row(
             children: <Widget>[
@@ -4317,21 +4449,15 @@ class _LyricsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: onTap,
       child: Container(
         height: 42,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: available
-              ? _AppColors.primary.withValues(alpha: 0.18)
-              : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: available
-                ? _AppColors.primary.withValues(alpha: 0.36)
-                : Colors.white.withValues(alpha: 0.10),
-          ),
+          color: available ? AppColor.fillNeutralHover : AppColor.fillNeutral,
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          border: Border.all(color: AppColor.strokeHairline),
         ),
         child: Row(
           children: <Widget>[
@@ -4344,7 +4470,7 @@ class _LyricsButton extends StatelessWidget {
               Icon(
                 Icons.subtitles_rounded,
                 color: available
-                    ? _AppColors.primary
+                    ? AppColor.textPrimary
                     : _AppColors.textSecondary,
                 size: 18,
               ),
@@ -4567,14 +4693,10 @@ class _LyricsContentState extends State<_LyricsContent> {
             vertical: active ? 8 : 0,
           ),
           decoration: BoxDecoration(
-            color: active
-                ? _AppColors.accent.withValues(alpha: 0.14)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
+            color: active ? AppColor.fillNeutral : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.control),
             border: Border.all(
-              color: active
-                  ? _AppColors.accent.withValues(alpha: 0.28)
-                  : Colors.transparent,
+              color: active ? AppColor.strokeHairline : Colors.transparent,
             ),
           ),
           child: Row(
@@ -4585,7 +4707,9 @@ class _LyricsContentState extends State<_LyricsContent> {
                 child: Text(
                   _formatDuration(line.time),
                   style: TextStyle(
-                    color: active ? _AppColors.accent : _AppColors.textMuted,
+                    color: active
+                        ? AppColor.accentRoseEnd
+                        : _AppColors.textMuted,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
@@ -4596,7 +4720,7 @@ class _LyricsContentState extends State<_LyricsContent> {
                   line.text,
                   style: TextStyle(
                     color: active
-                        ? _AppColors.textPrimary
+                        ? AppColor.accentRoseEnd
                         : _AppColors.textSecondary,
                     fontSize: active ? 22 : 20,
                     height: 1.38,
@@ -4643,49 +4767,98 @@ class _ArtworkTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return _ArtworkPlaceholder(
+      mark: track.mark,
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[track.color, track.color.withBlue(230), Colors.black],
+      radius: radius,
+    );
+  }
+}
+
+class _ArtworkPlaceholder extends StatelessWidget {
+  const _ArtworkPlaceholder({
+    required this.mark,
+    required this.width,
+    required this.height,
+    required this.radius,
+  });
+
+  final String mark;
+  final double width;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: GlassCard(
+        width: width,
+        height: height,
+        radius: radius,
+        shadows: const <BoxShadow>[],
+        child: Center(
+          child: Text(
+            mark,
+            style: AppType.display.copyWith(color: AppColor.textSecondary),
+          ),
         ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: track.color.withValues(alpha: 0.24),
-            blurRadius: size * 0.16,
-            offset: Offset(0, size * 0.06),
-          ),
-        ],
       ),
-      child: Stack(
-        children: <Widget>[
-          Positioned(
-            right: -size * 0.12,
-            top: -size * 0.08,
-            child: Container(
-              width: size * 0.70,
-              height: size * 0.70,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-          ),
-          Center(
-            child: Text(
-              track.mark,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: size * 0.28,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
+    );
+  }
+}
+
+class _ArtworkCover extends StatelessWidget {
+  const _ArtworkCover({
+    required this.visual,
+    required this.imageUrl,
+    required this.radius,
+    this.width,
+    this.height,
+  });
+
+  final _DemoTrack visual;
+  final String imageUrl;
+  final double radius;
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    final Uri? uri = Uri.tryParse(imageUrl);
+    final bool canLoadImage =
+        uri != null &&
+        uri.hasAbsolutePath &&
+        (uri.isScheme('http') || uri.isScheme('https'));
+    if (!canLoadImage) {
+      return _ArtworkPlaceholder(
+        mark: visual.mark,
+        width: width ?? double.infinity,
+        height: height ?? double.infinity,
+        radius: radius,
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 200),
+        placeholder: (_, _) => _ArtworkPlaceholder(
+          mark: visual.mark,
+          width: width ?? double.infinity,
+          height: height ?? double.infinity,
+          radius: radius,
+        ),
+        errorWidget: (_, _, _) => _ArtworkPlaceholder(
+          mark: visual.mark,
+          width: width ?? double.infinity,
+          height: height ?? double.infinity,
+          radius: radius,
+        ),
       ),
     );
   }
@@ -4717,20 +4890,22 @@ class _ArtworkView extends StatelessWidget {
         decoration: BoxDecoration(
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: track.color.withValues(alpha: 0.24),
+              color: track.color.withValues(alpha: AppGlass.artworkShadowAlpha),
               blurRadius: size * 0.16,
               offset: Offset(0, size * 0.06),
             ),
           ],
         ),
-        child: Image.network(
-          imageUrl,
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) {
-            return _ArtworkTile(track: track, size: size, radius: radius);
-          },
+          fadeInDuration: const Duration(milliseconds: 200),
+          placeholder: (_, _) =>
+              _ArtworkTile(track: track, size: size, radius: radius),
+          errorWidget: (_, _, _) =>
+              _ArtworkTile(track: track, size: size, radius: radius),
         ),
       ),
     );
@@ -4743,7 +4918,7 @@ class _GlassCard extends StatelessWidget {
     this.width,
     this.height,
     this.padding = EdgeInsets.zero,
-    this.borderRadius = 30,
+    this.borderRadius = AppRadius.panel,
   });
 
   final Widget child;
@@ -4754,22 +4929,12 @@ class _GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassCard(
       width: width,
       height: height,
       padding: padding,
-      decoration: BoxDecoration(
-        color: _AppColors.surface,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
+      radius: borderRadius,
+      blur: borderRadius >= AppRadius.panel ? AppRadius.panel : AppSpace.xl,
       child: child,
     );
   }
@@ -4785,9 +4950,9 @@ class _ChipLabel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        color: AppColor.fillNeutral,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: AppColor.strokeHairline),
       ),
       child: Text(
         text,
@@ -4810,14 +4975,14 @@ class _ActionChipLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(AppRadius.pill),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: _AppColors.primary.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _AppColors.primary.withValues(alpha: 0.24)),
+          color: AppColor.fillNeutral,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(color: AppColor.strokeHairline),
         ),
         child: Text(
           text,
@@ -4835,15 +5000,10 @@ class _ActionChipLabel extends StatelessWidget {
 class _AppColors {
   const _AppColors._();
 
-  static const Color background = Color(0xFF07101C);
-  static const Color surface = Color(0xCC151824);
-  static const Color primary = Color(0xFFFF5C93);
-  static const Color accent = Color(0xFFFFB86B);
-  static const Color carlife = Color(0xFF2D7DFF);
-  static const Color error = Color(0xFFFF5A5F);
-  static const Color textPrimary = Color(0xFFF7F8FA);
-  static const Color textSecondary = Color(0xFFAEB4C1);
-  static const Color textMuted = Color(0xFF747D8C);
+  static const Color carlife = AppColor.carlife;
+  static const Color textPrimary = AppColor.textPrimary;
+  static const Color textSecondary = AppColor.textSecondary;
+  static const Color textMuted = AppColor.textTertiary;
 }
 
 class _NavItem {
@@ -4884,35 +5044,35 @@ const List<_DemoTrack> _demoQueue = <_DemoTrack>[
     title: 'Highway Morning',
     artist: 'Native Radio',
     duration: Duration(minutes: 3, seconds: 42),
-    color: Color(0xFFFF5C93),
+    color: AppColor.glowViolet,
     mark: 'H',
   ),
   _DemoTrack(
     title: 'City Lights',
     artist: 'Drive Session',
     duration: Duration(minutes: 4, seconds: 8),
-    color: Color(0xFF36C8FF),
+    color: AppColor.glowCyan,
     mark: 'C',
   ),
   _DemoTrack(
     title: 'Ocean Avenue',
     artist: 'Glass FM',
     duration: Duration(minutes: 3, seconds: 25),
-    color: Color(0xFF65E4A3),
+    color: AppColor.textSecondary,
     mark: 'O',
   ),
   _DemoTrack(
     title: 'Late Night Loop',
     artist: 'CarPlay Mix',
     duration: Duration(minutes: 5, seconds: 1),
-    color: Color(0xFFFFB86B),
+    color: AppColor.textTertiary,
     mark: 'L',
   ),
   _DemoTrack(
     title: 'Silent Dashboard',
     artist: 'iMusic Lab',
     duration: Duration(minutes: 2, seconds: 57),
-    color: Color(0xFF9A7CFF),
+    color: AppColor.glowViolet,
     mark: 'S',
   ),
 ];
@@ -4922,21 +5082,21 @@ const List<_DemoTrack> _recentTracks = <_DemoTrack>[
     title: 'Morning Pulse',
     artist: 'Daily Drive',
     duration: Duration(minutes: 3, seconds: 9),
-    color: Color(0xFF36C8FF),
+    color: AppColor.glowCyan,
     mark: 'M',
   ),
   _DemoTrack(
     title: 'Warm Start',
     artist: 'Engine Room',
     duration: Duration(minutes: 4, seconds: 12),
-    color: Color(0xFFFFB86B),
+    color: AppColor.textTertiary,
     mark: 'W',
   ),
   _DemoTrack(
     title: 'Signal Green',
     artist: 'Route 88',
     duration: Duration(minutes: 3, seconds: 33),
-    color: Color(0xFF65E4A3),
+    color: AppColor.textSecondary,
     mark: 'G',
   ),
 ];
@@ -4945,16 +5105,6 @@ String _formatDuration(Duration duration) {
   final int minutes = duration.inMinutes;
   final int seconds = duration.inSeconds.remainder(60);
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
-}
-
-String _formatCount(int value) {
-  if (value >= 100000000) {
-    return '${(value / 100000000).toStringAsFixed(1)}亿';
-  }
-  if (value >= 10000) {
-    return '${(value / 10000).toStringAsFixed(1)}万';
-  }
-  return '$value';
 }
 
 IconData _iconForPlaybackMode(NativePlaybackMode mode) {
