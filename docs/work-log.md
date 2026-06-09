@@ -410,6 +410,10 @@ Implemented in this increment:
 - Lyrics loading now tries `/yrc` first through `fetchEnhancedLyrics`, then
   falls back to `/lyric`; the full-screen now-playing page renders the current
   and next lyric lines from the parsed API result.
+- Follow-up fix: `/search` and `/recommend` source filters must be serialized
+  as repeated `sources=netease&sources=kuwo` parameters. A comma-joined
+  `sources=netease,kuwo` value returns HTTP 200 with empty result sets, which
+  made the UI look like recommendations and search were unavailable.
 
 Verification in this increment:
 

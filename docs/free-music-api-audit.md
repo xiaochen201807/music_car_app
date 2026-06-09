@@ -59,13 +59,13 @@ project API plan.
 | Endpoint | Method | Parameters | Observed Status | Purpose |
 | --- | --- | --- | --- | --- |
 | `/sources` | `GET` | none | `200` | Available music sources and display names. |
-| `/search` | `GET` | `q`, `type=song`, `page`, optional `sources` | `200` | Song search. |
+| `/search` | `GET` | `q`, `type=song`, `page`, optional repeated `sources` | `200` | Song search. |
 | `/search` | `GET` | `q`, `type=playlist`, `page`, optional `sources` | `200` | Playlist search. |
 | `/search` | `GET` | `q`, `type=album`, `page`, optional `sources` | `200` | Album search. |
 | `/search` | `GET` | `q`, `type=artist`, `page`, optional `sources` | `200` | Artist search. |
 | `/search/hot` | `GET` | none | `200` | Hot keywords for empty search state. |
 | `/search/suggest` | `GET` | `q` | `200` | Search suggestions. |
-| `/recommend` | `GET` | optional `sources` | `200` | Recommended playlists. |
+| `/recommend` | `GET` | optional repeated `sources` | `200` | Recommended playlists. |
 | `/playlist` | `GET` | `id`, `source` | `200` | Full playlist/fallback playlist loading. |
 | `/playlist/page` | `GET` | `id`, `source`, `offset`, `size` | `200` | Paged playlist songs. |
 | `/playlist/resolve` | `GET` | playlist link or platform metadata | `400` with current sample | Keep for future external playlist import; sample params need follow-up. |

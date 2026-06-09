@@ -98,7 +98,10 @@ void main() {
     expect(requestedUri.queryParameters['q'], '晴天');
     expect(requestedUri.queryParameters['type'], 'song');
     expect(requestedUri.queryParameters['page'], '0');
-    expect(requestedUri.queryParameters['sources'], 'kuwo,netease');
+    expect(requestedUri.queryParametersAll['sources'], <String>[
+      'kuwo',
+      'netease',
+    ]);
     expect(requestedHeaders['Referer'], 'https://music.sy110.eu.org/music');
     expect(result.hasMore, isTrue);
     expect(result.page, 0);
@@ -172,7 +175,10 @@ void main() {
     );
 
     expect(requestedUri.path, '/api/v1/freemusic/recommend');
-    expect(requestedUri.queryParameters['sources'], 'netease,kuwo');
+    expect(requestedUri.queryParametersAll['sources'], <String>[
+      'netease',
+      'kuwo',
+    ]);
     expect(result.playlists, hasLength(1));
     expect(result.playlists.single.id, '867916143');
     expect(result.playlists.single.source, 'netease');

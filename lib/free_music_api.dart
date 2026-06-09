@@ -202,12 +202,15 @@ class FreeMusicApi {
     }
 
     final Uri uri = Uri.parse('$baseUri/search').replace(
-      queryParameters: <String, String>{
+      queryParameters: <String, Object>{
         'q': keyword,
         'type': 'song',
         'page': '$page',
         if (sources != null && sources.isNotEmpty)
-          'sources': sources.map((String source) => source.trim()).join(','),
+          'sources': sources
+              .map((String source) => source.trim())
+              .where((String source) => source.isNotEmpty)
+              .toList(growable: false),
       },
     );
     final http.Response response = await _client.get(
@@ -238,9 +241,12 @@ class FreeMusicApi {
     List<String>? sources,
   }) async {
     final Uri uri = Uri.parse('$baseUri/recommend').replace(
-      queryParameters: <String, String>{
+      queryParameters: <String, Object>{
         if (sources != null && sources.isNotEmpty)
-          'sources': sources.map((String source) => source.trim()).join(','),
+          'sources': sources
+              .map((String source) => source.trim())
+              .where((String source) => source.isNotEmpty)
+              .toList(growable: false),
       },
     );
     final http.Response response = await _client.get(
