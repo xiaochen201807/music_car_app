@@ -24,6 +24,7 @@ class MainActivity : AudioServiceActivity() {
     private val downloadPollHandler = Handler(Looper.getMainLooper())
     private val downloadPollTasks = mutableMapOf<Long, Runnable>()
     private var downloadReceiver: BroadcastReceiver? = null
+    private var lastCarLifePlaybackContext: Map<String, Any?> = emptyMap()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -54,7 +55,10 @@ class MainActivity : AudioServiceActivity() {
             when (call.method) {
                 "getStatus" -> result.success(carLifeStatus())
                 "openCarLife" -> result.success(openCarLife())
-                "syncPlaybackContext" -> result.success(syncPlaybackContext())
+                "syncPlaybackContext" -> {
+                    val context = call.arguments as? Map<*, *>
+                    result.success(syncPlaybackContext(context))
+                }
                 else -> result.notImplemented()
             }
         }
@@ -131,13 +135,84 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    private fun syncPlaybackContext(): Map<String, Any?> {
+    private fun syncPlaybackContext(context: Map<*, *>?): Map<String, Any?> {
         val packageName = findInstalledCarLifePackage()
+        val normalizedContext = normalizeCarLifePlaybackContext(context)
+        lastCarLifePlaybackContext = normalizedContext
+        val queue = normalizedContext["queue"] as? List<*>
         return mapOf(
             "supported" to false,
             "packageName" to (packageName ?: ""),
+            "integrationMode" to "context_cache",
             "reason" to "sdk_missing",
+            "syncedQueueLength" to (queue?.size ?: 0),
+            "syncedQueueIndex" to (normalizedContext["queueIndex"] as? Int ?: -1),
+            "syncedTitle" to (normalizedContext["title"] as? String ?: ""),
         )
+    }
+
+    private fun normalizeCarLifePlaybackContext(context: Map<*, *>?): Map<String, Any?> {
+        if (context == null) {
+            return emptyMap()
+        }
+        val queue = (context["queue"] as? List<*>)
+            ?.mapNotNull { item -> normalizeCarLifeQueueItem(item as? Map<*, *>) }
+            ?: emptyList()
+        return mapOf(
+            "title" to stringArgument(context["title"]),
+            "artist" to stringArgument(context["artist"]),
+            "album" to stringArgument(context["album"]),
+            "coverUrl" to stringArgument(context["coverUrl"]),
+            "source" to stringArgument(context["source"]),
+            "songId" to stringArgument(context["songId"]),
+            "playing" to (context["playing"] == true),
+            "durationMs" to longArgument(context["durationMs"]),
+            "positionMs" to longArgument(context["positionMs"]),
+            "queueIndex" to intArgument(context["queueIndex"], -1),
+            "queue" to queue,
+        )
+    }
+
+    private fun normalizeCarLifeQueueItem(item: Map<*, *>?): Map<String, Any?>? {
+        if (item == null) {
+            return null
+        }
+        val id = stringArgument(item["id"])
+        val source = stringArgument(item["source"])
+        if (id.isEmpty() || source.isEmpty()) {
+            return null
+        }
+        return mapOf(
+            "id" to id,
+            "source" to source,
+            "name" to stringArgument(item["name"]),
+            "artist" to stringArgument(item["artist"]),
+            "album" to stringArgument(item["album"]),
+            "duration" to intArgument(item["duration"], 0),
+            "cover" to stringArgument(item["cover"]),
+        )
+    }
+
+    private fun stringArgument(value: Any?): String {
+        return value?.toString()?.trim().orEmpty()
+    }
+
+    private fun intArgument(value: Any?, defaultValue: Int = 0): Int {
+        return when (value) {
+            is Int -> value
+            is Number -> value.toInt()
+            is String -> value.toDoubleOrNull()?.toInt() ?: defaultValue
+            else -> defaultValue
+        }
+    }
+
+    private fun longArgument(value: Any?, defaultValue: Long = 0L): Long {
+        return when (value) {
+            is Long -> value
+            is Number -> value.toLong()
+            is String -> value.toDoubleOrNull()?.toLong() ?: defaultValue
+            else -> defaultValue
+        }
     }
 
     private fun findInstalledCarLifePackage(): String? {

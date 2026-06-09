@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import '../free_music_api.dart';
+
 class CarLifeService {
   const CarLifeService({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel('music_car_app/carlife');
@@ -46,11 +48,17 @@ class CarLifeService {
     required String title,
     required String artist,
     required bool playing,
+    CarLifePlaybackContext? context,
   }) async {
     try {
       final Object? result = await _channel.invokeMethod<Object?>(
         'syncPlaybackContext',
-        <String, Object?>{'title': title, 'artist': artist, 'playing': playing},
+        context?.toMap() ??
+            <String, Object?>{
+              'title': title,
+              'artist': artist,
+              'playing': playing,
+            },
       );
       return CarLifeSyncResult.fromMap(_asStringKeyMap(result));
     } on MissingPluginException {
@@ -59,6 +67,62 @@ class CarLifeService {
       return CarLifeSyncResult(supported: false, reason: error.code);
     }
   }
+}
+
+class CarLifePlaybackContext {
+  const CarLifePlaybackContext({
+    required this.title,
+    required this.artist,
+    required this.playing,
+    this.album = '',
+    this.coverUrl = '',
+    this.source = '',
+    this.songId = '',
+    this.duration = Duration.zero,
+    this.position = Duration.zero,
+    this.queue = const <FreeMusicSong>[],
+    this.queueIndex = -1,
+  });
+
+  final String title;
+  final String artist;
+  final bool playing;
+  final String album;
+  final String coverUrl;
+  final String source;
+  final String songId;
+  final Duration duration;
+  final Duration position;
+  final List<FreeMusicSong> queue;
+  final int queueIndex;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'coverUrl': coverUrl,
+      'source': source,
+      'songId': songId,
+      'playing': playing,
+      'durationMs': duration.inMilliseconds,
+      'positionMs': position.inMilliseconds,
+      'queueIndex': queueIndex,
+      'queue': queue.map(_songToMap).toList(growable: false),
+    };
+  }
+}
+
+Map<String, Object?> _songToMap(FreeMusicSong song) {
+  return <String, Object?>{
+    'id': song.id,
+    'source': song.source,
+    'name': song.name,
+    'artist': song.artist,
+    'album': song.album,
+    'duration': song.duration,
+    'cover': song.cover,
+  };
 }
 
 class CarLifeStatus {
@@ -127,17 +191,35 @@ class CarLifeLaunchResult {
 }
 
 class CarLifeSyncResult {
-  const CarLifeSyncResult({required this.supported, this.reason = ''});
+  const CarLifeSyncResult({
+    required this.supported,
+    this.reason = '',
+    this.packageName = '',
+    this.integrationMode = '',
+    this.syncedQueueLength = 0,
+    this.syncedQueueIndex = -1,
+    this.syncedTitle = '',
+  });
 
   factory CarLifeSyncResult.fromMap(Map<String, Object?> map) {
     return CarLifeSyncResult(
       supported: map['supported'] == true,
       reason: _stringValue(map['reason']),
+      packageName: _stringValue(map['packageName']),
+      integrationMode: _stringValue(map['integrationMode']),
+      syncedQueueLength: _intValue(map['syncedQueueLength']),
+      syncedQueueIndex: _intValue(map['syncedQueueIndex'], defaultValue: -1),
+      syncedTitle: _stringValue(map['syncedTitle']),
     );
   }
 
   final bool supported;
   final String reason;
+  final String packageName;
+  final String integrationMode;
+  final int syncedQueueLength;
+  final int syncedQueueIndex;
+  final String syncedTitle;
 }
 
 Map<String, Object?> _asStringKeyMap(Object? value) {
@@ -154,4 +236,17 @@ String _stringValue(Object? value) {
     return '';
   }
   return '$value'.trim();
+}
+
+int _intValue(Object? value, {int defaultValue = 0}) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num && value.isFinite) {
+    return value.round();
+  }
+  if (value is String) {
+    return double.tryParse(value)?.round() ?? defaultValue;
+  }
+  return defaultValue;
 }

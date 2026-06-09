@@ -216,7 +216,6 @@ class NativeAudioController {
   @visibleForTesting
   List<FreeMusicSong> get playlist => _playlist;
 
-  @visibleForTesting
   int get currentIndex => _currentIndex;
 
   @visibleForTesting

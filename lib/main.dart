@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
@@ -100,6 +99,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isCheckingUpdate = false;
   bool _isInstallingUpdate = false;
   bool _isCheckingCarLife = false;
+  bool _isSyncingCarLife = false;
   bool _hasAutoCheckedUpdate = false;
   bool _isSearchingMusic = false;
   bool _isLoadingRecommendations = false;
@@ -189,26 +189,33 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _skipToNextTrack() async {
-    await _nativeAudioController.skipToNext();
-    if (!mounted) {
+    final bool handled = await _nativeAudioController.skipToNext();
+    if (!mounted || !handled) {
       return;
     }
-    setState(() {
-      final int maxIndex = _playbackQueue.isEmpty
-          ? _demoQueue.length - 1
-          : _playbackQueue.length - 1;
-      _selectedQueueIndex = math.min(_selectedQueueIndex + 1, maxIndex);
-    });
+    _syncSelectedQueueIndexFromAudioController();
   }
 
   Future<void> _skipToPreviousTrack() async {
-    await _nativeAudioController.skipToPrevious();
-    if (!mounted) {
+    final bool handled = await _nativeAudioController.skipToPrevious();
+    if (!mounted || !handled) {
       return;
     }
+    _syncSelectedQueueIndexFromAudioController();
+  }
+
+  void _syncSelectedQueueIndexFromAudioController() {
+    final int index = _nativeAudioController.currentIndex;
+    if (index < 0 || index >= _playbackQueue.length) {
+      return;
+    }
+    final FreeMusicSong song = _playbackQueue[index];
     setState(() {
-      _selectedQueueIndex = math.max(_selectedQueueIndex - 1, 0);
+      _selectedQueueIndex = index;
+      _currentSong = song;
     });
+    unawaited(_loadLyricsForSong(song));
+    unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 
   Future<void> _searchSongs() async {
@@ -458,6 +465,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       _currentSong = song;
     });
     unawaited(_loadLyricsForSong(song));
+    unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 
   Future<void> _skipToQueueItem(int index) async {
@@ -474,6 +482,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (index >= 0 && index < _playbackQueue.length) {
       unawaited(_loadLyricsForSong(_playbackQueue[index]));
     }
+    unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 
   Future<void> _loadLyricsForSong(FreeMusicSong song) async {
@@ -637,6 +646,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _openCarLife() async {
+    await _syncCarLifePlaybackContext(showResult: false);
     final CarLifeLaunchResult result = await _carLifeService.openCarLife();
     if (!mounted) {
       return;
@@ -651,6 +661,80 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     } else {
       _showSnack('未能打开百度 CarLife：${result.reason}');
     }
+  }
+
+  Future<void> _syncCarLifePlaybackContext({required bool showResult}) async {
+    if (_isSyncingCarLife || !mounted) {
+      return;
+    }
+    final CarLifePlaybackContext? context = _buildCarLifePlaybackContext();
+    if (context == null) {
+      if (showResult) {
+        _showSnack('请先播放一首歌，再同步到 CarLife。');
+      }
+      return;
+    }
+    setState(() {
+      _isSyncingCarLife = true;
+    });
+    final CarLifeSyncResult result = await _carLifeService.syncPlaybackContext(
+      title: context.title,
+      artist: context.artist,
+      playing: context.playing,
+      context: context,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isSyncingCarLife = false;
+    });
+    if (!showResult) {
+      return;
+    }
+    if (result.supported) {
+      _showSnack('已同步到 CarLife：${result.syncedTitle}');
+    } else if (result.reason == 'sdk_missing') {
+      _showSnack('已缓存播放上下文，等待 CarLife SDK 接管同步。');
+    } else {
+      _showSnack('CarLife 同步不可用：${result.reason}');
+    }
+  }
+
+  CarLifePlaybackContext? _buildCarLifePlaybackContext() {
+    final FreeMusicSong? song = _currentSong;
+    if (song == null) {
+      return null;
+    }
+    final MusicAudioHandler? handler = widget.audioHandler;
+    final PlaybackUiState playbackState = handler == null
+        ? const PlaybackUiState()
+        : PlaybackUiState.fromAudioService(
+            handler.playbackState.valueOrNull,
+            handler.mediaItem.valueOrNull,
+          );
+    final int queueIndex =
+        _selectedQueueIndex >= 0 && _selectedQueueIndex < _playbackQueue.length
+        ? _selectedQueueIndex
+        : _playbackQueue.indexWhere(
+            (FreeMusicSong item) =>
+                item.id == song.id && item.source == song.source,
+          );
+    return CarLifePlaybackContext(
+      title: song.name,
+      artist: song.artist,
+      album: song.album,
+      coverUrl: song.cover,
+      source: song.source,
+      songId: song.id,
+      playing: playbackState.playing,
+      duration: song.duration > 0
+          ? Duration(seconds: song.duration)
+          : (playbackState.duration ?? Duration.zero),
+      position: playbackState.position,
+      queue: _playbackQueue,
+      queueIndex: queueIndex,
+    );
   }
 
   Future<void> _autoCheckForUpdate() async {
@@ -830,7 +914,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               currentTrack: currentTrack,
               carLifeStatus: _carLifeStatus,
               updateBusy: _isCheckingUpdate || _isInstallingUpdate,
-              carLifeBusy: _isCheckingCarLife,
+              carLifeBusy: _isCheckingCarLife || _isSyncingCarLife,
               onSelectTab: (int index) {
                 setState(() {
                   _selectedTab = index;
@@ -854,6 +938,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPrevious: _skipToPreviousTrack,
               onNext: _skipToNextTrack,
               onOpenCarLife: _openCarLife,
+              onSyncCarLife: () {
+                unawaited(_syncCarLifePlaybackContext(showResult: true));
+              },
               onRefreshCarLife: _refreshCarLifeStatus,
               onCheckUpdate: _checkForUpdate,
             );
@@ -967,6 +1054,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onOpenCarLife,
+    required this.onSyncCarLife,
     required this.onRefreshCarLife,
     required this.onCheckUpdate,
   });
@@ -1002,6 +1090,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onOpenCarLife;
+  final VoidCallback onSyncCarLife;
   final VoidCallback onRefreshCarLife;
   final VoidCallback onCheckUpdate;
 
@@ -1049,6 +1138,7 @@ class _NativeMusicScaffold extends StatelessWidget {
                               onPlaySearchResult: onPlaySearchResult,
                               onSelectPlaylist: onSelectPlaylist,
                               onOpenCarLife: onOpenCarLife,
+                              onSyncCarLife: onSyncCarLife,
                               onRefreshCarLife: onRefreshCarLife,
                             ),
                           ),
@@ -1358,6 +1448,7 @@ class _HomePanel extends StatelessWidget {
     required this.onPlaySearchResult,
     required this.onSelectPlaylist,
     required this.onOpenCarLife,
+    required this.onSyncCarLife,
     required this.onRefreshCarLife,
   });
 
@@ -1377,6 +1468,7 @@ class _HomePanel extends StatelessWidget {
   final ValueChanged<int> onPlaySearchResult;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onOpenCarLife;
+  final VoidCallback onSyncCarLife;
   final VoidCallback onRefreshCarLife;
 
   @override
@@ -1512,6 +1604,7 @@ class _HomePanel extends StatelessWidget {
                         status: carLifeStatus,
                         busy: carLifeBusy,
                         onOpen: onOpenCarLife,
+                        onSync: onSyncCarLife,
                         onRefresh: onRefreshCarLife,
                       ),
                     ),
@@ -1580,12 +1673,14 @@ class _CarLifeCard extends StatelessWidget {
     required this.status,
     required this.busy,
     required this.onOpen,
+    required this.onSync,
     required this.onRefresh,
   });
 
   final CarLifeStatus status;
   final bool busy;
   final VoidCallback onOpen;
+  final VoidCallback onSync;
   final VoidCallback onRefresh;
 
   @override
@@ -1638,7 +1733,7 @@ class _CarLifeCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            status.sdkLinked ? '可同步模板和控制。' : '已预留原生桥接，等待 SDK 接入。',
+            status.sdkLinked ? '可同步模板和控制。' : '可缓存当前队列，等待 SDK 接入。',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1666,13 +1761,27 @@ class _CarLifeCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               IconButton(
-                onPressed: busy ? null : onRefresh,
+                tooltip: '同步当前播放',
+                onPressed: busy ? null : onSync,
                 icon: busy
                     ? const SizedBox.square(
                         dimension: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.refresh_rounded),
+                    : const Icon(Icons.sync_rounded),
+                color: _AppColors.textSecondary,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: '刷新状态',
+                onPressed: busy ? null : onRefresh,
+                icon: const Icon(Icons.refresh_rounded),
                 color: _AppColors.textSecondary,
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.08),

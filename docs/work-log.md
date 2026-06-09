@@ -231,3 +231,34 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-06-09 - CarLife Playback Context Cache
+
+Implemented in this increment:
+
+- Added a structured `CarLifePlaybackContext` model for current song metadata,
+  artwork, duration, position, playback state, queue items, and active queue
+  index.
+- The Flutter CarLife bridge now sends the full playback context over the
+  `music_car_app/carlife` MethodChannel instead of only title, artist, and
+  playing state.
+- Android `MainActivity` now normalizes and caches the latest CarLife playback
+  context, returning a context summary while still reporting `sdk_missing` until
+  a real Baidu CarLife SDK adapter is linked.
+- The native CarLife card can manually sync the current playback context, and
+  opening CarLife first attempts a silent context sync.
+- Search, playlist selection, queue selection, and media next/previous actions
+  now refresh the CarLife context cache after the native queue changes.
+- Media next/previous UI state now follows `NativeAudioController.currentIndex`,
+  so shuffle and repeat modes do not desynchronize the visible queue index.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/services/carlife_service.dart test/carlife_service_test.dart`
+- `flutter analyze`
+- `flutter test test/carlife_service_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

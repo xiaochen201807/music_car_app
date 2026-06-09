@@ -131,15 +131,16 @@ Exit criteria:
 ### Phase 5: Baidu CarLife
 
 - `[x]` Add Android package visibility declarations for common CarLife packages.
-- `[x]` Add Flutter service wrapper for CarLife status, launch, and playback
-  sync calls.
+- `[x]` Add Flutter service wrapper for CarLife status, launch, and structured
+  playback-context sync calls.
 - `[x]` Add Android MethodChannel implementation for package probe and launch
   fallback.
 - `[x]` Add native UI entry card for `百度 CarLife`.
 - `[ ]` Obtain Baidu CarLife SDK/AAR or project-specific integration
   documentation from the open platform flow.
 - `[ ]` Replace the placeholder `syncPlaybackContext` with real SDK sync.
-- `[ ]` Sync current queue, metadata, artwork, and playback state to CarLife.
+- `[~]` Cache current queue, metadata, artwork, and playback state in the
+  Android CarLife bridge; real SDK sync is still pending.
 - `[ ]` Receive CarLife play, pause, next, previous, and item-selection
   callbacks and route them to `audio_service`.
 - `[ ]` Validate on a CarLife-capable head unit.

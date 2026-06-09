@@ -12,11 +12,15 @@ The app currently implements a first-stage CarLife bridge:
 - Native UI entry card labeled `百度 CarLife`.
 - Package status probe for installed/launchable CarLife apps.
 - `openCarLife` action with app launch, market page, and web fallback.
-- Placeholder `syncPlaybackContext` method that returns `sdk_missing`.
+- `syncPlaybackContext` accepts and caches current song, queue, artwork,
+  duration, position, and playback state, then returns `sdk_missing` until the
+  real SDK adapter is linked.
 
 This is intentionally not marked as full CarLife SDK support yet. It gives the
-APK a testable CarLife entry and establishes the app-side API that the real SDK
-adapter can replace.
+APK a testable CarLife entry and establishes the app-side playback-context API
+that the real SDK adapter can replace. The cached context is the handoff point
+for the SDK integration; it is not presented as successful CarLife sync until
+SDK calls return success.
 
 ## Why This Shape
 
@@ -42,19 +46,18 @@ When the CarLife SDK/AAR/documentation is available, replace the placeholder
 implementation in `MainActivity.kt`:
 
 ```kotlin
-private fun syncPlaybackContext(): Map<String, Any?> {
-    val packageName = findInstalledCarLifePackage()
-    return mapOf(
-        "supported" to false,
-        "packageName" to (packageName ?: ""),
-        "reason" to "sdk_missing",
-    )
+private fun syncPlaybackContext(context: Map<*, *>?): Map<String, Any?> {
+    val normalizedContext = normalizeCarLifePlaybackContext(context)
+    lastCarLifePlaybackContext = normalizedContext
+    // Replace this cache-only branch with the SDK call when the SDK is linked.
+    return mapOf("supported" to false, "reason" to "sdk_missing")
 }
 ```
 
 The expected production behavior is:
 
-- Send the current native queue or agreed playlist/program list to CarLife.
+- Use `lastCarLifePlaybackContext` as the source for the current native queue
+  or agreed playlist/program list to CarLife.
 - Publish current title, artist, artwork, duration, and playback state.
 - Let CarLife control play, pause, previous, next, and selected queue item.
 - Keep `audio_service` as the single playback authority.
@@ -65,7 +68,10 @@ The expected production behavior is:
 - Install APK on an Android phone.
 - Install Baidu CarLife on the same phone.
 - Open the app and confirm the `百度 CarLife` card says `已安装，可拉起`.
-- Tap `打开` and confirm Baidu CarLife starts.
+- Play a real search or playlist song, tap the CarLife sync icon, and confirm
+  the app reports cached playback context while SDK support is missing.
+- Tap `打开` and confirm Baidu CarLife starts after attempting silent context
+  sync.
 - Uninstall CarLife or test a clean device and confirm the button opens an
   install/web fallback.
 - After SDK integration, connect to a CarLife-capable head unit and validate
