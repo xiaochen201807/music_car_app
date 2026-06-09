@@ -286,3 +286,26 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-06-09 - Search Result Pagination
+
+Implemented in this increment:
+
+- Native search now tracks FreeMusic `page` and `hasMore` metadata.
+- Search results can load additional pages without replacing the existing list.
+- The search result footer shows loading, retry, load-more, and all-loaded
+  states using the shared load-more control.
+- Selecting any loaded search result still builds the native playback queue from
+  the full loaded result set, so media buttons and CarLife context sync can use
+  the expanded queue.
+
+Verification in this increment:
+
+- `dart format lib/main.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

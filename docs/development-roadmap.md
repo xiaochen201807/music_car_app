@@ -84,13 +84,13 @@ Exit criteria:
 
 ### Phase 2: Native Data Sources
 
-- `[x]` Add native search API methods.
+- `[x]` Add native search API methods with result pagination support.
 - `[~]` Add recommendation loading, playlist detail browsing, and offset-based
   playlist pagination; offline and large-playlist validation is still pending.
 - `[~]` Add artwork plus lyric loading and playback-position lyric highlighting
   from search/playback metadata.
-- `[~]` Replace demo UI data with real API-backed models for search, queue, and
-  recommended playlists.
+- `[~]` Replace demo UI data with real API-backed models for paged search,
+  queue, and recommended playlists.
 - `[~]` Add loading, empty, retry, and offline states for search.
 
 Exit criteria:

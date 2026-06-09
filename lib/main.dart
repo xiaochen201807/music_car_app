@@ -103,12 +103,14 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isSyncingCarLife = false;
   bool _hasAutoCheckedUpdate = false;
   bool _isSearchingMusic = false;
+  bool _isLoadingMoreSearchResults = false;
   bool _isLoadingRecommendations = false;
   bool _isLoadingPlaylistSongs = false;
   bool _isLoadingLyrics = false;
   bool _syncingSessionPlaybackMode = false;
   int _searchRequestId = 0;
   String _searchError = '';
+  String _searchLoadMoreError = '';
   String _recommendationError = '';
   String _playlistError = '';
   String _lyricsError = '';
@@ -118,6 +120,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   FreeMusicPlaylist? _activePlaylist;
   int _playlistTotal = 0;
   int _playlistOffset = 0;
+  int _searchPage = 0;
+  bool _searchHasMore = false;
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
   List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
   List<FreeMusicSong> _playlistSongs = const <FreeMusicSong>[];
@@ -226,27 +230,38 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       setState(() {
         _lastSearchQuery = '';
         _searchError = '';
+        _searchLoadMoreError = '';
         _searchResults = const <FreeMusicSong>[];
+        _searchPage = 0;
+        _searchHasMore = false;
         _isSearchingMusic = false;
+        _isLoadingMoreSearchResults = false;
       });
       return;
     }
 
     setState(() {
       _isSearchingMusic = true;
+      _isLoadingMoreSearchResults = false;
       _searchError = '';
+      _searchLoadMoreError = '';
       _lastSearchQuery = query;
+      _searchPage = 0;
+      _searchHasMore = false;
     });
 
     try {
       final FreeMusicSearchResult result = await _freeMusicApi.searchSongs(
         query,
+        page: 0,
       );
       if (!mounted || requestId != _searchRequestId) {
         return;
       }
       setState(() {
-        _searchResults = result.songs;
+        _searchResults = List<FreeMusicSong>.unmodifiable(result.songs);
+        _searchPage = result.page;
+        _searchHasMore = result.hasMore;
         _isSearchingMusic = false;
       });
     } on FreeMusicApiException catch (error) {
@@ -264,6 +279,53 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       setState(() {
         _searchError = '搜索失败：$error';
         _isSearchingMusic = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreSearchResults() async {
+    final String query = _lastSearchQuery.trim();
+    if (query.isEmpty || !_searchHasMore || _isLoadingMoreSearchResults) {
+      return;
+    }
+    final int requestId = _searchRequestId;
+    setState(() {
+      _isLoadingMoreSearchResults = true;
+      _searchLoadMoreError = '';
+    });
+
+    try {
+      final FreeMusicSearchResult result = await _freeMusicApi.searchSongs(
+        query,
+        page: _searchPage + 1,
+      );
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      setState(() {
+        _searchResults = List<FreeMusicSong>.unmodifiable(<FreeMusicSong>[
+          ..._searchResults,
+          ...result.songs,
+        ]);
+        _searchPage = result.page;
+        _searchHasMore = result.hasMore;
+        _isLoadingMoreSearchResults = false;
+      });
+    } on FreeMusicApiException catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      setState(() {
+        _searchLoadMoreError = error.message;
+        _isLoadingMoreSearchResults = false;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      setState(() {
+        _searchLoadMoreError = '加载更多失败：$error';
+        _isLoadingMoreSearchResults = false;
       });
     }
   }
@@ -919,7 +981,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               searchController: _searchController,
               searchResults: _searchResults,
               searchBusy: _isSearchingMusic,
+              searchMoreBusy: _isLoadingMoreSearchResults,
+              searchCanLoadMore: _searchHasMore,
               searchError: _searchError,
+              searchLoadMoreError: _searchLoadMoreError,
               lastSearchQuery: _lastSearchQuery,
               recommendedPlaylists: _recommendedPlaylists,
               recommendationsBusy: _isLoadingRecommendations,
@@ -944,6 +1009,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
                 unawaited(_skipToQueueItem(index));
               },
               onSearch: _searchSongs,
+              onLoadMoreSearchResults: _loadMoreSearchResults,
               onPlaySearchResult: (int index) {
                 unawaited(_playSearchResult(index));
               },
@@ -1049,7 +1115,10 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.searchController,
     required this.searchResults,
     required this.searchBusy,
+    required this.searchMoreBusy,
+    required this.searchCanLoadMore,
     required this.searchError,
+    required this.searchLoadMoreError,
     required this.lastSearchQuery,
     required this.recommendedPlaylists,
     required this.recommendationsBusy,
@@ -1066,6 +1135,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onSelectTab,
     required this.onSelectQueueIndex,
     required this.onSearch,
+    required this.onLoadMoreSearchResults,
     required this.onPlaySearchResult,
     required this.onSelectPlaylist,
     required this.onPlayPause,
@@ -1085,7 +1155,10 @@ class _NativeMusicScaffold extends StatelessWidget {
   final TextEditingController searchController;
   final List<FreeMusicSong> searchResults;
   final bool searchBusy;
+  final bool searchMoreBusy;
+  final bool searchCanLoadMore;
   final String searchError;
+  final String searchLoadMoreError;
   final String lastSearchQuery;
   final List<FreeMusicPlaylist> recommendedPlaylists;
   final bool recommendationsBusy;
@@ -1102,6 +1175,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final ValueChanged<int> onSelectTab;
   final ValueChanged<int> onSelectQueueIndex;
   final VoidCallback onSearch;
+  final VoidCallback onLoadMoreSearchResults;
   final ValueChanged<int> onPlaySearchResult;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
@@ -1146,7 +1220,10 @@ class _NativeMusicScaffold extends StatelessWidget {
                               searchController: searchController,
                               searchResults: searchResults,
                               searchBusy: searchBusy,
+                              searchMoreBusy: searchMoreBusy,
+                              searchCanLoadMore: searchCanLoadMore,
                               searchError: searchError,
+                              searchLoadMoreError: searchLoadMoreError,
                               lastSearchQuery: lastSearchQuery,
                               recommendedPlaylists: recommendedPlaylists,
                               recommendationsBusy: recommendationsBusy,
@@ -1155,6 +1232,7 @@ class _NativeMusicScaffold extends StatelessWidget {
                               carLifeStatus: carLifeStatus,
                               carLifeBusy: carLifeBusy,
                               onSearch: onSearch,
+                              onLoadMoreSearchResults: onLoadMoreSearchResults,
                               onPlaySearchResult: onPlaySearchResult,
                               onSelectPlaylist: onSelectPlaylist,
                               onOpenCarLife: onOpenCarLife,
@@ -1456,7 +1534,10 @@ class _HomePanel extends StatelessWidget {
     required this.searchController,
     required this.searchResults,
     required this.searchBusy,
+    required this.searchMoreBusy,
+    required this.searchCanLoadMore,
     required this.searchError,
+    required this.searchLoadMoreError,
     required this.lastSearchQuery,
     required this.recommendedPlaylists,
     required this.recommendationsBusy,
@@ -1465,6 +1546,7 @@ class _HomePanel extends StatelessWidget {
     required this.carLifeStatus,
     required this.carLifeBusy,
     required this.onSearch,
+    required this.onLoadMoreSearchResults,
     required this.onPlaySearchResult,
     required this.onSelectPlaylist,
     required this.onOpenCarLife,
@@ -1476,7 +1558,10 @@ class _HomePanel extends StatelessWidget {
   final TextEditingController searchController;
   final List<FreeMusicSong> searchResults;
   final bool searchBusy;
+  final bool searchMoreBusy;
+  final bool searchCanLoadMore;
   final String searchError;
+  final String searchLoadMoreError;
   final String lastSearchQuery;
   final List<FreeMusicPlaylist> recommendedPlaylists;
   final bool recommendationsBusy;
@@ -1485,6 +1570,7 @@ class _HomePanel extends StatelessWidget {
   final CarLifeStatus carLifeStatus;
   final bool carLifeBusy;
   final VoidCallback onSearch;
+  final VoidCallback onLoadMoreSearchResults;
   final ValueChanged<int> onPlaySearchResult;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onOpenCarLife;
@@ -1537,9 +1623,13 @@ class _HomePanel extends StatelessWidget {
               controller: searchController,
               songs: searchResults,
               busy: searchBusy,
+              loadMoreBusy: searchMoreBusy,
+              canLoadMore: searchCanLoadMore,
               error: searchError,
+              loadMoreError: searchLoadMoreError,
               query: lastSearchQuery,
               onSearch: onSearch,
+              onLoadMore: onLoadMoreSearchResults,
               onPlay: onPlaySearchResult,
             ),
           )
@@ -1858,18 +1948,26 @@ class _SearchPanel extends StatelessWidget {
     required this.controller,
     required this.songs,
     required this.busy,
+    required this.loadMoreBusy,
+    required this.canLoadMore,
     required this.error,
+    required this.loadMoreError,
     required this.query,
     required this.onSearch,
+    required this.onLoadMore,
     required this.onPlay,
   });
 
   final TextEditingController controller;
   final List<FreeMusicSong> songs;
   final bool busy;
+  final bool loadMoreBusy;
+  final bool canLoadMore;
   final String error;
+  final String loadMoreError;
   final String query;
   final VoidCallback onSearch;
+  final VoidCallback onLoadMore;
   final ValueChanged<int> onPlay;
 
   @override
@@ -1953,8 +2051,12 @@ class _SearchPanel extends StatelessWidget {
             child: _SearchResultsBody(
               songs: songs,
               busy: busy,
+              loadMoreBusy: loadMoreBusy,
+              canLoadMore: canLoadMore,
               error: error,
+              loadMoreError: loadMoreError,
               query: query,
+              onLoadMore: onLoadMore,
               onPlay: onPlay,
             ),
           ),
@@ -1968,15 +2070,23 @@ class _SearchResultsBody extends StatelessWidget {
   const _SearchResultsBody({
     required this.songs,
     required this.busy,
+    required this.loadMoreBusy,
+    required this.canLoadMore,
     required this.error,
+    required this.loadMoreError,
     required this.query,
+    required this.onLoadMore,
     required this.onPlay,
   });
 
   final List<FreeMusicSong> songs;
   final bool busy;
+  final bool loadMoreBusy;
+  final bool canLoadMore;
   final String error;
+  final String loadMoreError;
   final String query;
+  final VoidCallback onLoadMore;
   final ValueChanged<int> onPlay;
 
   @override
@@ -2006,9 +2116,20 @@ class _SearchResultsBody extends StatelessWidget {
       );
     }
     return ListView.separated(
-      itemCount: songs.length,
+      itemCount: songs.length + 1,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (BuildContext context, int index) {
+        if (index == songs.length) {
+          return _LoadMoreButton(
+            busy: loadMoreBusy,
+            enabled:
+                (canLoadMore || loadMoreError.isNotEmpty) &&
+                !busy &&
+                !loadMoreBusy,
+            error: loadMoreError,
+            onTap: onLoadMore,
+          );
+        }
         final FreeMusicSong song = songs[index];
         return _SongResultTile(song: song, index: index, onPlay: onPlay);
       },
