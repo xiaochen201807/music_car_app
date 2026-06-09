@@ -3943,7 +3943,7 @@ class _QueueTile extends StatelessWidget {
             if (selected) ...<Widget>[
               const DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: AppColor.accentGradient,
+                  color: AppColor.strokeStrong,
                   borderRadius: BorderRadius.all(
                     Radius.circular(AppRadius.pill),
                   ),
