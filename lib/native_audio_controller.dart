@@ -7,39 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'free_music_api.dart';
 
-const String pauseWebAudioScript = r'''
-(function() {
-  window.__musicCarNativeAudioActive = true;
-  window.__musicCarSuppressPauseUntil = Date.now() + 1500;
-  document.querySelectorAll('audio').forEach(function(audio) {
-    audio.pause();
-    audio.muted = true;
-  });
-})();
-''';
-
-const String clickNextTrackScript = r'''
-(function() {
-  var button = document.querySelector('.music-btn-next');
-  if (!button) {
-    return false;
-  }
-  button.click();
-  return true;
-})();
-''';
-
-const String clickPreviousTrackScript = r'''
-(function() {
-  var button = document.querySelector('.music-btn-prev');
-  if (!button) {
-    return false;
-  }
-  button.click();
-  return true;
-})();
-''';
-
 class PlayerProbeSnapshot {
   const PlayerProbeSnapshot({
     required this.audioUrl,

@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -17,6 +18,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private val installerChannelName = "music_car_app/app_installer"
+    private val carLifeChannelName = "music_car_app/carlife"
     private val downloadIds = mutableSetOf<Long>()
     private val installingDownloadIds = mutableSetOf<Long>()
     private val downloadPollHandler = Handler(Looper.getMainLooper())
@@ -43,6 +45,121 @@ class MainActivity : AudioServiceActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            carLifeChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getStatus" -> result.success(carLifeStatus())
+                "openCarLife" -> result.success(openCarLife())
+                "syncPlaybackContext" -> result.success(syncPlaybackContext())
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun carLifeStatus(): Map<String, Any?> {
+        val packageName = findInstalledCarLifePackage()
+        val launchIntent = packageName?.let { packageManager.getLaunchIntentForPackage(it) }
+        return mapOf(
+            "available" to (packageName != null),
+            "installed" to (packageName != null),
+            "launchable" to (launchIntent != null),
+            "sdkLinked" to false,
+            "packageName" to (packageName ?: ""),
+            "integrationMode" to "package_probe",
+            "reason" to if (packageName == null) "package_not_found" else "sdk_missing",
+        )
+    }
+
+    private fun openCarLife(): Map<String, Any?> {
+        val packageName = findInstalledCarLifePackage()
+        if (packageName != null) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                return try {
+                    startActivity(launchIntent)
+                    mapOf(
+                        "launched" to true,
+                        "packageName" to packageName,
+                        "reason" to "launched",
+                    )
+                } catch (_: Exception) {
+                    mapOf(
+                        "launched" to false,
+                        "packageName" to packageName,
+                        "reason" to "launch_failed",
+                    )
+                }
+            }
+        }
+
+        val marketIntent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("market://details?id=$primaryCarLifePackage"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            startActivity(marketIntent)
+            mapOf(
+                "launched" to true,
+                "packageName" to primaryCarLifePackage,
+                "reason" to "market_opened",
+            )
+        } catch (_: Exception) {
+            try {
+                startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://carlife.baidu.com/"),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+                mapOf(
+                    "launched" to true,
+                    "packageName" to primaryCarLifePackage,
+                    "reason" to "web_opened",
+                )
+            } catch (_: Exception) {
+                mapOf(
+                    "launched" to false,
+                    "packageName" to primaryCarLifePackage,
+                    "reason" to "not_installed",
+                )
+            }
+        }
+    }
+
+    private fun syncPlaybackContext(): Map<String, Any?> {
+        val packageName = findInstalledCarLifePackage()
+        return mapOf(
+            "supported" to false,
+            "packageName" to (packageName ?: ""),
+            "reason" to "sdk_missing",
+        )
+    }
+
+    private fun findInstalledCarLifePackage(): String? {
+        return carLifePackageCandidates.firstOrNull { candidate ->
+            isPackageInstalled(candidate)
+        }
+    }
+
+    private fun isPackageInstalled(candidate: String): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(
+                    candidate,
+                    PackageManager.PackageInfoFlags.of(0),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(candidate, 0)
+            }
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
         }
     }
 
@@ -233,6 +350,15 @@ class MainActivity : AudioServiceActivity() {
         } else {
             "$normalized.apk"
         }
+    }
+
+    companion object {
+        private const val primaryCarLifePackage = "com.baidu.carlife"
+        private val carLifePackageCandidates = listOf(
+            primaryCarLifePackage,
+            "com.baidu.carlifevehicle",
+            "com.baidu.carlifeauto",
+        )
     }
 
     override fun onDestroy() {

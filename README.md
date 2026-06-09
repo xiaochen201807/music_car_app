@@ -1,16 +1,37 @@
 # 车载音乐
 
-Flutter WebView shell for `https://music.sy110.eu.org/music`, based on the `bbtotal` project's `flutter_inappwebview` approach.
+Native Flutter music app tuned for landscape car head units.
+
+The app no longer embeds the remote music site in a WebView. The main runtime
+path is now a native Flutter interface with an iOS-inspired car UI, large touch
+targets, a native audio service foundation, and cloud-built Android/iOS release
+artifacts.
 
 ## What It Does
 
-- Opens the music page directly on launch.
+- Uses a native Flutter shell instead of WebView.
 - Forces landscape orientation for car head units.
 - Uses immersive sticky mode to hide system chrome.
 - Keeps the screen awake while the app is open.
-- Allows WebView media playback without an extra user gesture.
-- Provides large back, forward, home, reload, and fullscreen controls.
-- Logs WebView navigation and console output in debug builds.
+- Provides an iOS-style home, search entry, now-playing panel, queue panel, and
+  mini player.
+- Provides a first-stage Baidu CarLife entry that can detect and launch the
+  CarLife companion app.
+- Keeps update checking and APK installation support.
+- Uses `audio_service` and `just_audio` as the foundation for background
+  playback and system media controls.
+
+The current native UI is the first step of the rewrite. Real search, playlist
+loading, lyrics, and a complete native queue are tracked in the development
+roadmap.
+
+## UI Design
+
+The native UI reference is stored in:
+
+```text
+docs/ui/native-ios-music-app-design.png
+```
 
 ## GitHub Actions Builds
 
@@ -18,7 +39,8 @@ Push this project to GitHub and use the Actions tab for cloud builds.
 
 ### Android APK
 
-The `Android APK` workflow runs automatically on pushes to `main`, pull requests to `main`, and `v*` tags. It can also be triggered manually.
+The `Android APK` workflow runs automatically on pushes to `main`, pull
+requests to `main`, and `v*` tags. It can also be triggered manually.
 
 It runs:
 
@@ -34,21 +56,22 @@ artifact. The in-app updater chooses the best APK for the device ABI before
 downloading.
 
 On `v*` tag builds, the workflow also creates or updates the GitHub Release and
-attaches both the APK and `update.json`. The app's online update checker can read
-GitHub's latest release directly, or read a custom manifest URL provided at
+attaches both the APK and `update.json`. The app's online update checker can
+read GitHub's latest release directly, or read a custom manifest URL provided at
 build time with:
 
 ```sh
 --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=https://example.com/update.json
 ```
 
-For GitHub Actions, set the repository variable `MUSIC_CAR_UPDATE_MANIFEST_URL`
-if you want the app to check a CDN/R2-hosted manifest before falling back to the
-GitHub latest release API.
+For GitHub Actions, set the repository variable
+`MUSIC_CAR_UPDATE_MANIFEST_URL` if you want the app to check a CDN/R2-hosted
+manifest before falling back to the GitHub latest release API.
 
 ### iOS Unsigned IPA
 
-The `iOS Unsigned IPA` workflow runs on `v*` tags and can also be triggered manually.
+The `iOS Unsigned IPA` workflow runs on `v*` tags and can also be triggered
+manually.
 
 It runs on GitHub's macOS runner:
 
@@ -58,12 +81,28 @@ pod install --repo-update
 flutter build ios --release --no-codesign
 ```
 
-The unsigned IPA is uploaded as the `ios-unsigned-ipa` workflow artifact. On tag builds, it is also attached to the GitHub Release. The IPA must still be signed locally by a tool such as Sideloadly, AltStore, SideStore, or another Apple signing flow before installation.
+The unsigned IPA is uploaded as the `ios-unsigned-ipa` workflow artifact. On tag
+builds, it is also attached to the GitHub Release. The IPA must still be signed
+locally by an Apple signing flow before installation.
 
-## Notes
+## Car Integrations
 
-This is a normal Android/iOS WebView app for direct installation on phones, tablets, or Android-based car head units. Android Auto and CarPlay require native media-session/template integrations and are not covered by a plain WebView wrapper.
+Ordinary Android car systems can interact with the app through Android media
+session controls once the native queue is fully connected.
 
-As of 2026-06-08, the site settings API returns the site name `关站,下次再见`, but the `/music` SPA still loads the music UI after the boot screen. Playback availability depends on the remote site's current APIs and audio sources.
+Android Auto and Apple CarPlay app surfaces are separate platform integrations:
 
-See [Development Roadmap](docs/development-roadmap.md) for the planned upgrade from a WebView shell to a native audio engine with system media-session controls.
+- Baidu CarLife is tracked separately in
+  [CarLife Integration](docs/carlife-integration.md). The current app has a
+  package-probe/launch bridge; full music sync still needs Baidu's SDK or
+  assigned integration documentation.
+- Android Auto media browsing depends on `audio_service` queue/media-browser
+  metadata and real head-unit validation.
+- Apple CarPlay requires an iOS build, CarPlay template integration, and proper
+  CarPlay Audio entitlement signing.
+- A future CarPlay branch can evaluate `flutter_carplay` for List, Tab Bar, and
+  Now Playing templates, but it should stay separate from the Android APK
+  release branch.
+
+See [Development Roadmap](docs/development-roadmap.md) for the native music app
+rewrite plan.

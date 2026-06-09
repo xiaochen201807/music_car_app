@@ -1,175 +1,161 @@
 # Development Roadmap
 
-This project started as a simple Flutter WebView wrapper for the music site. It
-is now moving toward a car-friendly media app where Flutter owns audio playback
-and exposes a native media session for car controls.
+This project started as a WebView wrapper for a remote music site. It is now a
+native Flutter music app for landscape car head units.
 
 Status markers:
 
 - `[x]` Implemented and covered by local checks/tests.
-- `[~]` Implemented in code, but still needs real-device or real-site
+- `[~]` Implemented in code, but still needs real-device or real-service
   validation.
 - `[ ]` Not implemented yet.
 
 ## Current Scope
 
-The current implementation includes a WebView shell plus a native audio handoff:
+The current implementation includes a native Flutter shell plus the existing
+native audio foundation:
 
-1. `[x]` Flutter loads `https://music.sy110.eu.org/music` in `InAppWebView`.
-2. `[x]` Flutter injects a document-start player probe script.
-3. `[x]` Flutter provides the car shell: landscape orientation, immersive mode,
-   wakelock, large navigation buttons, update controls, and debug logging.
-4. `[x]` Flutter can take over playback through `just_audio` when the page
-   exposes a usable audio URL or resolvable song metadata.
-5. `[x]` Flutter exposes playback through `audio_service` and Android media
-   button plumbing.
-6. `[~]` Android media-app discovery is declared through the Android Auto media
-   metadata file and `MediaBrowserService`; it still needs head-unit validation.
-7. `[~]` iOS Now Playing and physical car controls are wired through background
-   audio and a music audio session, but still need real-device validation.
-
-Android Auto and CarPlay app surfaces are still outside the current scope. They
-require platform-specific media/template integration beyond a plain WebView APK.
-In particular, a full CarPlay app icon/template surface requires Apple-approved
-CarPlay Audio entitlement signing; an unsigned IPA can only provide ordinary
-system playback/Now Playing behavior.
+1. `[x]` Flutter renders the main music experience without WebView.
+2. `[x]` Flutter forces landscape orientation, immersive mode, and wakelock for
+   car head units.
+3. `[x]` The UI provides home, search entry, recommendation, now-playing, queue,
+   lyrics entry, and mini-player surfaces.
+4. `[x]` In-app update checking and APK installation support remain available.
+5. `[x]` `audio_service` and `just_audio` remain the playback/media-session
+   foundation.
+6. `[x]` Baidu CarLife first-stage package probe and launch bridge are exposed
+   through a Flutter/Android MethodChannel.
+7. `[~]` Android media-button plumbing exists through `audio_service`, but real
+   head-unit behavior still needs device validation after the native queue is
+   fully connected.
+8. `[~]` iOS Now Playing and remote command behavior are wired through
+   background audio/session dependencies, but still need real-device validation.
 
 ## Target Architecture
 
-The target car-media architecture status is:
+The native car-media architecture is:
 
-1. `[x]` Flutter WebView loads the music web page.
-2. `[x]` Flutter injects JavaScript to observe the page player and audio state.
-3. `[x]` JavaScript sends song metadata and playback state to Flutter.
-4. `[x]` Flutter receives `title`, `artist`, `coverUrl`, and `audioUrl`.
-5. `[x]` Flutter uses `just_audio` to play a real or resolved `audioUrl`.
-6. `[x]` `audio_service` publishes playback metadata to the system media
-   session.
-7. `[~]` Android notification controls and iOS Now Playing are wired through
-   `audio_service` and `audio_session`, but iOS/device behavior still needs
-   physical validation.
-8. `[~]` Car or steering-wheel controls can call back into `audio_service` via
-   the Android media button receiver, but this still needs head-unit validation.
-9. `[~]` `audio_service` controls `just_audio`; next/previous can call back into
-   the WebView. Full visible UI sync for every page action is still incomplete.
-
-In this model, the WebView remains the UI for search, playlists, lyrics, and
-site-specific flows. Flutter becomes the real audio engine.
+1. `[x]` Flutter owns the visible UI.
+2. `[ ]` Flutter loads search, playlist, artwork, and lyric data from native API
+   clients.
+3. `[ ]` Flutter creates a complete native playback queue.
+4. `[ ]` `audio_service.queue` exposes the complete queue instead of a single
+   current item.
+5. `[ ]` `PlaybackState.queueIndex` points at the active queue item.
+6. `[ ]` `skipToQueueItem(index)` plays a selected queue item directly.
+7. `[ ]` `skipToNext`, `skipToPrevious`, and automatic completion use the native
+   queue only.
+8. `[ ]` Repeat, shuffle, and sequential modes are represented natively.
+9. `[ ]` Queue and playback state persist locally for app/process restarts.
 
 ## Main Risks
 
-- The site may not expose a stable `<audio>` element.
-- The playable URL may be temporary, signed, or refreshed per song.
-- Audio requests may require cookies, `Referer`, or custom headers.
-- If Flutter takes over playback, the web page's own player UI can drift from
-  the real native playback state.
-- Next, previous, and playlist behavior must be coordinated between Flutter and
-  the page. That can be done by page JavaScript calling Flutter, or by Flutter
-  calling page JavaScript.
-- Android notification and many head-unit media keys can work through
-  `audio_service`, but Android Auto and CarPlay app surfaces require native
-  platform-specific media/template integration beyond a plain WebView APK.
-- Full iOS CarPlay app entry requires Apple-approved CarPlay Audio entitlement
-  signing. Unsigned IPA builds cannot add that entitlement by themselves.
+- The FreeMusic APIs may change, rate-limit, or return temporary audio URLs.
+- Some playable URLs may require request headers, cookies, or referer handling.
+- Native queue state must stay consistent across app UI, Android notification,
+  media buttons, and head-unit callbacks.
+- Android Auto and Apple CarPlay are separate platform integrations; a good
+  phone/tablet/car-head-unit app does not automatically become an approved
+  Android Auto or CarPlay template app.
+- Apple CarPlay full app surfaces require iOS project work and CarPlay Audio
+  entitlement signing.
 
 ## Implementation Phases
 
-### Phase 1: Player Discovery
+### Phase 1: Native UI Shell
 
-- `[x]` Inject a document-start JavaScript bridge into the WebView.
-- `[x]` Detect current song metadata from the page player.
-- `[x]` Detect the real media source from `<audio>`, player stores,
-  network-visible
-  fields, or controlled page APIs.
-- `[x]` Send observed player state to Flutter through a JavaScript handler.
-- `[x]` Add debug logging for observed `title`, `artist`, `coverUrl`,
-  `audioUrl`,
-  duration, current time, and playing state.
+- `[x]` Remove the WebView runtime path.
+- `[x]` Remove the old embedded browser dependency.
+- `[x]` Remove the standalone WebView probe script.
+- `[x]` Add the iOS-style car music design asset under `docs/ui`.
+- `[x]` Build a native Flutter shell with large touch targets and a landscape
+  layout.
+- `[x]` Keep app update checking reachable from the native UI.
 
 Exit criteria:
 
-- `[x]` A debug build can show the current song metadata in Flutter logs.
-- `[~]` At least one real song can produce a playable candidate `audioUrl` via
-  direct page audio or the FreeMusic `song_url` API. This is covered by mocked
-  tests and still needs live-site playback validation.
+- `[x]` Widget tests render the native shell.
+- `[x]` Static search finds no WebView dependency or runtime references in
+  `lib`, `test`, `pubspec.yaml`, or `pubspec.lock`.
 
-### Phase 2: Native Audio Proof
+### Phase 2: Native Data Sources
 
-- `[x]` Add `just_audio`.
-- `[x]` Route captured or resolved audio URLs into a native audio controller.
-- `[~]` Test whether Flutter can play the captured `audioUrl` directly. The
-  controller is unit-tested with fakes; live URL playback still needs device
-  validation.
-- `[~]` Preserve required request headers if the site needs cookies or
-  `Referer`. The FreeMusic API resolver sends `Referer` and `User-Agent`; final
-  audio playback headers still need live validation.
-- `[x]` Keep the WebView page visible but prevent double playback where
-  possible by pausing/muting page audio after native handoff.
+- `[ ]` Add native search API methods.
+- `[ ]` Add recommendation and playlist loading.
+- `[ ]` Add artwork and lyric loading.
+- `[ ]` Replace demo UI data with real API-backed models.
+- `[ ]` Add loading, empty, retry, and offline states.
 
 Exit criteria:
 
-- `[x]` Flutter can play, pause, seek, and stop through the native audio
-  controller.
-- `[~]` Playback survives the same URLs and headers used by the web page. Needs
-  live-site validation.
+- `[ ]` The app can search and select real songs without a WebView.
+- `[ ]` Song metadata and artwork appear in the native UI before playback.
 
-### Phase 3: System Media Session
+### Phase 3: Complete Native Queue
 
-- `[x]` Add `audio_service` and a single audio handler.
-- `[x]` Publish `title`, `artist`, `coverUrl`, duration, and playback state.
-- `[x]` Wire Android notification controls through `AudioService`,
-  `MediaButtonReceiver`, and the foreground media service manifest entries.
-- `[x]` Declare Android Auto media metadata with `automotive_app_desc.xml`.
-- `[~]` Expose a minimal browsable media queue for compatible Android car
-  systems. This is implemented but still needs head-unit validation.
-- `[~]` Wire iOS Now Playing metadata through `audio_service` and configure the
-  shared audio session for music playback; still needs iOS device validation.
-- `[x]` Handle play, pause, seek, next, and previous callbacks in the audio
-  handler.
+- `[ ]` Store the full queue in the audio layer.
+- `[ ]` Publish complete `audio_service.queue` metadata.
+- `[ ]` Publish correct `PlaybackState.queueIndex`.
+- `[ ]` Implement `skipToQueueItem(index)`.
+- `[ ]` Implement repeat, shuffle, and sequential playback modes.
+- `[ ]` Let the native queue decide the next item after completion.
+- `[ ]` Persist queue and current playback item locally.
 
 Exit criteria:
 
-- `[~]` Android notification controls operate the Flutter audio engine. Code is
-  wired; needs device validation.
-- `[~]` iOS Now Playing shows correct metadata when running on iOS. Needs
-  device validation.
+- `[ ]` Notification and media-button previous/next controls work while the app
+  is foregrounded, backgrounded, and screen-off.
+- `[ ]` Selecting a queue item from a compatible car/media surface starts that
+  item directly.
 
-### Phase 4: WebView Synchronization
+### Phase 4: Android Car Validation
 
-- `[~]` When native playback changes, call page JavaScript to update the visible
-  UI. Current implementation pauses/mutes page audio and can click next/previous
-  controls; full UI state mirroring is not complete.
-- `[~]` When the user clicks play, pause, next, or previous in the page, route the
-  action to Flutter instead of letting the page create independent playback.
-  Current implementation observes the page action after it happens, takes over
-  native playback, and suppresses duplicate page audio.
-- `[x]` Add drift detection so Flutter can recover if the page changes songs
-  without sending a clean event. The probe uses mutation observation and
-  interval scans.
+- `[~]` Keep Android Auto media metadata and media-browser service declarations
+  valid.
+- `[ ]` Validate Android media buttons by ADB and real device logs.
+- `[ ]` Validate compatible car head-unit controls.
+- `[ ]` Validate notification controls while the app is backgrounded.
 
 Exit criteria:
 
-- `[~]` WebView UI and native playback stay consistent through play, pause, next,
-  previous, and song selection.
+- `[ ]` A compatible Android car system can pause, resume, skip, and browse the
+  native queue.
 
-### Phase 5: Car Controls
+### Phase 5: Baidu CarLife
 
-- `[~]` Validate Android media-button and compatible steering-wheel callbacks
-  through `audio_service`.
-- `[~]` Android head-unit discovery is declared as a media app, but needs real
-  car hardware or a head-unit test device.
-- `[ ]` Validate iOS Now Playing / Remote Command behavior while connected to a
-  CarPlay-capable head unit.
-- `[ ]` Apply for and sign with Apple CarPlay Audio entitlement if the app must
-  appear as a full CarPlay app surface.
-- `[x]` Document what works for ordinary Android car systems versus Android Auto and
-  CarPlay.
+- `[x]` Add Android package visibility declarations for common CarLife packages.
+- `[x]` Add Flutter service wrapper for CarLife status, launch, and playback
+  sync calls.
+- `[x]` Add Android MethodChannel implementation for package probe and launch
+  fallback.
+- `[x]` Add native UI entry card for `百度 CarLife`.
+- `[ ]` Obtain Baidu CarLife SDK/AAR or project-specific integration
+  documentation from the open platform flow.
+- `[ ]` Replace the placeholder `syncPlaybackContext` with real SDK sync.
+- `[ ]` Sync current queue, metadata, artwork, and playback state to CarLife.
+- `[ ]` Receive CarLife play, pause, next, previous, and item-selection
+  callbacks and route them to `audio_service`.
+- `[ ]` Validate on a CarLife-capable head unit.
 
 Exit criteria:
 
-- `[ ]` A compatible Android car system can pause, resume, and skip tracks from
-  physical or system media controls.
-- `[x]` Remaining Android Auto or CarPlay requirements are documented separately.
+- `[ ]` A CarLife-capable car system can discover/sync music content and control
+  playback through the native audio queue.
+
+### Phase 6: Apple CarPlay Evaluation
+
+- `[ ]` Evaluate `flutter_carplay` on a dedicated iOS branch.
+- `[ ]` Add a minimal CarPlay root template with tabs or lists.
+- `[ ]` Connect CarPlay list selection to the native queue.
+- `[ ]` Connect CarPlay Now Playing metadata and controls.
+- `[ ]` Validate in Xcode CarPlay Simulator.
+- `[ ]` Validate entitlement/signing requirements separately from Android APK
+  releases.
+
+Exit criteria:
+
+- `[ ]` The iOS app can show a CarPlay music surface in the simulator or a
+  properly signed real-device setup.
 
 ## Release And Online Update Status
 
@@ -182,6 +168,5 @@ Exit criteria:
 - `[x]` The app chooses the best APK for the device ABI before downloading.
 - `[x]` Android uses `DownloadManager` plus a polling fallback to open the
   system installer after download.
-- `[~]` The `v1.0.0` tag release build is currently running in GitHub Actions;
-  release artifacts should be verified after both Android and iOS workflows
-  complete.
+- `[~]` iOS unsigned IPA artifacts are built by GitHub Actions, but installation
+  still requires a separate Apple signing flow.
