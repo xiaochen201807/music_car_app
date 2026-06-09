@@ -248,37 +248,48 @@ not the Flutter UI. If this layer is unstable, the projection breaks even when
 the in-app UI looks fine. Stage 3 is **not done** until every item below is
 checked.
 
-#### Current state (verified against code on 2026-06-10)
+#### Current state (updated 2026-06-10 after wiring switch-source + timeouts)
 
-- `/switch_source` fallback: **NOT wired** (zero references in `lib/`). This is
-  the core Stage 3 gap.
-- `/song_url` (`free_music_api.dart`): resolves a URL but **throws on failure
-  with no fallback** — a dead source makes playback silently fail.
-- Request timeouts: only `update_check_service.dart` uses `.timeout()`. **No
-  playback-path API call has a timeout**, so a slow endpoint spins forever on
-  the head unit.
-- Android background/lock-screen media notification: missing transport buttons.
-  Root cause is `androidNotificationOngoing: false` in
-  `music_audio_handler.dart` (the `controls` array and manifest are correct).
+- `/switch_source` fallback: **DONE.** `FreeMusicApi.switchSource()` returns the
+  matched track on an alternate source (new `id`/`source` + match `score`); the
+  controller's `_resolveViaSourceSwitch` retries `resolveSongUrl` on that track.
+  Below-threshold matches (`score < 0.5`) are rejected to avoid playing the
+  wrong recording.
+- `/song_url` (`free_music_api.dart`): **DONE.** `_resolveAudioUrl` now catches
+  HTTP/timeout failures and empty URLs and degrades to switch-source instead of
+  throwing; if every source fails it returns an empty URL and the caller skips
+  the track rather than crashing.
+- Request timeouts: **DONE.** `FreeMusicApi` routes every GET through a single
+  `_httpGet` choke point with a 12s `.timeout()`, so no playback-path endpoint
+  can hang forever.
+- Android background/lock-screen media notification: **DONE, but the root cause
+  was different from the first guess.** It was NOT `androidNotificationOngoing`
+  (that flag has no effect while the foreground service is active, and flipping
+  it to `true` without also setting `androidStopForegroundOnPause: true` trips an
+  assert in audio_service 0.18). The real cause on targetSdk 36 was the missing
+  Android 13+ `POST_NOTIFICATIONS` runtime permission — audio_service neither
+  declares nor requests it. Fixed by declaring the permission in the manifest and
+  requesting it at startup via `permission_handler`.
 
 #### Acceptance checklist (Definition of Done — playback)
 
 Bitrate & source resolution:
 - [ ] Use `/qualities` + user preference to choose playback bitrate (currently
       retrieved for display only; playback still uses the default `br`).
-- [ ] Wire `/switch_source` so that when `/song_url` fails or returns an
+- [x] Wire `/switch_source` so that when `/song_url` fails or returns an
       unusable/empty/non-HTTP URL, the handler retries via the alternate source
       before surfacing an error to the user.
-- [ ] `/song_url` failure no longer throws to the UI as an unhandled error; it
+- [x] `/song_url` failure no longer throws to the UI as an unhandled error; it
       degrades to switch-source, then to a clear "this track can't play, skipping"
       state.
 
 Resilience:
-- [ ] Add a timeout (suggest 10–12s) to every playback-path request:
+- [x] Add a timeout (suggest 10–12s) to every playback-path request:
       `/song_url`, `/switch_source`, `/playlist`, `/playlist/page`, `/lyric`,
-      `/yrc`, `/qualities`.
-- [ ] On timeout/failure of a slow endpoint, the UI shows a recoverable error
-      with retry — never an infinite spinner.
+      `/yrc`, `/qualities`. (12s via the shared `_httpGet` choke point.)
+- [~] On timeout/failure of a slow endpoint, the UI shows a recoverable error
+      with retry — never an infinite spinner. (Resolution layer no longer hangs
+      or throws; a user-facing retry affordance in the UI is still pending.)
 - [ ] Playback stall monitor (already present in `music_audio_handler.dart`)
       cooperates with switch-source: a stalled track auto-recovers or skips,
       it does not hang.
@@ -291,10 +302,12 @@ Queue as single source of truth:
       on title/artist/cover/position).
 
 Background / lock-screen media controls (also the manual CarLife smoke test):
-- [ ] Set `androidNotificationOngoing: true` so the media notification renders
-      as a full foreground media notification on all tested ROMs.
+- [x] Media notification renders with transport controls on Android 13+. (Fixed
+      via the `POST_NOTIFICATIONS` runtime permission, not the
+      `androidNotificationOngoing` flag — see Current state above.)
 - [ ] Lock screen / background notification shows three working transport
       buttons (previous / play-pause / next) and they actually control playback.
+      (Needs real-device confirmation after the v1.0.17 build.)
 - [ ] Notification shows correct title, artist, and cover art (`artUri`).
 - [ ] **Smoke test rule:** lock the phone and operate playback using ONLY the
       Android notification. If that is flawless, the queue/media-session data is

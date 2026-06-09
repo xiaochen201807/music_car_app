@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -104,6 +105,21 @@ class FreeMusicResolvedUrl {
   final bool direct;
 }
 
+/// Result of `/switch_source`: a matched song found on an alternate source.
+///
+/// The endpoint does not return a playable URL directly — it returns the
+/// best-matching song (new `id` + `source`) on another platform, with a
+/// [score] confidence in `[0, 1]`. Callers must run the returned [song] back
+/// through [FreeMusicApi.resolveSongUrl] to obtain a real audio URL. A low
+/// [score] means the match is likely a different recording, so callers should
+/// reject results below a confidence threshold.
+class FreeMusicSourceSwitch {
+  const FreeMusicSourceSwitch({required this.song, required this.score});
+
+  final FreeMusicSong song;
+  final double score;
+}
+
 class FreeMusicQuality {
   const FreeMusicQuality({
     required this.bitrate,
@@ -153,10 +169,27 @@ class FreeMusicApi {
       'FREE_MUSIC_API_BASE',
       defaultValue: 'https://music.sy110.eu.org/api/v1/freemusic',
     ),
+    this.timeout = const Duration(seconds: 12),
   }) : _client = client ?? http.Client();
 
   final http.Client _client;
   final String baseUri;
+
+  /// Network timeout applied to every request. Playback-path endpoints
+  /// (`/song_url`, `/switch_source`, playlist detail, lyrics) are slow and can
+  /// hang; without this a stalled request would leave the player — and any
+  /// CarLife projection reading the same queue — spinning forever.
+  final Duration timeout;
+
+  /// Single choke point for every GET so the [timeout] is impossible to forget
+  /// on a new endpoint. Throws [TimeoutException] on expiry, which callers map
+  /// to a recoverable error rather than an infinite spinner.
+  Future<http.Response> _httpGet(
+    Uri uri, {
+    Map<String, String> headers = _headers,
+  }) {
+    return _client.get(uri, headers: headers).timeout(timeout);
+  }
 
   Future<FreeMusicSources> fetchSources() async {
     final Object? decoded = await _getJson('sources');
@@ -213,14 +246,7 @@ class FreeMusicApi {
               .toList(growable: false),
       },
     );
-    final http.Response response = await _client.get(
-      uri,
-      headers: const <String, String>{
-        'Accept': 'application/json',
-        'Referer': 'https://music.sy110.eu.org/music',
-        'User-Agent': 'Mozilla/5.0 MusicCarApp',
-      },
-    );
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'search failed with HTTP ${response.statusCode}',
@@ -249,14 +275,7 @@ class FreeMusicApi {
               .toList(growable: false),
       },
     );
-    final http.Response response = await _client.get(
-      uri,
-      headers: const <String, String>{
-        'Accept': 'application/json',
-        'Referer': 'https://music.sy110.eu.org/music',
-        'User-Agent': 'Mozilla/5.0 MusicCarApp',
-      },
-    );
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'recommend failed with HTTP ${response.statusCode}',
@@ -287,14 +306,7 @@ class FreeMusicApi {
         'size': '$size',
       },
     );
-    final http.Response response = await _client.get(
-      uri,
-      headers: const <String, String>{
-        'Accept': 'application/json',
-        'Referer': 'https://music.sy110.eu.org/music',
-        'User-Agent': 'Mozilla/5.0 MusicCarApp',
-      },
-    );
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'playlist/page failed with HTTP ${response.statusCode}',
@@ -329,14 +341,7 @@ class FreeMusicApi {
         'br': bitrate,
       },
     );
-    final http.Response response = await _client.get(
-      uri,
-      headers: const <String, String>{
-        'Accept': 'application/json',
-        'Referer': 'https://music.sy110.eu.org/music',
-        'User-Agent': 'Mozilla/5.0 MusicCarApp',
-      },
-    );
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'song_url failed with HTTP ${response.statusCode}',
@@ -355,6 +360,58 @@ class FreeMusicApi {
       source: '${decoded['source'] ?? song.source}'.trim(),
       direct: decoded['direct'] == true,
     );
+  }
+
+  /// Finds the same track on a different source when the current source cannot
+  /// play. Unlike [resolveSongUrl] this does NOT return a playable URL — it
+  /// returns the matched song on [target] (new `id` + `source` + a match
+  /// `score`). The caller must then call [resolveSongUrl] again with the
+  /// returned song to obtain the actual stream URL.
+  ///
+  /// Returns null when the server has no match (HTTP 404) or the match is below
+  /// [minScore]. A low score means the alternate source likely matched a
+  /// different recording, so playing it would be worse than surfacing an error.
+  Future<FreeMusicSourceSwitch?> switchSource(
+    FreeMusicSong song, {
+    required String target,
+    double minScore = 0.5,
+  }) async {
+    if (!song.canResolve || target.trim().isEmpty || target == song.source) {
+      return null;
+    }
+    final Uri uri = Uri.parse('$baseUri/switch_source').replace(
+      queryParameters: <String, String>{
+        'name': song.name,
+        'artist': song.artist,
+        'source': song.source,
+        'target': target.trim(),
+        if (song.duration > 0) 'duration': '${song.duration}',
+      },
+    );
+    final http.Response response = await _httpGet(uri);
+    if (response.statusCode == 404) {
+      return null;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        'switch_source failed with HTTP ${response.statusCode}',
+      );
+    }
+    final Object? decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException(
+        'switch_source returned non-object JSON',
+      );
+    }
+    final FreeMusicSong matched = _songFromMap(decoded);
+    if (!matched.canResolve) {
+      return null;
+    }
+    final double score = _doubleValue(decoded['score']);
+    if (score < minScore) {
+      return null;
+    }
+    return FreeMusicSourceSwitch(song: matched, score: score);
   }
 
   Future<FreeMusicQualityResult> fetchQualities(FreeMusicSong song) async {
@@ -390,7 +447,7 @@ class FreeMusicApi {
     final Uri uri = Uri.parse('$baseUri/yrc').replace(
       queryParameters: <String, String>{'id': song.id, 'source': song.source},
     );
-    final http.Response response = await _client.get(uri, headers: _headers);
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final String body = response.body.trim();
       String raw = body;
@@ -427,7 +484,7 @@ class FreeMusicApi {
         'artist': song.artist,
       },
     );
-    final http.Response response = await _client.get(
+    final http.Response response = await _httpGet(
       uri,
       headers: const <String, String>{
         'Accept': 'text/plain, application/json',
@@ -454,7 +511,7 @@ class FreeMusicApi {
   }
 
   Future<Object?> _getJsonUri(Uri uri, {required String errorPrefix}) async {
-    final http.Response response = await _client.get(uri, headers: _headers);
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         '$errorPrefix failed with HTTP ${response.statusCode}',
@@ -602,21 +659,23 @@ List<FreeMusicSong> _songsFromJson(Object? value) {
   }
   return value
       .whereType<Map>()
-      .map((Map<Object?, Object?> item) {
-        return FreeMusicSong(
-          id: _stringValue(item['id'] ?? item['songmid'] ?? item['mid']),
-          source: _stringValue(item['source']),
-          name: _stringValue(item['name'] ?? item['title']),
-          artist: _stringValue(item['artist'] ?? item['singer']),
-          duration: _intValue(item['duration'] ?? item['interval']),
-          album: _stringValue(item['album'] ?? item['albumName']),
-          cover: _stringValue(
-            item['cover'] ?? item['picUrl'] ?? item['img'] ?? item['artwork'],
-          ),
-        );
-      })
+      .map(_songFromMap)
       .where((FreeMusicSong song) => song.canResolve)
       .toList(growable: false);
+}
+
+FreeMusicSong _songFromMap(Map<Object?, Object?> item) {
+  return FreeMusicSong(
+    id: _stringValue(item['id'] ?? item['songmid'] ?? item['mid']),
+    source: _stringValue(item['source']),
+    name: _stringValue(item['name'] ?? item['title']),
+    artist: _stringValue(item['artist'] ?? item['singer']),
+    duration: _intValue(item['duration'] ?? item['interval']),
+    album: _stringValue(item['album'] ?? item['albumName']),
+    cover: _stringValue(
+      item['cover'] ?? item['picUrl'] ?? item['img'] ?? item['artwork'],
+    ),
+  );
 }
 
 String _stringValue(Object? value) {
@@ -635,6 +694,16 @@ int _intValue(Object? value) {
   }
   if (value is String) {
     return double.tryParse(value)?.round() ?? 0;
+  }
+  return 0;
+}
+
+double _doubleValue(Object? value) {
+  if (value is num && value.isFinite) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    return double.tryParse(value) ?? 0;
   }
   return 0;
 }

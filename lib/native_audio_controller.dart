@@ -213,6 +213,10 @@ class NativeAudioController {
   NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
   final math.Random _random = math.Random();
 
+  /// Alternate sources for the source-switch fallback, fetched lazily once.
+  List<String>? _cachedSources;
+  static const List<String> _fallbackSources = <String>['netease', 'kuwo'];
+
   @visibleForTesting
   List<FreeMusicSong> get playlist => _playlist;
 
@@ -350,12 +354,90 @@ class NativeAudioController {
     if (song == null || !song.canResolve) {
       return '';
     }
-    final FreeMusicResolvedUrl? resolved = await _api.resolveSongUrl(song);
-    final String url = resolved?.url ?? '';
-    if (url.isNotEmpty) {
-      debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
+    // Primary attempt on the song's own source. A failure here (HTTP error,
+    // timeout, or an empty/unusable URL) must NOT bubble up as an unhandled
+    // exception: a dead source would otherwise make playback — and any CarLife
+    // projection reading this same queue — silently stall. We fall through to
+    // [_resolveViaSourceSwitch] instead.
+    try {
+      final FreeMusicResolvedUrl? resolved = await _api.resolveSongUrl(song);
+      final String url = resolved?.url ?? '';
+      if (url.isNotEmpty) {
+        debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
+        return url;
+      }
+      debugPrint(
+        '[native-audio] resolve empty for ${snapshot.debugTitle}, '
+        'trying source switch',
+      );
+    } catch (error) {
+      debugPrint(
+        '[native-audio] resolve failed for ${snapshot.debugTitle}: $error, '
+        'trying source switch',
+      );
     }
-    return url;
+    return _resolveViaSourceSwitch(song, snapshot);
+  }
+
+  /// Fallback when the song's own source cannot produce a playable URL. Asks
+  /// the server for the same track on each alternate source and resolves a URL
+  /// there. Best-effort: any failure (no candidate sources, no match, alternate
+  /// source also dead) returns an empty string, which callers already treat as
+  /// "could not play" rather than crashing.
+  Future<String> _resolveViaSourceSwitch(
+    FreeMusicSong song,
+    PlayerProbeSnapshot snapshot,
+  ) async {
+    final List<String> targets = await _candidateSources();
+    for (final String target in targets) {
+      if (target == song.source) {
+        continue;
+      }
+      try {
+        final FreeMusicSourceSwitch? matched = await _api.switchSource(
+          song,
+          target: target,
+        );
+        if (matched == null) {
+          continue;
+        }
+        final FreeMusicResolvedUrl? resolved = await _api.resolveSongUrl(
+          matched.song,
+        );
+        final String url = resolved?.url ?? '';
+        if (url.isNotEmpty) {
+          debugPrint(
+            '[native-audio] resolved ${snapshot.debugTitle} via $target '
+            '(score ${matched.score.toStringAsFixed(2)})',
+          );
+          return url;
+        }
+      } catch (error) {
+        debugPrint('[native-audio] source switch to $target failed: $error');
+      }
+    }
+    return '';
+  }
+
+  /// Alternate sources to try when the primary source fails, fetched once and
+  /// cached. Falls back to a static list if `/sources` is unavailable so the
+  /// switch path still works offline-of-that-endpoint.
+  Future<List<String>> _candidateSources() async {
+    final List<String>? cached = _cachedSources;
+    if (cached != null) {
+      return cached;
+    }
+    List<String> sources;
+    try {
+      final FreeMusicSources fetched = await _api.fetchSources();
+      sources = fetched.allSources.isNotEmpty
+          ? fetched.allSources
+          : _fallbackSources;
+    } catch (_) {
+      sources = _fallbackSources;
+    }
+    _cachedSources = sources;
+    return sources;
   }
 
   void _syncQueue(PlayerProbeSnapshot snapshot) {

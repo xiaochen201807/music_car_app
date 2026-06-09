@@ -555,6 +555,123 @@ void main() {
       'play',
     ]);
   });
+
+  test('NativeAudioController switches source when primary URL fails', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    // kuwo song_url is dead; the same track resolves on netease after a
+    // /switch_source lookup. The controller must fall through and still play.
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        final String path = request.url.path;
+        final Map<String, String> q = request.url.queryParameters;
+        if (path.endsWith('/sources')) {
+          return http.Response(
+            '{"all_sources":["kuwo","netease"],'
+            '"default_sources":["kuwo","netease"],"descriptions":{}}',
+            200,
+          );
+        }
+        if (path.endsWith('/switch_source')) {
+          expect(q['source'], 'kuwo');
+          expect(q['target'], 'netease');
+          return http.Response(
+            '{"id":"999","source":"netease","name":"晴天",'
+            '"artist":"周杰伦","duration":269,"score":0.92}',
+            200,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+          );
+        }
+        if (path.endsWith('/song_url')) {
+          if (q['source'] == 'netease' && q['id'] == '999') {
+            return http.Response(
+              '{"direct":true,"source":"netease",'
+              '"url":"https://example.com/netease-999.mp3"}',
+              200,
+            );
+          }
+          // Primary kuwo source is dead.
+          return http.Response('{"error":"unavailable"}', 502);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    final bool handled = await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: true,
+        song: FreeMusicSong(
+          id: '1',
+          source: 'kuwo',
+          name: '晴天',
+          artist: '周杰伦',
+          duration: 269,
+        ),
+        title: '晴天',
+        artist: '周杰伦',
+      ),
+    );
+
+    expect(handled, isTrue);
+    expect(player.calls, <String>[
+      'setUrl:https://example.com/netease-999.mp3',
+      'play',
+    ]);
+  });
+
+  test('NativeAudioController gives up when every source fails', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    // Every source is dead and /switch_source has no match: the controller must
+    // return false rather than throw an unhandled exception.
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        final String path = request.url.path;
+        if (path.endsWith('/sources')) {
+          return http.Response(
+            '{"all_sources":["kuwo","netease"],'
+            '"default_sources":["kuwo","netease"],"descriptions":{}}',
+            200,
+          );
+        }
+        if (path.endsWith('/switch_source')) {
+          return http.Response('{"error":"not found"}', 404);
+        }
+        if (path.endsWith('/song_url')) {
+          return http.Response('{"error":"unavailable"}', 502);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+    );
+
+    final bool handled = await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: true,
+        song: FreeMusicSong(
+          id: '1',
+          source: 'kuwo',
+          name: '晴天',
+          artist: '周杰伦',
+          duration: 269,
+        ),
+        title: '晴天',
+        artist: '周杰伦',
+      ),
+    );
+
+    expect(handled, isFalse);
+    expect(player.calls, isEmpty);
+  });
 }
 
 FreeMusicApi _resolvingApi() {
