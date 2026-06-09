@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
@@ -530,12 +531,31 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (BuildContext context) {
-        return _LyricsSheet(
-          songTitle: _currentSong?.name ?? '',
-          artist: _currentSong?.artist ?? '',
-          lyrics: _currentLyrics,
-          loading: _isLoadingLyrics,
-          error: _lyricsError,
+        final MusicAudioHandler? handler = widget.audioHandler;
+        if (handler == null) {
+          return _LyricsSheet(
+            songTitle: _currentSong?.name ?? '',
+            artist: _currentSong?.artist ?? '',
+            lyrics: _currentLyrics,
+            loading: _isLoadingLyrics,
+            error: _lyricsError,
+            position: Duration.zero,
+          );
+        }
+        return StreamBuilder<PlaybackState>(
+          stream: handler.playbackState,
+          initialData: handler.playbackState.valueOrNull,
+          builder:
+              (BuildContext context, AsyncSnapshot<PlaybackState> snapshot) {
+                return _LyricsSheet(
+                  songTitle: _currentSong?.name ?? '',
+                  artist: _currentSong?.artist ?? '',
+                  lyrics: _currentLyrics,
+                  loading: _isLoadingLyrics,
+                  error: _lyricsError,
+                  position: snapshot.data?.position ?? Duration.zero,
+                );
+              },
         );
       },
     );
@@ -3299,6 +3319,7 @@ class _LyricsSheet extends StatelessWidget {
     required this.lyrics,
     required this.loading,
     required this.error,
+    required this.position,
   });
 
   final String songTitle;
@@ -3306,6 +3327,7 @@ class _LyricsSheet extends StatelessWidget {
   final FreeMusicLyrics? lyrics;
   final bool loading;
   final String error;
+  final Duration position;
 
   @override
   Widget build(BuildContext context) {
@@ -3361,6 +3383,7 @@ class _LyricsSheet extends StatelessWidget {
                   lyrics: lyrics,
                   loading: loading,
                   error: error,
+                  position: position,
                 ),
               ),
             ],
@@ -3371,30 +3394,85 @@ class _LyricsSheet extends StatelessWidget {
   }
 }
 
-class _LyricsContent extends StatelessWidget {
+class _LyricsContent extends StatefulWidget {
   const _LyricsContent({
     required this.lyrics,
     required this.loading,
     required this.error,
+    required this.position,
   });
 
   final FreeMusicLyrics? lyrics;
   final bool loading;
   final String error;
+  final Duration position;
+
+  @override
+  State<_LyricsContent> createState() => _LyricsContentState();
+}
+
+class _LyricsContentState extends State<_LyricsContent> {
+  static const double _lineExtent = 62;
+
+  final ScrollController _scrollController = ScrollController();
+  int _lastActiveIndex = -1;
+
+  @override
+  void didUpdateWidget(_LyricsContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
+    final int activeIndex = activeLyricLineIndex(lines, widget.position);
+    if (activeIndex != _lastActiveIndex) {
+      _lastActiveIndex = activeIndex;
+      _scrollActiveLineIntoView(activeIndex);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollActiveLineIntoView(int index) {
+    if (index < 0 || !_scrollController.hasClients) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      final ScrollPosition scrollPosition = _scrollController.position;
+      final double viewport = scrollPosition.viewportDimension;
+      final double target = (index * _lineExtent) - (viewport * 0.38);
+      final double clamped = target.clamp(
+        scrollPosition.minScrollExtent,
+        scrollPosition.maxScrollExtent,
+      );
+      if ((scrollPosition.pixels - clamped).abs() < 8) {
+        return;
+      }
+      _scrollController.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (widget.loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (error.isNotEmpty) {
+    if (widget.error.isNotEmpty) {
       return _SearchMessage(
         icon: Icons.subtitles_off_rounded,
         title: '歌词加载失败',
-        message: error,
+        message: widget.error,
       );
     }
-    final FreeMusicLyrics? current = lyrics;
+    final FreeMusicLyrics? current = widget.lyrics;
     if (current == null || current.isEmpty) {
       return const _SearchMessage(
         icon: Icons.subtitles_off_rounded,
@@ -3415,41 +3493,87 @@ class _LyricsContent extends StatelessWidget {
         ),
       );
     }
+    final int activeIndex = activeLyricLineIndex(lines, widget.position);
+    if (_lastActiveIndex != activeIndex) {
+      _lastActiveIndex = activeIndex;
+      _scrollActiveLineIntoView(activeIndex);
+    }
     return ListView.separated(
+      controller: _scrollController,
       itemCount: lines.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (BuildContext context, int index) {
         final FreeMusicLyricLine line = lines[index];
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            SizedBox(
-              width: 58,
-              child: Text(
-                _formatDuration(line.time),
-                style: const TextStyle(
-                  color: _AppColors.textMuted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+        final bool active = index == activeIndex;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: active ? 12 : 0,
+            vertical: active ? 8 : 0,
+          ),
+          decoration: BoxDecoration(
+            color: active
+                ? _AppColors.accent.withValues(alpha: 0.14)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: active
+                  ? _AppColors.accent.withValues(alpha: 0.28)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(
+                width: 58,
+                child: Text(
+                  _formatDuration(line.time),
+                  style: TextStyle(
+                    color: active ? _AppColors.accent : _AppColors.textMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Text(
-                line.text,
-                style: const TextStyle(
-                  color: _AppColors.textPrimary,
-                  fontSize: 20,
-                  height: 1.38,
-                  fontWeight: FontWeight.w800,
+              Expanded(
+                child: Text(
+                  line.text,
+                  style: TextStyle(
+                    color: active
+                        ? _AppColors.textPrimary
+                        : _AppColors.textSecondary,
+                    fontSize: active ? 22 : 20,
+                    height: 1.38,
+                    fontWeight: active ? FontWeight.w900 : FontWeight.w800,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
+}
+
+@visibleForTesting
+int activeLyricLineIndex(List<FreeMusicLyricLine> lines, Duration position) {
+  if (lines.isEmpty || position < lines.first.time) {
+    return -1;
+  }
+  int low = 0;
+  int high = lines.length - 1;
+  while (low <= high) {
+    final int mid = low + ((high - low) >> 1);
+    if (lines[mid].time <= position) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return math.max(0, high);
 }
 
 class _ArtworkTile extends StatelessWidget {

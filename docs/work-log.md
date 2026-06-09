@@ -262,3 +262,27 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-06-09 - Synced Lyric Highlighting
+
+Implemented in this increment:
+
+- The native lyric sheet now subscribes to `audio_service` playback position
+  while open.
+- Parsed LRC lyrics use the current playback position to identify the active
+  lyric line.
+- The active lyric line is visually highlighted and automatically scrolled near
+  the center of the lyric sheet for car-screen readability.
+- Added a pure `activeLyricLineIndex` helper with tests for pre-roll, in-line,
+  boundary, and post-song lyric positions.
+
+Verification in this increment:
+
+- `dart format lib/main.dart test/lyrics_sync_test.dart`
+- `flutter analyze`
+- `flutter test test/lyrics_sync_test.dart test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

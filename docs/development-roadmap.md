@@ -87,7 +87,8 @@ Exit criteria:
 - `[x]` Add native search API methods.
 - `[~]` Add recommendation loading, playlist detail browsing, and offset-based
   playlist pagination; offline and large-playlist validation is still pending.
-- `[~]` Add artwork and lyric loading from search/playback metadata.
+- `[~]` Add artwork plus lyric loading and playback-position lyric highlighting
+  from search/playback metadata.
 - `[~]` Replace demo UI data with real API-backed models for search, queue, and
   recommended playlists.
 - `[~]` Add loading, empty, retry, and offline states for search.
@@ -95,8 +96,8 @@ Exit criteria:
 Exit criteria:
 
 - `[x]` The app can search and select real songs without a WebView.
-- `[~]` Song metadata, artwork, lyrics, and paged playlist songs appear in the
-  native UI for API-backed playback.
+- `[~]` Song metadata, artwork, paged playlist songs, and synced lyric
+  highlighting appear in the native UI for API-backed playback.
 
 ### Phase 3: Complete Native Queue
 
