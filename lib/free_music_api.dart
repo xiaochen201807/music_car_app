@@ -68,6 +68,13 @@ class FreeMusicRecommendResult {
   final List<FreeMusicPlaylist> playlists;
 }
 
+class FreeMusicPlaylistPage {
+  const FreeMusicPlaylistPage({required this.songs, required this.total});
+
+  final List<FreeMusicSong> songs;
+  final int total;
+}
+
 class FreeMusicResolvedUrl {
   const FreeMusicResolvedUrl({
     required this.url,
@@ -183,6 +190,47 @@ class FreeMusicApi {
     }
     return FreeMusicRecommendResult(
       playlists: _playlistsFromJson(decoded['playlists']),
+    );
+  }
+
+  Future<FreeMusicPlaylistPage> fetchPlaylistSongs(
+    FreeMusicPlaylist playlist, {
+    int offset = 0,
+    int size = 30,
+  }) async {
+    if (!playlist.canLoad) {
+      return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
+    }
+    final Uri uri = Uri.parse('$baseUri/playlist/page').replace(
+      queryParameters: <String, String>{
+        'id': playlist.id,
+        'source': playlist.source,
+        'offset': '$offset',
+        'size': '$size',
+      },
+    );
+    final http.Response response = await _client.get(
+      uri,
+      headers: const <String, String>{
+        'Accept': 'application/json',
+        'Referer': 'https://music.sy110.eu.org/music',
+        'User-Agent': 'Mozilla/5.0 MusicCarApp',
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        'playlist/page failed with HTTP ${response.statusCode}',
+      );
+    }
+    final Object? decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException(
+        'playlist/page returned non-object JSON',
+      );
+    }
+    return FreeMusicPlaylistPage(
+      songs: _songsFromJson(decoded['songs']),
+      total: _intValue(decoded['total']),
     );
   }
 

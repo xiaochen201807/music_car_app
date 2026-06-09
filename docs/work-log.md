@@ -21,6 +21,8 @@ Current evidence:
   sheet from the mini-player.
 - The home page can load FreeMusic recommended playlists from `/recommend` and
   render them with real playlist artwork and metadata.
+- Tapping a recommended playlist loads the first `/playlist/page` result page
+  and hands those songs to the native playback queue.
 - Playback uses `audio_service` plus `just_audio`.
 - `NativeAudioController` can resolve FreeMusic song URLs, persist a queue, and
   skip through a synced probe queue.
@@ -32,7 +34,8 @@ Current evidence:
 
 Open gaps toward the full goal:
 
-- Playlist song pagination/loading is not fully API-backed yet.
+- Playlist first-page loading is API-backed; load-more pagination and full
+  playlist detail browsing are still pending.
 - Lyrics are API-backed for the current search/playback queue, but lyric timing
   is not yet synchronized to the playback position.
 - Repeat, shuffle, artwork loading, and queue behavior still need real
@@ -43,7 +46,7 @@ Open gaps toward the full goal:
 
 Next implementation focus:
 
-- Add playlist detail/song loading and queue handoff from recommended playlists.
+- Add playlist load-more pagination and richer playlist detail browsing.
 - Synchronize lyric highlighting to playback position.
 - Continue CarLife SDK integration beyond package probe and launch fallback.
 - Keep tests and roadmap status updated with each increment.
@@ -78,6 +81,29 @@ Implemented in this increment:
   page into the native queue.
 - The queue panel now shows the real search-backed queue after playback starts,
   with the existing demo queue retained only as an empty-state placeholder.
+
+Verification in this increment:
+
+- `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+Implemented in this increment:
+
+- Added `FreeMusicPlaylistPage` and `FreeMusicApi.fetchPlaylistSongs`, calling
+  `/playlist/page` with `id`, `source`, `offset`, and `size`.
+- Recommended playlist selection now loads the first page of songs and plays the
+  first item through the same native queue path used by search results.
+- Playlist-loaded songs become the visible playback queue and keep lyrics,
+  artwork, media-session queue metadata, and skip controls on the existing
+  native audio path.
+- The home recommendation lists now show a loading state while playlist songs
+  are being fetched.
 
 Verification in this increment:
 

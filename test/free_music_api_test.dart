@@ -131,6 +131,75 @@ void main() {
     expect(result.playlists.single.playCount, 20872758);
   });
 
+  test('FreeMusicApi fetches playlist song pages', () async {
+    late Uri requestedUri;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        return http.Response(
+          '''
+          {
+            "total": 17,
+            "songs": [
+              {
+                "id": "228429",
+                "source": "kuwo",
+                "name": "好心分手",
+                "artist": "卢巧音&王力宏",
+                "album": "男女情歌对唱冠军全记录",
+                "duration": 182,
+                "cover": "https://example.com/song.jpg"
+              }
+            ]
+          }
+          ''',
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final FreeMusicPlaylistPage page = await api.fetchPlaylistSongs(
+      const FreeMusicPlaylist(
+        id: '1012368062',
+        source: 'kuwo',
+        name: '好听的粤语对唱',
+      ),
+      offset: 30,
+      size: 15,
+    );
+
+    expect(requestedUri.path, '/api/v1/freemusic/playlist/page');
+    expect(requestedUri.queryParameters['id'], '1012368062');
+    expect(requestedUri.queryParameters['source'], 'kuwo');
+    expect(requestedUri.queryParameters['offset'], '30');
+    expect(requestedUri.queryParameters['size'], '15');
+    expect(page.total, 17);
+    expect(page.songs, hasLength(1));
+    expect(page.songs.single.name, '好心分手');
+    expect(page.songs.single.album, '男女情歌对唱冠军全记录');
+    expect(page.songs.single.cover, 'https://example.com/song.jpg');
+  });
+
+  test(
+    'FreeMusicApi returns empty playlist page for incomplete playlists',
+    () async {
+      final FreeMusicApi api = FreeMusicApi(
+        client: MockClient((http.Request request) async {
+          fail('Request should not be sent for incomplete playlists');
+        }),
+      );
+
+      final FreeMusicPlaylistPage page = await api.fetchPlaylistSongs(
+        const FreeMusicPlaylist(id: '', source: '', name: ''),
+      );
+
+      expect(page.songs, isEmpty);
+      expect(page.total, 0);
+    },
+  );
+
   test('FreeMusicApi resolves song_url with expected query parameters', () async {
     late Uri requestedUri;
     late Map<String, String> requestedHeaders;

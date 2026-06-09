@@ -103,11 +103,13 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _hasAutoCheckedUpdate = false;
   bool _isSearchingMusic = false;
   bool _isLoadingRecommendations = false;
+  bool _isLoadingPlaylistSongs = false;
   bool _isLoadingLyrics = false;
   bool _syncingSessionPlaybackMode = false;
   int _searchRequestId = 0;
   String _searchError = '';
   String _recommendationError = '';
+  String _playlistError = '';
   String _lyricsError = '';
   String _lastSearchQuery = '';
   FreeMusicLyrics? _currentLyrics;
@@ -291,21 +293,80 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
-  void _showPlaylistInfo(FreeMusicPlaylist playlist) {
-    _showSnack('歌单歌曲加载待接入：${playlist.name}');
+  Future<void> _playRecommendedPlaylist(FreeMusicPlaylist playlist) async {
+    if (_isLoadingPlaylistSongs) {
+      return;
+    }
+    setState(() {
+      _isLoadingPlaylistSongs = true;
+      _playlistError = '';
+    });
+    try {
+      final FreeMusicPlaylistPage page = await _freeMusicApi.fetchPlaylistSongs(
+        playlist,
+        size: 30,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (page.songs.isEmpty) {
+        setState(() {
+          _isLoadingPlaylistSongs = false;
+          _playlistError = '歌单暂无可播放歌曲';
+        });
+        _showSnack('歌单暂无可播放歌曲：${playlist.name}');
+        return;
+      }
+      await _playSongQueue(page.songs, 0);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchResults = page.songs;
+        _playbackQueue = List<FreeMusicSong>.unmodifiable(page.songs);
+        _selectedQueueIndex = 0;
+        _isLoadingPlaylistSongs = false;
+      });
+      _showSnack('已加载歌单：${playlist.name}');
+    } on FreeMusicApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _playlistError = error.message;
+        _isLoadingPlaylistSongs = false;
+      });
+      _showSnack(error.message);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _playlistError = '歌单加载失败：$error';
+        _isLoadingPlaylistSongs = false;
+      });
+      _showSnack('歌单加载失败：$error');
+    }
   }
 
   Future<void> _playSearchResult(int index) async {
     if (index < 0 || index >= _searchResults.length) {
       return;
     }
-    final FreeMusicSong song = _searchResults[index];
+    await _playSongQueue(_searchResults, index);
+  }
+
+  Future<void> _playSongQueue(List<FreeMusicSong> songs, int index) async {
+    if (index < 0 || index >= songs.length) {
+      return;
+    }
+    final FreeMusicSong song = songs[index];
     final bool handled = await _nativeAudioController.syncFromProbe(
       PlayerProbeSnapshot(
         audioUrl: '',
         playing: true,
         song: song,
-        playlist: _searchResults,
+        playlist: songs,
         currentIndex: index,
         title: song.name,
         artist: song.artist,
@@ -321,7 +382,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     setState(() {
-      _playbackQueue = List<FreeMusicSong>.unmodifiable(_searchResults);
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(songs);
       _selectedQueueIndex = index;
       _currentSong = song;
     });
@@ -687,7 +748,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               lastSearchQuery: _lastSearchQuery,
               recommendedPlaylists: _recommendedPlaylists,
               recommendationsBusy: _isLoadingRecommendations,
-              recommendationError: _recommendationError,
+              recommendationError: _playlistError.isEmpty
+                  ? _recommendationError
+                  : _playlistError,
+              playlistSongsBusy: _isLoadingPlaylistSongs,
               playbackState: playbackState,
               playbackMode: _playbackMode,
               lyricsAvailable: _currentLyrics?.lines.isNotEmpty ?? false,
@@ -708,7 +772,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPlaySearchResult: (int index) {
                 unawaited(_playSearchResult(index));
               },
-              onSelectPlaylist: _showPlaylistInfo,
+              onSelectPlaylist: (FreeMusicPlaylist playlist) {
+                unawaited(_playRecommendedPlaylist(playlist));
+              },
               onPlayPause: () => _togglePlayback(playbackState.playing),
               onPlaybackMode: () {
                 unawaited(_cyclePlaybackMode());
@@ -810,6 +876,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.recommendedPlaylists,
     required this.recommendationsBusy,
     required this.recommendationError,
+    required this.playlistSongsBusy,
     required this.playbackState,
     required this.playbackMode,
     required this.lyricsAvailable,
@@ -844,6 +911,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final List<FreeMusicPlaylist> recommendedPlaylists;
   final bool recommendationsBusy;
   final String recommendationError;
+  final bool playlistSongsBusy;
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
   final bool lyricsAvailable;
@@ -903,6 +971,7 @@ class _NativeMusicScaffold extends StatelessWidget {
                               recommendedPlaylists: recommendedPlaylists,
                               recommendationsBusy: recommendationsBusy,
                               recommendationError: recommendationError,
+                              playlistSongsBusy: playlistSongsBusy,
                               carLifeStatus: carLifeStatus,
                               carLifeBusy: carLifeBusy,
                               onSearch: onSearch,
@@ -1211,6 +1280,7 @@ class _HomePanel extends StatelessWidget {
     required this.recommendedPlaylists,
     required this.recommendationsBusy,
     required this.recommendationError,
+    required this.playlistSongsBusy,
     required this.carLifeStatus,
     required this.carLifeBusy,
     required this.onSearch,
@@ -1229,6 +1299,7 @@ class _HomePanel extends StatelessWidget {
   final List<FreeMusicPlaylist> recommendedPlaylists;
   final bool recommendationsBusy;
   final String recommendationError;
+  final bool playlistSongsBusy;
   final CarLifeStatus carLifeStatus;
   final bool carLifeBusy;
   final VoidCallback onSearch;
@@ -1338,6 +1409,8 @@ class _HomePanel extends StatelessWidget {
                                         const _ChipLabel(text: '推荐歌单'),
                                         if (recommendationsBusy)
                                           const _ChipLabel(text: '加载中')
+                                        else if (playlistSongsBusy)
+                                          const _ChipLabel(text: '歌单加载中')
                                         else if (recommendationError.isNotEmpty)
                                           const _ChipLabel(text: '可重试')
                                         else
@@ -1401,6 +1474,7 @@ class _HomePanel extends StatelessWidget {
                         .take(4)
                         .toList(growable: false),
                     busy: recommendationsBusy,
+                    actionBusy: playlistSongsBusy,
                     error: recommendationError,
                     fallbackTracks: _recentTracks,
                     onSelect: onSelectPlaylist,
@@ -1415,6 +1489,7 @@ class _HomePanel extends StatelessWidget {
                         .take(4)
                         .toList(growable: false),
                     busy: recommendationsBusy,
+                    actionBusy: playlistSongsBusy,
                     error: recommendationError,
                     fallbackTracks: _favoriteTracks,
                     onSelect: onSelectPlaylist,
@@ -1995,6 +2070,7 @@ class _PlaylistSection extends StatelessWidget {
     required this.title,
     required this.playlists,
     required this.busy,
+    required this.actionBusy,
     required this.error,
     required this.fallbackTracks,
     required this.onSelect,
@@ -2003,6 +2079,7 @@ class _PlaylistSection extends StatelessWidget {
   final String title;
   final List<FreeMusicPlaylist> playlists;
   final bool busy;
+  final bool actionBusy;
   final String error;
   final List<_DemoTrack> fallbackTracks;
   final ValueChanged<FreeMusicPlaylist> onSelect;
@@ -2029,7 +2106,7 @@ class _PlaylistSection extends StatelessWidget {
                   ),
                 ),
               ),
-              if (busy)
+              if (busy || actionBusy)
                 const SizedBox.square(
                   dimension: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
@@ -2049,7 +2126,7 @@ class _PlaylistSection extends StatelessWidget {
                       return _PlaylistRow(
                         playlist: playlist,
                         visual: _demoQueue[index % _demoQueue.length],
-                        onTap: () => onSelect(playlist),
+                        onTap: actionBusy ? null : () => onSelect(playlist),
                       );
                     },
                   ),
@@ -2064,12 +2141,12 @@ class _PlaylistRow extends StatelessWidget {
   const _PlaylistRow({
     required this.playlist,
     required this.visual,
-    required this.onTap,
+    this.onTap,
   });
 
   final FreeMusicPlaylist playlist;
   final _DemoTrack visual;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

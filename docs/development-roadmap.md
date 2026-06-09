@@ -85,7 +85,8 @@ Exit criteria:
 ### Phase 2: Native Data Sources
 
 - `[x]` Add native search API methods.
-- `[~]` Add recommendation loading; playlist song loading is still pending.
+- `[~]` Add recommendation loading and first-page playlist song loading;
+  playlist pagination is still pending.
 - `[~]` Add artwork and lyric loading from search/playback metadata.
 - `[~]` Replace demo UI data with real API-backed models for search, queue, and
   recommended playlists.
