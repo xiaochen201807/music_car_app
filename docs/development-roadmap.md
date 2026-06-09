@@ -36,17 +36,17 @@ native audio foundation:
 The native car-media architecture is:
 
 1. `[x]` Flutter owns the visible UI.
-2. `[ ]` Flutter loads search, playlist, artwork, and lyric data from native API
+2. `[~]` Flutter loads search, playlist, artwork, and lyric data from native API
    clients.
-3. `[~]` Flutter creates a complete native playback queue.
+3. `[x]` Flutter creates a complete native playback queue for search results.
 4. `[x]` `audio_service.queue` exposes the complete queue instead of a single
    current item.
 5. `[x]` `PlaybackState.queueIndex` points at the active queue item.
 6. `[x]` `skipToQueueItem(index)` plays a selected queue item directly.
-7. `[ ]` `skipToNext`, `skipToPrevious`, and automatic completion use the native
-   queue only.
+7. `[~]` `skipToNext`, `skipToPrevious`, and automatic completion use the native
+   queue path; real media-button/head-unit validation is still pending.
 8. `[ ]` Repeat, shuffle, and sequential modes are represented natively.
-9. `[ ]` Queue and playback state persist locally for app/process restarts.
+9. `[x]` Queue and playback state persist locally for app/process restarts.
 
 Implementation record:
 
@@ -84,26 +84,26 @@ Exit criteria:
 
 ### Phase 2: Native Data Sources
 
-- `[ ]` Add native search API methods.
+- `[x]` Add native search API methods.
 - `[ ]` Add recommendation and playlist loading.
 - `[ ]` Add artwork and lyric loading.
-- `[ ]` Replace demo UI data with real API-backed models.
-- `[ ]` Add loading, empty, retry, and offline states.
+- `[~]` Replace demo UI data with real API-backed models for search and queue.
+- `[~]` Add loading, empty, retry, and offline states for search.
 
 Exit criteria:
 
-- `[ ]` The app can search and select real songs without a WebView.
+- `[x]` The app can search and select real songs without a WebView.
 - `[ ]` Song metadata and artwork appear in the native UI before playback.
 
 ### Phase 3: Complete Native Queue
 
-- `[ ]` Store the full queue in the audio layer.
-- `[ ]` Publish complete `audio_service.queue` metadata.
-- `[ ]` Publish correct `PlaybackState.queueIndex`.
-- `[ ]` Implement `skipToQueueItem(index)`.
+- `[x]` Store the full queue in the audio layer.
+- `[x]` Publish complete `audio_service.queue` metadata.
+- `[x]` Publish correct `PlaybackState.queueIndex`.
+- `[x]` Implement `skipToQueueItem(index)`.
 - `[ ]` Implement repeat, shuffle, and sequential playback modes.
-- `[ ]` Let the native queue decide the next item after completion.
-- `[ ]` Persist queue and current playback item locally.
+- `[~]` Let the native queue decide the next item after completion.
+- `[x]` Persist queue and current playback item locally.
 
 Exit criteria:
 

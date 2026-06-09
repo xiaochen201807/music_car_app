@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'free_music_api.dart';
 import 'music_audio_handler.dart';
 import 'models/app_update_info.dart';
 import 'native_audio_controller.dart';
@@ -84,6 +85,8 @@ class NativeMusicHomePage extends StatefulWidget {
 class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     with WidgetsBindingObserver {
   late final NativeAudioController _nativeAudioController;
+  final FreeMusicApi _freeMusicApi = FreeMusicApi();
+  final TextEditingController _searchController = TextEditingController();
   final UpdateCheckService _updateCheckService = UpdateCheckService();
   final AppInstallerService _appInstallerService = const AppInstallerService();
   final CarLifeService _carLifeService = const CarLifeService();
@@ -98,6 +101,12 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isInstallingUpdate = false;
   bool _isCheckingCarLife = false;
   bool _hasAutoCheckedUpdate = false;
+  bool _isSearchingMusic = false;
+  int _searchRequestId = 0;
+  String _searchError = '';
+  String _lastSearchQuery = '';
+  List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
+  List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
   int _selectedTab = 0;
   int _selectedQueueIndex = 0;
 
@@ -135,6 +144,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     unawaited(WakelockPlus.disable());
     unawaited(_nativeAudioController.dispose());
+    _freeMusicApi.close();
+    _searchController.dispose();
     _updateCheckService.dispose();
     super.dispose();
   }
@@ -159,10 +170,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     setState(() {
-      _selectedQueueIndex = math.min(
-        _selectedQueueIndex + 1,
-        _demoQueue.length - 1,
-      );
+      final int maxIndex = _playbackQueue.isEmpty
+          ? _demoQueue.length - 1
+          : _playbackQueue.length - 1;
+      _selectedQueueIndex = math.min(_selectedQueueIndex + 1, maxIndex);
     });
   }
 
@@ -173,6 +184,86 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     setState(() {
       _selectedQueueIndex = math.max(_selectedQueueIndex - 1, 0);
+    });
+  }
+
+  Future<void> _searchSongs() async {
+    final String query = _searchController.text.trim();
+    final int requestId = ++_searchRequestId;
+    if (query.isEmpty) {
+      setState(() {
+        _lastSearchQuery = '';
+        _searchError = '';
+        _searchResults = const <FreeMusicSong>[];
+        _isSearchingMusic = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearchingMusic = true;
+      _searchError = '';
+      _lastSearchQuery = query;
+    });
+
+    try {
+      final FreeMusicSearchResult result = await _freeMusicApi.searchSongs(
+        query,
+      );
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      setState(() {
+        _searchResults = result.songs;
+        _isSearchingMusic = false;
+      });
+    } on FreeMusicApiException catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      setState(() {
+        _searchError = error.message;
+        _isSearchingMusic = false;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      setState(() {
+        _searchError = '搜索失败：$error';
+        _isSearchingMusic = false;
+      });
+    }
+  }
+
+  Future<void> _playSearchResult(int index) async {
+    if (index < 0 || index >= _searchResults.length) {
+      return;
+    }
+    final FreeMusicSong song = _searchResults[index];
+    final bool handled = await _nativeAudioController.syncFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: true,
+        song: song,
+        playlist: _searchResults,
+        currentIndex: index,
+        title: song.name,
+        artist: song.artist,
+        coverUrl: song.cover,
+        duration: Duration(seconds: song.duration),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!handled) {
+      _showSnack('暂时无法播放：${song.name}');
+      return;
+    }
+    setState(() {
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(_searchResults);
+      _selectedQueueIndex = index;
     });
   }
 
@@ -385,10 +476,17 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
         body: _PlaybackStateBuilder(
           audioHandler: widget.audioHandler,
           builder: (BuildContext context, PlaybackUiState playbackState) {
-            final _DemoTrack currentTrack = _demoQueue[_selectedQueueIndex];
+            final _DemoTrack currentTrack =
+                _demoQueue[_selectedQueueIndex % _demoQueue.length];
             return _NativeMusicScaffold(
               selectedTab: _selectedTab,
               selectedQueueIndex: _selectedQueueIndex,
+              queueSongs: _playbackQueue,
+              searchController: _searchController,
+              searchResults: _searchResults,
+              searchBusy: _isSearchingMusic,
+              searchError: _searchError,
+              lastSearchQuery: _lastSearchQuery,
               playbackState: playbackState,
               currentTrack: currentTrack,
               carLifeStatus: _carLifeStatus,
@@ -401,6 +499,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               },
               onSelectQueueIndex: (int index) {
                 unawaited(_skipToQueueItem(index));
+              },
+              onSearch: _searchSongs,
+              onPlaySearchResult: (int index) {
+                unawaited(_playSearchResult(index));
               },
               onPlayPause: () => _togglePlayback(playbackState.playing),
               onPrevious: _skipToPreviousTrack,
@@ -487,6 +589,12 @@ class _NativeMusicScaffold extends StatelessWidget {
   const _NativeMusicScaffold({
     required this.selectedTab,
     required this.selectedQueueIndex,
+    required this.queueSongs,
+    required this.searchController,
+    required this.searchResults,
+    required this.searchBusy,
+    required this.searchError,
+    required this.lastSearchQuery,
     required this.playbackState,
     required this.currentTrack,
     required this.carLifeStatus,
@@ -494,6 +602,8 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.carLifeBusy,
     required this.onSelectTab,
     required this.onSelectQueueIndex,
+    required this.onSearch,
+    required this.onPlaySearchResult,
     required this.onPlayPause,
     required this.onPrevious,
     required this.onNext,
@@ -504,6 +614,12 @@ class _NativeMusicScaffold extends StatelessWidget {
 
   final int selectedTab;
   final int selectedQueueIndex;
+  final List<FreeMusicSong> queueSongs;
+  final TextEditingController searchController;
+  final List<FreeMusicSong> searchResults;
+  final bool searchBusy;
+  final String searchError;
+  final String lastSearchQuery;
   final PlaybackUiState playbackState;
   final _DemoTrack currentTrack;
   final CarLifeStatus carLifeStatus;
@@ -511,6 +627,8 @@ class _NativeMusicScaffold extends StatelessWidget {
   final bool carLifeBusy;
   final ValueChanged<int> onSelectTab;
   final ValueChanged<int> onSelectQueueIndex;
+  final VoidCallback onSearch;
+  final ValueChanged<int> onPlaySearchResult;
   final VoidCallback onPlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -547,8 +665,15 @@ class _NativeMusicScaffold extends StatelessWidget {
                             flex: showQueue ? 5 : 6,
                             child: _HomePanel(
                               selectedTab: selectedTab,
+                              searchController: searchController,
+                              searchResults: searchResults,
+                              searchBusy: searchBusy,
+                              searchError: searchError,
+                              lastSearchQuery: lastSearchQuery,
                               carLifeStatus: carLifeStatus,
                               carLifeBusy: carLifeBusy,
+                              onSearch: onSearch,
+                              onPlaySearchResult: onPlaySearchResult,
                               onOpenCarLife: onOpenCarLife,
                               onRefreshCarLife: onRefreshCarLife,
                             ),
@@ -570,6 +695,7 @@ class _NativeMusicScaffold extends StatelessWidget {
                               width: 330,
                               child: _QueuePanel(
                                 selectedIndex: selectedQueueIndex,
+                                songs: queueSongs,
                                 onSelect: onSelectQueueIndex,
                               ),
                             ),
@@ -836,15 +962,29 @@ class _RailIconButton extends StatelessWidget {
 class _HomePanel extends StatelessWidget {
   const _HomePanel({
     required this.selectedTab,
+    required this.searchController,
+    required this.searchResults,
+    required this.searchBusy,
+    required this.searchError,
+    required this.lastSearchQuery,
     required this.carLifeStatus,
     required this.carLifeBusy,
+    required this.onSearch,
+    required this.onPlaySearchResult,
     required this.onOpenCarLife,
     required this.onRefreshCarLife,
   });
 
   final int selectedTab;
+  final TextEditingController searchController;
+  final List<FreeMusicSong> searchResults;
+  final bool searchBusy;
+  final String searchError;
+  final String lastSearchQuery;
   final CarLifeStatus carLifeStatus;
   final bool carLifeBusy;
+  final VoidCallback onSearch;
+  final ValueChanged<int> onPlaySearchResult;
   final VoidCallback onOpenCarLife;
   final VoidCallback onRefreshCarLife;
 
@@ -881,115 +1021,135 @@ class _HomePanel extends StatelessWidget {
                 ],
               ),
             ),
-            const _SearchPill(),
+            _SearchPill(onTap: () {}, compact: selectedTab == 1),
           ],
         ),
         const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final bool showCarLifeCard = constraints.maxWidth >= 520;
-            return Row(
-              children: <Widget>[
-                Expanded(
-                  child: _GlassCard(
-                    height: 188,
-                    padding: const EdgeInsets.all(22),
-                    child: LayoutBuilder(
-                      builder: (BuildContext context, BoxConstraints constraints) {
-                        final bool showHeroArt = constraints.maxWidth >= 430;
-                        return Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+        if (selectedTab == 1)
+          Expanded(
+            child: _SearchPanel(
+              controller: searchController,
+              songs: searchResults,
+              busy: searchBusy,
+              error: searchError,
+              query: lastSearchQuery,
+              onSearch: onSearch,
+              onPlay: onPlaySearchResult,
+            ),
+          )
+        else ...<Widget>[
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool showCarLifeCard = constraints.maxWidth >= 520;
+              return Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _GlassCard(
+                      height: 188,
+                      padding: const EdgeInsets.all(22),
+                      child: LayoutBuilder(
+                        builder:
+                            (BuildContext context, BoxConstraints constraints) {
+                              final bool showHeroArt =
+                                  constraints.maxWidth >= 430;
+                              return Row(
                                 children: <Widget>[
-                                  const Text(
-                                    '推荐',
-                                    style: TextStyle(
-                                      color: _AppColors.textPrimary,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w900,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        const Text(
+                                          '推荐',
+                                          style: TextStyle(
+                                            color: _AppColors.textPrimary,
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '为横屏车机重做的 iOS 风格音乐首页，后续会接入搜索、歌单、歌词和完整原生队列。',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: _AppColors.textSecondary
+                                                .withValues(alpha: 0.92),
+                                            fontSize: 15,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        const Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: <Widget>[
+                                            _ChipLabel(text: '大触控目标'),
+                                            _ChipLabel(text: '后台媒体键'),
+                                            _ChipLabel(text: '原生队列'),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '为横屏车机重做的 iOS 风格音乐首页，后续会接入搜索、歌单、歌词和完整原生队列。',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: _AppColors.textSecondary
-                                          .withValues(alpha: 0.92),
-                                      fontSize: 15,
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: <Widget>[
-                                      _ChipLabel(text: '大触控目标'),
-                                      _ChipLabel(text: '后台媒体键'),
-                                      _ChipLabel(text: '原生队列'),
-                                    ],
-                                  ),
+                                  if (showHeroArt) ...const <Widget>[
+                                    SizedBox(width: 18),
+                                    _HeroEqualizer(),
+                                  ],
                                 ],
-                              ),
-                            ),
-                            if (showHeroArt) ...const <Widget>[
-                              SizedBox(width: 18),
-                              _HeroEqualizer(),
-                            ],
-                          ],
-                        );
-                      },
+                              );
+                            },
+                      ),
                     ),
                   ),
-                ),
-                if (showCarLifeCard) ...<Widget>[
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: 218,
-                    child: _CarLifeCard(
-                      status: carLifeStatus,
-                      busy: carLifeBusy,
-                      onOpen: onOpenCarLife,
-                      onRefresh: onRefreshCarLife,
+                  if (showCarLifeCard) ...<Widget>[
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: 218,
+                      child: _CarLifeCard(
+                        status: carLifeStatus,
+                        busy: carLifeBusy,
+                        onOpen: onOpenCarLife,
+                        onRefresh: onRefreshCarLife,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            );
-          },
-        ),
-        if (carLifeStatus.reason == 'unchecked')
-          const SizedBox.shrink()
-        else if (carLifeStatus.reason.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'CarLife 状态：${carLifeStatus.displayText}',
-              style: const TextStyle(
-                color: _AppColors.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+              );
+            },
+          ),
+          if (carLifeStatus.reason == 'unchecked')
+            const SizedBox.shrink()
+          else if (carLifeStatus.reason.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'CarLife 状态：${carLifeStatus.displayText}',
+                style: const TextStyle(
+                  color: _AppColors.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _LibrarySection(title: '最近播放', tracks: _recentTracks),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _LibrarySection(
+                    title: '我的收藏',
+                    tracks: _favoriteTracks,
+                  ),
+                ),
+              ],
+            ),
           ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: _LibrarySection(title: '最近播放', tracks: _recentTracks),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _LibrarySection(title: '我的收藏', tracks: _favoriteTracks),
-              ),
-            ],
-          ),
-        ),
+        ],
       ],
     );
   }
@@ -1110,28 +1270,324 @@ class _CarLifeCard extends StatelessWidget {
 }
 
 class _SearchPill extends StatelessWidget {
-  const _SearchPill();
+  const _SearchPill({required this.onTap, required this.compact});
+
+  final VoidCallback onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: onTap,
+      child: _GlassCard(
+        width: compact ? 178 : 250,
+        height: 56,
+        borderRadius: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: const Row(
+          children: <Widget>[
+            Icon(Icons.search_rounded, color: _AppColors.textSecondary),
+            SizedBox(width: 10),
+            Text(
+              '搜索音乐',
+              style: TextStyle(
+                color: _AppColors.textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchPanel extends StatelessWidget {
+  const _SearchPanel({
+    required this.controller,
+    required this.songs,
+    required this.busy,
+    required this.error,
+    required this.query,
+    required this.onSearch,
+    required this.onPlay,
+  });
+
+  final TextEditingController controller;
+  final List<FreeMusicSong> songs;
+  final bool busy;
+  final String error;
+  final String query;
+  final VoidCallback onSearch;
+  final ValueChanged<int> onPlay;
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      width: 250,
-      height: 56,
-      borderRadius: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: const Row(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(Icons.search_rounded, color: _AppColors.textSecondary),
-          SizedBox(width: 10),
-          Text(
-            '搜索音乐',
-            style: TextStyle(
-              color: _AppColors.textSecondary,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => onSearch(),
+                  style: const TextStyle(
+                    color: _AppColors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '输入歌名、歌手或专辑',
+                    hintStyle: const TextStyle(color: _AppColors.textMuted),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: _AppColors.textSecondary,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.08),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: busy ? null : onSearch,
+                icon: busy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.manage_search_rounded),
+                label: Text(busy ? '搜索中' : '搜索'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 18,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: <Widget>[
+              const Text(
+                '在线曲库',
+                style: TextStyle(
+                  color: _AppColors.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ChipLabel(text: query.isEmpty ? 'FreeMusic' : query),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _SearchResultsBody(
+              songs: songs,
+              busy: busy,
+              error: error,
+              query: query,
+              onPlay: onPlay,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SearchResultsBody extends StatelessWidget {
+  const _SearchResultsBody({
+    required this.songs,
+    required this.busy,
+    required this.error,
+    required this.query,
+    required this.onPlay,
+  });
+
+  final List<FreeMusicSong> songs;
+  final bool busy;
+  final String error;
+  final String query;
+  final ValueChanged<int> onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy && songs.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error.isNotEmpty) {
+      return _SearchMessage(
+        icon: Icons.cloud_off_rounded,
+        title: '搜索失败',
+        message: error,
+      );
+    }
+    if (query.isEmpty) {
+      return const _SearchMessage(
+        icon: Icons.travel_explore_rounded,
+        title: '搜索真实歌曲',
+        message: '结果会直接进入原生播放队列，媒体键和 CarLife 控制可复用同一队列。',
+      );
+    }
+    if (songs.isEmpty) {
+      return const _SearchMessage(
+        icon: Icons.music_off_rounded,
+        title: '没有结果',
+        message: '换一个关键词再试。',
+      );
+    }
+    return ListView.separated(
+      itemCount: songs.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (BuildContext context, int index) {
+        final FreeMusicSong song = songs[index];
+        return _SongResultTile(song: song, index: index, onPlay: onPlay);
+      },
+    );
+  }
+}
+
+class _SearchMessage extends StatelessWidget {
+  const _SearchMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, color: _AppColors.textMuted, size: 54),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              color: _AppColors.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 420,
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _AppColors.textSecondary,
+                fontSize: 15,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SongResultTile extends StatelessWidget {
+  const _SongResultTile({
+    required this.song,
+    required this.index,
+    required this.onPlay,
+  });
+
+  final FreeMusicSong song;
+  final int index;
+  final ValueChanged<int> onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final _DemoTrack visual = _demoQueue[index % _demoQueue.length];
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => onPlay(index),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: <Widget>[
+            _ArtworkTile(track: visual, size: 54, radius: 16),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _AppColors.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    <String>[
+                      song.artist,
+                      if (song.album.isNotEmpty) song.album,
+                      song.source,
+                    ].where((String value) => value.isNotEmpty).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              _formatDuration(Duration(seconds: song.duration)),
+              style: const TextStyle(
+                color: _AppColors.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Icon(
+              Icons.play_circle_fill_rounded,
+              color: _AppColors.primary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1384,9 +1840,14 @@ class _NowPlayingPanel extends StatelessWidget {
 }
 
 class _QueuePanel extends StatelessWidget {
-  const _QueuePanel({required this.selectedIndex, required this.onSelect});
+  const _QueuePanel({
+    required this.selectedIndex,
+    required this.songs,
+    required this.onSelect,
+  });
 
   final int selectedIndex;
+  final List<FreeMusicSong> songs;
   final ValueChanged<int> onSelect;
 
   @override
@@ -1412,8 +1873,8 @@ class _QueuePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          const Text(
-            '完整原生队列会在下一阶段接入真实搜索和歌单数据。',
+          Text(
+            songs.isEmpty ? '搜索并播放歌曲后，这里会显示真实原生队列。' : '来自在线搜索结果，可直接切换任意歌曲。',
             style: TextStyle(
               color: _AppColors.textSecondary,
               fontSize: 13,
@@ -1422,76 +1883,156 @@ class _QueuePanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: ListView.separated(
-              itemCount: _demoQueue.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 9),
-              itemBuilder: (BuildContext context, int index) {
-                final _DemoTrack track = _demoQueue[index];
-                final bool selected = selectedIndex == index;
-                return InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: () => onSelect(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? Colors.white.withValues(alpha: 0.12)
-                          : Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: selected
-                            ? track.color.withValues(alpha: 0.72)
-                            : Colors.white.withValues(alpha: 0.06),
-                      ),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        _ArtworkTile(track: track, size: 48, radius: 15),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                track.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: selected
-                                      ? _AppColors.textPrimary
-                                      : _AppColors.textSecondary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                track.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: _AppColors.textMuted,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (selected)
-                          const Icon(
-                            Icons.graphic_eq_rounded,
-                            color: _AppColors.primary,
-                            size: 22,
-                          ),
-                      ],
-                    ),
+            child: songs.isEmpty
+                ? _DemoQueueList(
+                    selectedIndex: selectedIndex,
+                    onSelect: onSelect,
+                  )
+                : _SongQueueList(
+                    songs: songs,
+                    selectedIndex: selectedIndex,
+                    onSelect: onSelect,
                   ),
-                );
-              },
-            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DemoQueueList extends StatelessWidget {
+  const _DemoQueueList({required this.selectedIndex, required this.onSelect});
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      itemCount: _demoQueue.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 9),
+      itemBuilder: (BuildContext context, int index) {
+        final _DemoTrack track = _demoQueue[index];
+        final bool selected = selectedIndex == index;
+        return _QueueTile(
+          title: track.title,
+          subtitle: track.artist,
+          visual: track,
+          selected: selected,
+          onTap: () => onSelect(index),
+        );
+      },
+    );
+  }
+}
+
+class _SongQueueList extends StatelessWidget {
+  const _SongQueueList({
+    required this.songs,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final List<FreeMusicSong> songs;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      itemCount: songs.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 9),
+      itemBuilder: (BuildContext context, int index) {
+        final FreeMusicSong song = songs[index];
+        return _QueueTile(
+          title: song.name,
+          subtitle: song.artist.isEmpty
+              ? song.source
+              : '${song.artist} · ${song.source}',
+          visual: _demoQueue[index % _demoQueue.length],
+          selected: selectedIndex == index,
+          onTap: () => onSelect(index),
+        );
+      },
+    );
+  }
+}
+
+class _QueueTile extends StatelessWidget {
+  const _QueueTile({
+    required this.title,
+    required this.subtitle,
+    required this.visual,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final _DemoTrack visual;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? visual.color.withValues(alpha: 0.72)
+                : Colors.white.withValues(alpha: 0.06),
+          ),
+        ),
+        child: Row(
+          children: <Widget>[
+            _ArtworkTile(track: visual, size: 48, radius: 15),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? _AppColors.textPrimary
+                          : _AppColors.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              const Icon(
+                Icons.graphic_eq_rounded,
+                color: _AppColors.primary,
+                size: 22,
+              ),
+          ],
+        ),
       ),
     );
   }

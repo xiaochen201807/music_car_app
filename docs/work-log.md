@@ -12,6 +12,8 @@ Current evidence:
 
 - The Flutter app already renders a native landscape music shell instead of a
   WebView.
+- The search tab can call the FreeMusic `/search` endpoint directly and select
+  real songs into the native playback queue.
 - Playback uses `audio_service` plus `just_audio`.
 - `NativeAudioController` can resolve FreeMusic song URLs, persist a queue, and
   skip through a synced probe queue.
@@ -21,12 +23,9 @@ Current evidence:
 
 Open gaps toward the full goal:
 
-- Native search, recommendations, playlists, artwork, and lyrics are not yet
+- Recommendations, playlists, artwork image rendering, and lyrics are not yet
   fully API-backed in the Flutter UI.
-- `audio_service.queue` needs to expose the complete native queue with a correct
-  active index, not only the current item.
-- Direct queue item selection, repeat modes, and shuffle mode need native
-  behavior.
+- Repeat modes and shuffle mode need native behavior.
 - CarLife SDK/AAR integration is still missing; current support is package
   probe and launch fallback only.
 - Real Android head-unit and CarLife-capable device validation is still needed.
@@ -54,3 +53,28 @@ Build and release execution requirement added:
 - AI agents must not create release packages locally unless explicitly asked.
 - Deliverable builds must be produced by committing and pushing to GitHub, then using GitHub Actions artifacts or releases.
 - The rule is recorded in root `AGENTS.md`.
+
+Implemented in this increment:
+
+- `FreeMusicApi.searchSongs` now calls the discovered FreeMusic search endpoint
+  with `q`, `type=song`, `page`, and optional `sources` query parameters.
+- `FreeMusicSearchResult` and extended `FreeMusicSong` metadata parse search
+  results defensively, including null song lists.
+- The native search tab now has a real search input, loading, empty, and error
+  states.
+- Tapping a search result resolves and plays that song through
+  `NativeAudioController.syncFromProbe`, while syncing the whole search result
+  page into the native queue.
+- The queue panel now shows the real search-backed queue after playback starts,
+  with the existing demo queue retained only as an empty-state placeholder.
+
+Verification in this increment:
+
+- `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
