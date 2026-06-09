@@ -5,6 +5,58 @@ import 'package:http/testing.dart';
 import 'package:music_car_app/free_music_api.dart';
 
 void main() {
+  test('FreeMusicApi fetches source metadata', () async {
+    late Uri requestedUri;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        return http.Response(
+          '''
+          {
+            "all_sources": ["netease", "kuwo"],
+            "default_sources": ["kuwo"],
+            "descriptions": {
+              "kuwo": "酷我音乐",
+              "netease": "网易云音乐"
+            }
+          }
+          ''',
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final FreeMusicSources sources = await api.fetchSources();
+
+    expect(requestedUri.path, '/api/v1/freemusic/sources');
+    expect(sources.allSources, <String>['netease', 'kuwo']);
+    expect(sources.defaultSources, <String>['kuwo']);
+    expect(sources.activeSources, <String>['kuwo']);
+    expect(sources.labelFor('kuwo'), '酷我音乐');
+  });
+
+  test('FreeMusicApi fetches hot search keywords', () async {
+    late Uri requestedUri;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        return http.Response(
+          '{"keywords":[{"keyword":"周杰伦"},"林俊杰"]}',
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final List<String> keywords = await api.fetchHotSearchKeywords();
+
+    expect(requestedUri.path, '/api/v1/freemusic/search/hot');
+    expect(keywords, <String>['周杰伦', '林俊杰']);
+  });
+
   test('FreeMusicApi searches songs with expected query parameters', () async {
     late Uri requestedUri;
     late Map<String, String> requestedHeaders;
@@ -279,6 +331,80 @@ void main() {
     expect(lyrics.lines.first.text, '第一句');
     expect(lyrics.lines.last.time, const Duration(milliseconds: 4250));
     expect(lyrics.lines.last.text, '第二句');
+  });
+
+  test('FreeMusicApi fetches enhanced yrc lyrics before fallback', () async {
+    late Uri requestedUri;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        return http.Response(
+          '{"lrc":"[00:01.00]增强歌词"}',
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final FreeMusicLyrics lyrics = await api.fetchEnhancedLyrics(
+      const FreeMusicSong(
+        id: '228908',
+        source: 'kuwo',
+        name: '晴天',
+        artist: '周杰伦',
+        duration: 269,
+      ),
+    );
+
+    expect(requestedUri.path, '/api/v1/freemusic/yrc');
+    expect(requestedUri.queryParameters['id'], '228908');
+    expect(requestedUri.queryParameters['source'], 'kuwo');
+    expect(lyrics.raw, '[00:01.00]增强歌词');
+    expect(lyrics.lines.single.text, '增强歌词');
+  });
+
+  test('FreeMusicApi fetches available qualities', () async {
+    late Uri requestedUri;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        return http.Response(
+          '''
+          {
+            "matchedName": "晴天",
+            "matchedArtist": "周杰伦",
+            "qualities": [
+              {"br": "320kmp3", "format": "mp3", "size": "8M", "name": "高品"},
+              {"br": "2000kflac", "format": "flac", "size": "30M", "name": "无损"}
+            ]
+          }
+          ''',
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final FreeMusicQualityResult result = await api.fetchQualities(
+      const FreeMusicSong(
+        id: '228908',
+        source: 'kuwo',
+        name: '晴天',
+        artist: '周杰伦',
+        duration: 269,
+      ),
+    );
+
+    expect(requestedUri.path, '/api/v1/freemusic/qualities');
+    expect(requestedUri.queryParameters['name'], '晴天');
+    expect(requestedUri.queryParameters['artist'], '周杰伦');
+    expect(requestedUri.queryParameters['duration'], '269');
+    expect(result.matchedName, '晴天');
+    expect(result.qualities, hasLength(2));
+    expect(result.qualities.last.name, '无损');
+    expect(result.qualities.last.bitrate, '2000kflac');
   });
 
   test('FreeMusicApi returns empty lyrics for incomplete songs', () async {

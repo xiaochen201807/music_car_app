@@ -12,9 +12,24 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import com.baidu.carlife.platform.CLPlatformCallback
+import com.baidu.carlife.platform.CLPlatformManager
+import com.baidu.carlife.platform.model.CLAlbum
+import com.baidu.carlife.platform.model.CLSong
+import com.baidu.carlife.platform.model.CLSongData
+import com.baidu.carlife.platform.request.CLGetAlbumListReq
+import com.baidu.carlife.platform.request.CLGetSongDataReq
+import com.baidu.carlife.platform.request.CLGetSongListReq
+import com.baidu.carlife.platform.request.CLRequest
+import com.baidu.carlife.platform.response.CLGetAlbumListResp
+import com.baidu.carlife.platform.response.CLGetSongDataResp
+import com.baidu.carlife.platform.response.CLGetSongListResp
+import com.baidu.carlife.platform.response.CLResponse
+import com.baidu.carlife.platform.response.CLUnsupportAPIResp
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.ArrayList
 
 class MainActivity : AudioServiceActivity() {
     private val installerChannelName = "music_car_app/app_installer"
@@ -25,6 +40,12 @@ class MainActivity : AudioServiceActivity() {
     private val downloadPollTasks = mutableMapOf<Long, Runnable>()
     private var downloadReceiver: BroadcastReceiver? = null
     private var lastCarLifePlaybackContext: Map<String, Any?> = emptyMap()
+    private var carLifeChannel: MethodChannel? = null
+    private val carLifeManager: CLPlatformManager by lazy { CLPlatformManager.getInstance() }
+    private var carLifeSdkInitialized = false
+    private var carLifeSdkConnected = false
+    private var lastCarLifeSdkError = ""
+    private var lastCarLifeControlResult = ""
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -48,10 +69,11 @@ class MainActivity : AudioServiceActivity() {
             }
         }
 
-        MethodChannel(
+        carLifeChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             carLifeChannelName,
-        ).setMethodCallHandler { call, result ->
+        )
+        carLifeChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getStatus" -> result.success(carLifeStatus())
                 "openCarLife" -> result.success(openCarLife())
@@ -67,18 +89,47 @@ class MainActivity : AudioServiceActivity() {
     private fun carLifeStatus(): Map<String, Any?> {
         val packageName = findInstalledCarLifePackage()
         val launchIntent = packageName?.let { packageManager.getLaunchIntentForPackage(it) }
+        val appKeyConfigured = BuildConfig.CARLIFE_APP_KEY.isNotBlank()
         return mapOf(
             "available" to (packageName != null),
             "installed" to (packageName != null),
             "launchable" to (launchIntent != null),
-            "sdkLinked" to false,
+            "sdkLinked" to true,
+            "appKeyConfigured" to appKeyConfigured,
+            "sdkInitialized" to carLifeSdkInitialized,
+            "sdkConnected" to carLifeSdkConnected,
             "packageName" to (packageName ?: ""),
-            "integrationMode" to "package_probe",
-            "reason" to if (packageName == null) "package_not_found" else "sdk_missing",
+            "integrationMode" to if (appKeyConfigured) "sdk_platform" else "sdk_platform_unconfigured",
+            "reason" to carLifeStatusReason(packageName, appKeyConfigured),
+            "lastControlResult" to lastCarLifeControlResult,
         )
     }
 
+    private fun carLifeStatusReason(packageName: String?, appKeyConfigured: Boolean): String {
+        if (packageName == null) {
+            return "package_not_found"
+        }
+        if (!appKeyConfigured) {
+            return "app_key_missing"
+        }
+        if (carLifeSdkConnected) {
+            return "sdk_connected"
+        }
+        if (carLifeSdkInitialized) {
+            return "sdk_initialized"
+        }
+        return lastCarLifeSdkError.ifBlank { "sdk_ready" }
+    }
+
     private fun openCarLife(): Map<String, Any?> {
+        ensureCarLifeSdkInitialized()
+        if (CLPlatformManager.jumpToCarlife(this)) {
+            return mapOf(
+                "launched" to true,
+                "packageName" to (findInstalledCarLifePackage() ?: primaryCarLifePackage),
+                "reason" to "sdk_jump",
+            )
+        }
         val packageName = findInstalledCarLifePackage()
         if (packageName != null) {
             val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
@@ -139,16 +190,277 @@ class MainActivity : AudioServiceActivity() {
         val packageName = findInstalledCarLifePackage()
         val normalizedContext = normalizeCarLifePlaybackContext(context)
         lastCarLifePlaybackContext = normalizedContext
+        ensureCarLifeSdkInitialized()
         val queue = normalizedContext["queue"] as? List<*>
         return mapOf(
-            "supported" to false,
+            "supported" to carLifeSdkInitialized,
             "packageName" to (packageName ?: ""),
-            "integrationMode" to "context_cache",
-            "reason" to "sdk_missing",
+            "integrationMode" to if (BuildConfig.CARLIFE_APP_KEY.isNotBlank()) {
+                "sdk_platform"
+            } else {
+                "sdk_platform_unconfigured"
+            },
+            "sdkLinked" to true,
+            "appKeyConfigured" to BuildConfig.CARLIFE_APP_KEY.isNotBlank(),
+            "sdkInitialized" to carLifeSdkInitialized,
+            "sdkConnected" to carLifeSdkConnected,
+            "reason" to if (carLifeSdkInitialized) {
+                if (carLifeSdkConnected) "sdk_connected" else "sdk_initialized"
+            } else {
+                carLifeStatusReason(packageName, BuildConfig.CARLIFE_APP_KEY.isNotBlank())
+            },
             "syncedQueueLength" to (queue?.size ?: 0),
             "syncedQueueIndex" to (normalizedContext["queueIndex"] as? Int ?: -1),
             "syncedTitle" to (normalizedContext["title"] as? String ?: ""),
+            "lastControlResult" to lastCarLifeControlResult,
         )
+    }
+
+    private fun ensureCarLifeSdkInitialized(): Boolean {
+        if (carLifeSdkInitialized) {
+            return true
+        }
+        val appKey = BuildConfig.CARLIFE_APP_KEY.trim()
+        if (appKey.isEmpty()) {
+            lastCarLifeSdkError = "app_key_missing"
+            return false
+        }
+        val initIntent = Intent().apply {
+            putExtra("targetpackagename", primaryCarLifePackage)
+            putExtra("targetserviceactionname", primaryCarLifeService)
+            putExtra("targetactivityactionname", primaryCarLifeAction)
+        }
+        carLifeManager.enableLog(true)
+        carLifeSdkInitialized = carLifeManager.init(
+            applicationContext,
+            appKey,
+            carLifeCallback,
+            initIntent,
+        )
+        if (!carLifeSdkInitialized && lastCarLifeSdkError.isBlank()) {
+            lastCarLifeSdkError = "sdk_init_failed"
+        }
+        return carLifeSdkInitialized
+    }
+
+    private val carLifeCallback = object : CLPlatformCallback {
+        override fun onConnected() {
+            carLifeSdkConnected = true
+            lastCarLifeSdkError = ""
+        }
+
+        override fun onCarlifeRequest(request: CLRequest) {
+            when (request) {
+                is CLGetAlbumListReq -> sendCarLifeAlbumList(request)
+                is CLGetSongListReq -> sendCarLifeSongList(request)
+                is CLGetSongDataReq -> sendCarLifeSongData(request)
+                else -> carLifeManager.sendResp(CLUnsupportAPIResp(request.requestId))
+            }
+        }
+
+        override fun onCarlifeResponse(response: CLResponse) = Unit
+
+        override fun onCarlifeError(errorNo: Int, errorMsg: String) {
+            carLifeSdkConnected = false
+            lastCarLifeSdkError = "sdk_error_$errorNo:${errorMsg.trim()}"
+        }
+    }
+
+    private fun sendCarLifeAlbumList(request: CLGetAlbumListReq) {
+        val queue = carLifeQueueItems()
+        val album = CLAlbum().apply {
+            albumId = currentCarLifeAlbumId
+            albumName = "当前播放队列"
+            artistId = stringArgument(lastCarLifePlaybackContext["source"]).ifBlank { "music_car_app" }
+            artistName = stringArgument(lastCarLifePlaybackContext["artist"]).ifBlank { "车载音乐" }
+            coverUrl = stringArgument(lastCarLifePlaybackContext["coverUrl"])
+            songCount = queue.size
+        }
+        val response = CLGetAlbumListResp().apply {
+            requestId = request.requestId
+            errorNo = CLResponse.ERROR_NONE
+            errorMsg = ""
+            albumList = arrayListOf(album)
+        }
+        carLifeManager.sendResp(response)
+    }
+
+    private fun sendCarLifeSongList(request: CLGetSongListReq) {
+        val queue = carLifeQueueItems()
+        val requestedPage = if (request.pn > 0) request.pn else 1
+        val requestedSize = if (request.rn > 0) request.rn else queue.size.coerceAtLeast(1)
+        val fromIndex = ((requestedPage - 1) * requestedSize).coerceIn(0, queue.size)
+        val toIndex = (fromIndex + requestedSize).coerceAtMost(queue.size)
+        val response = CLGetSongListResp().apply {
+            requestId = request.requestId
+            errorNo = CLResponse.ERROR_NONE
+            errorMsg = ""
+            version = if (request.version > 0) request.version else 1
+            songListId = request.songListId?.ifBlank { currentCarLifeAlbumId } ?: currentCarLifeAlbumId
+            playSongId = currentCarLifeSongId()
+            pn = requestedPage
+            rn = requestedSize
+            total = queue.size
+            songList = ArrayList(queue.subList(fromIndex, toIndex).map(::carLifeSongFromQueueItem))
+        }
+        carLifeManager.sendResp(response)
+    }
+
+    private fun sendCarLifeSongData(request: CLGetSongDataReq) {
+        val dispatched = dispatchCarLifeSelectQueueItem(request.songId.orEmpty())
+        sendCarLifeSongDataUnsupported(
+            request,
+            if (dispatched) {
+                "phone_playback_dispatched_audio_stream_not_available"
+            } else {
+                "queue_item_not_found_audio_stream_not_available"
+            },
+        )
+    }
+
+    private fun sendCarLifeSongDataUnsupported(request: CLGetSongDataReq, reason: String) {
+        val response = CLGetSongDataResp().apply {
+            requestId = request.requestId
+            errorNo = CLResponse.ERROR_UNKNOWN
+            errorMsg = reason
+            songData = CLSongData().apply {
+                songId = request.songId.orEmpty()
+                tag = CLSongData.TAG_END
+                offset = 0L
+                totalSize = 0L
+                data = null
+                len = 0
+            }
+        }
+        carLifeManager.sendResp(response)
+    }
+
+    private fun dispatchCarLifeSelectQueueItem(carLifeSongId: String): Boolean {
+        val queue = carLifeQueueItems()
+        val queueIndex = queueIndexForCarLifeSongId(carLifeSongId, queue)
+        if (queueIndex < 0) {
+            lastCarLifeControlResult = "queue_item_not_found"
+            return false
+        }
+        val item = queue[queueIndex]
+        val payload = mapOf(
+            "action" to "selectQueueItem",
+            "queueIndex" to queueIndex,
+            "source" to stringArgument(item["source"]),
+            "songId" to stringArgument(item["id"]),
+        )
+        downloadPollHandler.post {
+            carLifeChannel?.invokeMethod(
+                "onCarLifeControl",
+                payload,
+                object : MethodChannel.Result {
+                    override fun success(result: Any?) {
+                        val resultMap = result as? Map<*, *>
+                        val handled = resultMap?.get("handled") == true
+                        val reason = stringArgument(resultMap?.get("reason"))
+                        lastCarLifeControlResult = if (handled) {
+                            reason.ifBlank { "handled" }
+                        } else {
+                            reason.ifBlank { "unhandled" }
+                        }
+                    }
+
+                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                        lastCarLifeControlResult = "control_error:$errorCode"
+                    }
+
+                    override fun notImplemented() {
+                        lastCarLifeControlResult = "control_not_implemented"
+                    }
+                },
+            )
+        }
+        lastCarLifeControlResult = "select_dispatched"
+        return true
+    }
+
+    private fun carLifeQueueItems(): List<Map<String, Any?>> {
+        val queue = lastCarLifePlaybackContext["queue"] as? List<*> ?: emptyList<Any>()
+        return queue.mapNotNull { item ->
+            @Suppress("UNCHECKED_CAST")
+            item as? Map<String, Any?>
+        }
+    }
+
+    private fun carLifeSongFromQueueItem(item: Map<String, Any?>): CLSong {
+        val source = stringArgument(item["source"])
+        val id = stringArgument(item["id"])
+        return CLSong().apply {
+            this.id = carLifeSongId(source, id)
+            name = stringArgument(item["name"]).ifBlank { "未知歌曲" }
+            albumName = stringArgument(item["album"])
+            albumId = currentCarLifeAlbumId
+            albumArtistId = source.ifBlank { "music_car_app" }
+            albumArtistName = stringArgument(item["artist"])
+            coverUrl = stringArgument(item["cover"])
+            duration = intArgument(item["duration"], 0).coerceAtLeast(0).toString()
+            mediaUrl = carLifeMediaUrlForQueueItem(source, id, item)
+            totalSize = 0L
+            songType = CLSong.CL_SONG_TYPE_DEFAULT
+        }
+    }
+
+    private fun carLifeMediaUrlForQueueItem(
+        source: String,
+        id: String,
+        item: Map<String, Any?>,
+    ): String {
+        val itemAudioUrl = stringArgument(item["audioUrl"])
+        if (itemAudioUrl.isNotBlank()) {
+            return itemAudioUrl
+        }
+        val currentAudioUrl = stringArgument(lastCarLifePlaybackContext["audioUrl"])
+        val currentSource = stringArgument(lastCarLifePlaybackContext["source"])
+        val currentSongId = stringArgument(lastCarLifePlaybackContext["songId"])
+        return if (
+            currentAudioUrl.isNotBlank() &&
+            source == currentSource &&
+            id == currentSongId
+        ) {
+            currentAudioUrl
+        } else {
+            ""
+        }
+    }
+
+    private fun currentCarLifeSongId(): String {
+        val source = stringArgument(lastCarLifePlaybackContext["source"])
+        val songId = stringArgument(lastCarLifePlaybackContext["songId"])
+        if (source.isNotBlank() && songId.isNotBlank()) {
+            return carLifeSongId(source, songId)
+        }
+        val queue = carLifeQueueItems()
+        val index = intArgument(lastCarLifePlaybackContext["queueIndex"], -1)
+        if (index >= 0 && index < queue.size) {
+            return carLifeSongId(
+                stringArgument(queue[index]["source"]),
+                stringArgument(queue[index]["id"]),
+            )
+        }
+        return ""
+    }
+
+    private fun carLifeSongId(source: String, id: String): String {
+        return if (source.isBlank()) id else "$source:$id"
+    }
+
+    private fun queueIndexForCarLifeSongId(
+        carLifeSongId: String,
+        queue: List<Map<String, Any?>>,
+    ): Int {
+        if (carLifeSongId.isBlank()) {
+            return -1
+        }
+        return queue.indexOfFirst { item ->
+            val source = stringArgument(item["source"])
+            val id = stringArgument(item["id"])
+            carLifeSongId(source, id) == carLifeSongId || id == carLifeSongId
+        }
     }
 
     private fun normalizeCarLifePlaybackContext(context: Map<*, *>?): Map<String, Any?> {
@@ -163,6 +475,7 @@ class MainActivity : AudioServiceActivity() {
             "artist" to stringArgument(context["artist"]),
             "album" to stringArgument(context["album"]),
             "coverUrl" to stringArgument(context["coverUrl"]),
+            "audioUrl" to stringArgument(context["audioUrl"]),
             "source" to stringArgument(context["source"]),
             "songId" to stringArgument(context["songId"]),
             "playing" to (context["playing"] == true),
@@ -190,6 +503,7 @@ class MainActivity : AudioServiceActivity() {
             "album" to stringArgument(item["album"]),
             "duration" to intArgument(item["duration"], 0),
             "cover" to stringArgument(item["cover"]),
+            "audioUrl" to stringArgument(item["audioUrl"]),
         )
     }
 
@@ -428,7 +742,11 @@ class MainActivity : AudioServiceActivity() {
     }
 
     companion object {
+        private const val currentCarLifeAlbumId = "music_car_app_current_queue"
         private const val primaryCarLifePackage = "com.baidu.carlife"
+        private const val primaryCarLifeService =
+            "com.baidu.carlife.platform.service.CLPlatformService"
+        private const val primaryCarLifeAction = "com.baidu.carlife.Action.CarlifePlatform"
         private val carLifePackageCandidates = listOf(
             primaryCarLifePackage,
             "com.baidu.carlifevehicle",

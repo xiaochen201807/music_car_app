@@ -51,8 +51,8 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   late final Timer _stallTimer;
   Timer? _continuousSeekTimer;
   Future<bool> Function()? onPlayTrack;
-  Future<void> Function()? onSkipToNextTrack;
-  Future<void> Function()? onSkipToPreviousTrack;
+  Future<bool> Function()? onSkipToNextTrack;
+  Future<bool> Function()? onSkipToPreviousTrack;
   Future<void> Function(int index)? onSkipToQueueItem;
   Future<void> Function(AudioServiceRepeatMode repeatMode)? onSetRepeatMode;
   Future<void> Function(AudioServiceShuffleMode shuffleMode)? onSetShuffleMode;
@@ -205,10 +205,19 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
     final List<MediaItem> items = queue.valueOrNull ?? const <MediaItem>[];
-    final int index = items.indexWhere((MediaItem item) {
-      return item.id == mediaItem.id ||
-          item.extras?['songId'] == mediaItem.extras?['songId'];
-    });
+    final int index = _queueIndexForMediaItem(items, mediaItem);
+    if (index >= 0) {
+      await skipToQueueItem(index);
+    }
+  }
+
+  @override
+  Future<void> playFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    final List<MediaItem> items = queue.valueOrNull ?? const <MediaItem>[];
+    final int index = _queueIndexForMediaId(items, mediaId, extras: extras);
     if (index >= 0) {
       await skipToQueueItem(index);
     }
@@ -243,7 +252,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       return current;
     }
     for (final MediaItem item in queue.valueOrNull ?? const <MediaItem>[]) {
-      if (item.id == mediaId) {
+      if (_mediaItemMatchesId(item, mediaId)) {
         return item;
       }
     }
@@ -299,7 +308,10 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       return;
     }
     _autoSkippingToNext = true;
-    await onSkipToNextTrack?.call();
+    final bool handled = await onSkipToNextTrack?.call() ?? false;
+    if (!handled) {
+      await stop();
+    }
   }
 
   @visibleForTesting
@@ -371,6 +383,55 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _lastObservedPosition = null;
     _lastPlaybackProgressAt = now;
   }
+}
+
+int _queueIndexForMediaItem(List<MediaItem> items, MediaItem mediaItem) {
+  return items.indexWhere((MediaItem item) {
+    return item.id == mediaItem.id ||
+        _mediaItemMatchesSourceAndSong(
+          item,
+          source: mediaItem.extras?['source'],
+          songId: mediaItem.extras?['songId'],
+        );
+  });
+}
+
+int _queueIndexForMediaId(
+  List<MediaItem> items,
+  String mediaId, {
+  Map<String, dynamic>? extras,
+}) {
+  return items.indexWhere((MediaItem item) {
+    return _mediaItemMatchesId(item, mediaId) ||
+        _mediaItemMatchesSourceAndSong(
+          item,
+          source: extras?['source'],
+          songId: extras?['songId'],
+        );
+  });
+}
+
+bool _mediaItemMatchesId(MediaItem item, String mediaId) {
+  if (item.id == mediaId) {
+    return true;
+  }
+  final Object? source = item.extras?['source'];
+  final Object? songId = item.extras?['songId'];
+  if (source == null || songId == null) {
+    return false;
+  }
+  return mediaId == '$source:$songId' || mediaId == '$songId';
+}
+
+bool _mediaItemMatchesSourceAndSong(
+  MediaItem item, {
+  required Object? source,
+  required Object? songId,
+}) {
+  if (source == null || songId == null) {
+    return false;
+  }
+  return item.extras?['source'] == source && item.extras?['songId'] == songId;
 }
 
 List<MediaItem> _mediaQueueFromSnapshot(

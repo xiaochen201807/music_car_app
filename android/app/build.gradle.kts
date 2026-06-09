@@ -13,6 +13,14 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
+val carLifeAppKey = providers.gradleProperty("CARLIFE_APP_KEY")
+    .orElse(providers.environmentVariable("CARLIFE_APP_KEY"))
+    .orElse("")
+    .get()
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "com.sy110.music_car_app"
     compileSdk = flutter.compileSdkVersion
@@ -27,6 +35,10 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.sy110.music_car_app"
@@ -36,6 +48,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        buildConfigField("String", "CARLIFE_APP_KEY", carLifeAppKey.asBuildConfigString())
     }
 
     signingConfigs {
@@ -62,4 +75,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation(files("libs/Carlife_android_platformsdk_2.2.0.jar"))
+    implementation("com.google.code.gson:gson:2.11.0")
 }

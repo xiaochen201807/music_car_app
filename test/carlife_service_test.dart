@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_car_app/free_music_api.dart';
@@ -21,10 +23,13 @@ void main() {
         'available': true,
         'installed': true,
         'launchable': true,
-        'sdkLinked': false,
+        'sdkLinked': true,
+        'appKeyConfigured': false,
+        'sdkInitialized': false,
+        'sdkConnected': false,
         'packageName': 'com.baidu.carlife',
-        'integrationMode': 'package_probe',
-        'reason': 'sdk_missing',
+        'integrationMode': 'sdk_platform_unconfigured',
+        'reason': 'app_key_missing',
       };
     });
 
@@ -35,9 +40,39 @@ void main() {
     expect(status.available, isTrue);
     expect(status.installed, isTrue);
     expect(status.launchable, isTrue);
-    expect(status.sdkLinked, isFalse);
+    expect(status.sdkLinked, isTrue);
+    expect(status.appKeyConfigured, isFalse);
+    expect(status.sdkInitialized, isFalse);
+    expect(status.sdkConnected, isFalse);
     expect(status.packageName, 'com.baidu.carlife');
-    expect(status.displayText, '已安装，可拉起');
+    expect(status.displayText, 'SDK 待配置 AppKey');
+  });
+
+  test('getStatus displays connected SDK state', () async {
+    messenger.setMockMethodCallHandler(channel, (MethodCall call) async {
+      expect(call.method, 'getStatus');
+      return <String, Object?>{
+        'available': true,
+        'installed': true,
+        'launchable': true,
+        'sdkLinked': true,
+        'appKeyConfigured': true,
+        'sdkInitialized': true,
+        'sdkConnected': true,
+        'packageName': 'com.baidu.carlife',
+        'integrationMode': 'sdk_platform',
+        'reason': 'sdk_connected',
+      };
+    });
+
+    final CarLifeStatus status = await const CarLifeService(
+      channel: channel,
+    ).getStatus();
+
+    expect(status.sdkLinked, isTrue);
+    expect(status.sdkInitialized, isTrue);
+    expect(status.sdkConnected, isTrue);
+    expect(status.displayText, 'SDK 已连接');
   });
 
   test('openCarLife parses launch result', () async {
@@ -67,6 +102,7 @@ void main() {
       expect(arguments['artist'], 'Native Radio');
       expect(arguments['album'], 'Drive Time');
       expect(arguments['coverUrl'], 'https://example.com/cover.jpg');
+      expect(arguments['audioUrl'], 'https://example.com/audio.mp3');
       expect(arguments['source'], 'netease');
       expect(arguments['songId'], 'song-1');
       expect(arguments['playing'], isTrue);
@@ -97,6 +133,7 @@ void main() {
             artist: 'Native Radio',
             album: 'Drive Time',
             coverUrl: 'https://example.com/cover.jpg',
+            audioUrl: 'https://example.com/audio.mp3',
             source: 'netease',
             songId: 'song-1',
             playing: true,
@@ -131,5 +168,44 @@ void main() {
     expect(result.syncedQueueLength, 2);
     expect(result.syncedQueueIndex, 1);
     expect(result.syncedTitle, 'Highway Morning');
+  });
+
+  test('setControlHandler handles native CarLife control callbacks', () async {
+    final List<CarLifeControlCommand> commands = <CarLifeControlCommand>[];
+    const CarLifeService(channel: channel).setControlHandler((
+      CarLifeControlCommand command,
+    ) async {
+      commands.add(command);
+      return CarLifeControlResult(
+        handled: command.action != CarLifeControlAction.unknown,
+        reason: command.action.value,
+        queueIndex: command.queueIndex,
+      );
+    });
+
+    final Completer<ByteData?> reply = Completer<ByteData?>();
+    await messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(
+        const MethodCall('onCarLifeControl', <String, Object?>{
+          'action': 'selectQueueItem',
+          'queueIndex': 3,
+          'source': 'kuwo',
+          'songId': 'song-3',
+        }),
+      ),
+      reply.complete,
+    );
+
+    final ByteData? encodedReply = await reply.future;
+    final Object? decoded = channel.codec.decodeEnvelope(encodedReply!);
+    final Map<Object?, Object?> response = (decoded as Map).cast();
+    expect(response['handled'], isTrue);
+    expect(response['reason'], 'selectQueueItem');
+    expect(response['queueIndex'], 3);
+    expect(commands, hasLength(1));
+    expect(commands.single.action, CarLifeControlAction.selectQueueItem);
+    expect(commands.single.source, 'kuwo');
+    expect(commands.single.songId, 'song-3');
   });
 }

@@ -93,9 +93,10 @@ session controls once the native queue is fully connected.
 Android Auto and Apple CarPlay app surfaces are separate platform integrations:
 
 - Baidu CarLife is tracked separately in
-  [CarLife Integration](docs/carlife-integration.md). The current app has a
-  package-probe/launch bridge; full music sync still needs Baidu's SDK or
-  assigned integration documentation.
+  [CarLife Integration](docs/carlife-integration.md). The current app links the
+  Android platform SDK and can expose the current queue template, but full
+  production use still needs a project AppKey, CarLife-capable device
+  validation, and a confirmed audio-stream strategy.
 - Android Auto media browsing depends on `audio_service` queue/media-browser
   metadata and real head-unit validation.
 - Apple CarPlay requires an iOS build, CarPlay template integration, and proper

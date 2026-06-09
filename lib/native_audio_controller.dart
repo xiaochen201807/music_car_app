@@ -298,6 +298,19 @@ class NativeAudioController {
     return false;
   }
 
+  Future<bool> pausePlayback() async {
+    await _restoreFuture;
+    if (_loadedUrl.isEmpty && _currentIndex < 0) {
+      debugPrint('[native-audio] pause ignored: no loaded track or queue');
+      return false;
+    }
+    await _player.pause();
+    debugPrint(
+      '[native-audio] paused ${_loadedSnapshot?.debugTitle ?? _loadedUrl}',
+    );
+    return true;
+  }
+
   Future<bool> skipToNext() async {
     await _restoreFuture;
     return _skipToQueueOffset(1);

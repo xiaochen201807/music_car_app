@@ -28,8 +28,10 @@ Current evidence:
   skip through a synced probe queue.
 - Native playback modes now cover sequential, repeat-all, repeat-one, and
   shuffle behavior, and the selected mode is persisted.
-- Android exposes a CarLife MethodChannel for package probe, launch fallback,
-  and a placeholder playback sync call.
+- Android links the Baidu CarLife platform SDK jar, exposes a CarLife
+  MethodChannel for package probe, launch fallback, AppKey status, and playback
+  context sync, and can answer SDK album/song-list requests from the current
+  native queue.
 - `docs/development-roadmap.md` tracks the larger implementation phases.
 
 Open gaps toward the full goal:
@@ -40,16 +42,50 @@ Open gaps toward the full goal:
   is not yet synchronized to the playback position.
 - Repeat, shuffle, artwork loading, and queue behavior still need real
   media-button/head-unit and real-service validation.
-- CarLife SDK/AAR integration is still missing; current support is package
-  probe and launch fallback only.
+- CarLife platform SDK wiring is in progress, but project AppKey provisioning,
+  real CarLife connection, audio-byte streaming, and CarLife-capable head-unit
+  validation are still needed.
 - Real Android head-unit and CarLife-capable device validation is still needed.
 
 Next implementation focus:
 
-- Add playlist load-more pagination and richer playlist detail browsing.
-- Synchronize lyric highlighting to playback position.
-- Continue CarLife SDK integration beyond package probe and launch fallback.
+- Complete the FreeMusic API client surface from `docs/free-music-api-audit.md`.
+- Redesign the landscape page layout around real API data and robust loading,
+  empty, error, retry, queue, lyrics, and playback states.
+- Keep existing CarLife work, but defer further CarLife product integration
+  until the main app is usable without projection.
 - Keep tests and roadmap status updated with each increment.
+
+## 2026-06-09 - FreeMusic API Audit
+
+Implemented in this increment:
+
+- Revalidated `https://music.sy110.eu.org/music` after the local proxy was
+  disabled; requests now run with direct connectivity.
+- Located the web music API helper in `assets/main-CTVbnThO.js` and preserved
+  the full discovered `/api/v1/freemusic` endpoint inventory.
+- Added `docs/free-music-api-audit.md` covering public read-only APIs,
+  authenticated read-only APIs, mutating APIs, observed models, and the new
+  API-first execution order.
+- Added `scripts/test_free_music_api.ps1`, a repeatable endpoint probe. It
+  tests all public read-only endpoints, checks authenticated read-only endpoints
+  for `200` or expected `401`, and lists mutating endpoints while skipping them
+  by default.
+- Preserved existing CarLife progress in the plan, but moved further CarLife
+  product work behind API completion, usable UI layout, and playback
+  reliability.
+
+Verification in this increment:
+
+- `.\scripts\test_free_music_api.ps1`
+
+Result:
+
+- All public read-only endpoint probes passed.
+- Authenticated library endpoints returned expected `401` without login, except
+  `/recommend-playlists` and `/config`, which are currently readable and
+  returned `200`.
+- Mutating endpoint probes were skipped by default.
 
 Implemented in this increment:
 
@@ -208,6 +244,44 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
 
+## 2026-06-09 - CarLife Platform SDK Bridge
+
+Implemented in this increment:
+
+- Split CarLife SDK-linked status from AppKey configuration status so the UI can
+  distinguish `sdk_platform_unconfigured`, initialized, and connected states.
+- Added current `audioUrl` to the Flutter CarLife playback context and Android
+  context cache, allowing the active `CLSong.mediaUrl` to carry the resolved
+  HTTP playback URL when available.
+- Android now retains the CarLife MethodChannel and maps `CLGetSongDataReq`
+  into a Flutter `selectQueueItem` control callback before returning an
+  explicit `audio_stream_not_available` SDK response.
+- The Android SDK callback now serves album-list and song-list requests from
+  the cached native queue while keeping `audio_service`/Flutter playback as the
+  single playback authority.
+- Updated CarLife documentation, README notes, and roadmap status to describe
+  the platform SDK bridge, AppKey requirement, current queue-template support,
+  and remaining real-device/audio-stream gaps.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/services/carlife_service.dart test/carlife_service_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Android compile note:
+
+- Android Kotlin compile could not be run directly because this checkout has
+  `android/gradle/wrapper/gradle-wrapper.properties` but no `gradlew`,
+  `gradlew.bat`, or wrapper jar, and no system Gradle/Kotlin compiler was
+  available. No local `flutter build apk` was run because release/deliverable
+  packaging remains delegated to GitHub Actions.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-09 - Playlist Detail Pagination
 
 Implemented in this increment:
@@ -287,6 +361,68 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
 
+## 2026-06-09 - Prototype UI State Alignment
+
+Implemented in this increment:
+
+- Reworked the landscape shell around the prototype states in
+  `docs/ui/native-ios-music-app-design.png` instead of only adjusting the home
+  page.
+- Simplified the default recommendation/home page into a focused online-library
+  card with a prominent search field, horizontal recommendation cards, and a
+  compact readiness strip.
+- Added a dedicated full-screen `正在播放` page with large album artwork,
+  lyric preview, quality chips, progress, and large transport controls.
+- Reworked the `播放队列` page into the prototype-style numbered queue list
+  with clear/edit action slots, selected-track emphasis, and drag-handle
+  affordances.
+- Reworked the bottom mini-player into a persistent compact state with artwork,
+  title/artist, progress, primary transport controls, playback mode, and lyrics
+  access.
+- Moved the large `百度 CarLife` card out of the home page and into `设置`, so
+  the integration remains available without cluttering the main music task.
+
+Verification in this increment:
+
+- `dart format lib/main.dart test/widget_test.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-09 - Prototype UI API Wiring
+
+Implemented in this increment:
+
+- Added typed `FreeMusicApi` coverage for the already audited public endpoints:
+  `/sources`, `/search/hot`, `/qualities`, and `/yrc`.
+- The app now loads `/sources` and `/search/hot` at startup. Source metadata is
+  used for source labels and the default source list is passed into search and
+  recommendation requests.
+- Home/search UI now shows real hot keyword chips from `/search/hot`; tapping a
+  keyword writes it into the search field and runs `/search`.
+- Song playback now refreshes available quality metadata from `/qualities`, and
+  the full-screen now-playing page renders those quality chips instead of fixed
+  prototype labels.
+- Lyrics loading now tries `/yrc` first through `fetchEnhancedLyrics`, then
+  falls back to `/lyric`; the full-screen now-playing page renders the current
+  and next lyric lines from the parsed API result.
+
+Verification in this increment:
+
+- `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart test/widget_test.dart`
+- `flutter analyze`
+- `flutter test test/free_music_api_test.dart test/widget_test.dart`
+- `.\scripts\test_free_music_api.ps1`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-09 - Search Result Pagination
 
 Implemented in this increment:
@@ -333,6 +469,30 @@ ADB status:
 
 - `adb version` works locally.
 - No Android device was connected when checked with `adb devices -l`.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-09 - Auto Queue Completion
+
+Implemented in this increment:
+
+- `MusicAudioHandler` next/previous callbacks now return whether the native
+  queue actually handled the request.
+- Natural track completion now asks `NativeAudioController` for the next queue
+  item, preserving sequential, repeat-all, repeat-one, and shuffle behavior.
+- Sequential playback at the end of the queue now stops cleanly instead of
+  staying in a repeated completed auto-skip state.
+- The app UI callback still refreshes the selected queue item, lyrics, and
+  CarLife playback context only after a real queue transition occurs.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart lib/main.dart test/music_audio_handler_test.dart`
+- `flutter test test/music_audio_handler_test.dart`
+- `flutter test test/native_audio_controller_test.dart`
 
 Packaging note:
 

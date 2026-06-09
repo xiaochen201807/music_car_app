@@ -7,6 +7,7 @@ import 'package:music_car_app/native_audio_controller.dart';
 
 class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   bool isPlaying = false;
+  int stopCalls = 0;
   Duration currentPosition = Duration.zero;
 
   @override
@@ -59,7 +60,10 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   Future<Duration?> setUrl(String url) async => Duration.zero;
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    stopCalls += 1;
+    isPlaying = false;
+  }
 }
 
 void main() {
@@ -70,6 +74,7 @@ void main() {
     int nextCalls = 0;
     handler.onSkipToNextTrack = () async {
       nextCalls += 1;
+      return true;
     };
 
     await handler.autoSkipToNextAfterCompletion();
@@ -79,6 +84,29 @@ void main() {
 
     await handler.dispose();
   });
+
+  test(
+    'autoSkipToNextAfterCompletion stops when no next item exists',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+        ..isPlaying = true;
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+      int nextCalls = 0;
+      handler.onSkipToNextTrack = () async {
+        nextCalls += 1;
+        return false;
+      };
+
+      await handler.autoSkipToNextAfterCompletion();
+      await handler.autoSkipToNextAfterCompletion();
+
+      expect(nextCalls, 1);
+      expect(player.stopCalls, 1);
+      expect(player.isPlaying, isFalse);
+
+      await handler.dispose();
+    },
+  );
 
   test('loadFromSnapshot exposes current item as a browsable queue', () async {
     final MusicAudioHandler handler = MusicAudioHandler(
@@ -350,6 +378,7 @@ void main() {
       int nextCalls = 0;
       handler.onSkipToNextTrack = () async {
         nextCalls += 1;
+        return true;
       };
 
       await handler.loadFromSnapshot(
@@ -390,6 +419,7 @@ void main() {
     int nextCalls = 0;
     handler.onSkipToNextTrack = () async {
       nextCalls += 1;
+      return true;
     };
 
     await handler.loadFromSnapshot(

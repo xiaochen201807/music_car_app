@@ -8,6 +8,28 @@ class CarLifeService {
 
   final MethodChannel _channel;
 
+  void setControlHandler(
+    Future<CarLifeControlResult> Function(CarLifeControlCommand command)?
+    handler,
+  ) {
+    if (handler == null) {
+      _channel.setMethodCallHandler(null);
+      return;
+    }
+    _channel.setMethodCallHandler((MethodCall call) async {
+      if (call.method != 'onCarLifeControl') {
+        throw MissingPluginException(
+          'Unknown CarLife callback: ${call.method}',
+        );
+      }
+      final CarLifeControlCommand command = CarLifeControlCommand.fromMap(
+        _asStringKeyMap(call.arguments),
+      );
+      final CarLifeControlResult result = await handler(command);
+      return result.toMap();
+    });
+  }
+
   Future<CarLifeStatus> getStatus() async {
     try {
       final Object? result = await _channel.invokeMethod<Object?>('getStatus');
@@ -18,6 +40,8 @@ class CarLifeService {
         installed: false,
         launchable: false,
         sdkLinked: false,
+        sdkInitialized: false,
+        sdkConnected: false,
         reason: 'not_android',
       );
     } on PlatformException catch (error) {
@@ -26,6 +50,8 @@ class CarLifeService {
         installed: false,
         launchable: false,
         sdkLinked: false,
+        sdkInitialized: false,
+        sdkConnected: false,
         reason: error.code,
       );
     }
@@ -69,6 +95,92 @@ class CarLifeService {
   }
 }
 
+enum CarLifeControlAction {
+  play,
+  pause,
+  next,
+  previous,
+  selectQueueItem,
+  unknown;
+
+  factory CarLifeControlAction.fromValue(Object? value) {
+    switch (_stringValue(value)) {
+      case 'play':
+        return CarLifeControlAction.play;
+      case 'pause':
+        return CarLifeControlAction.pause;
+      case 'next':
+        return CarLifeControlAction.next;
+      case 'previous':
+        return CarLifeControlAction.previous;
+      case 'selectQueueItem':
+        return CarLifeControlAction.selectQueueItem;
+      default:
+        return CarLifeControlAction.unknown;
+    }
+  }
+
+  String get value {
+    switch (this) {
+      case CarLifeControlAction.play:
+        return 'play';
+      case CarLifeControlAction.pause:
+        return 'pause';
+      case CarLifeControlAction.next:
+        return 'next';
+      case CarLifeControlAction.previous:
+        return 'previous';
+      case CarLifeControlAction.selectQueueItem:
+        return 'selectQueueItem';
+      case CarLifeControlAction.unknown:
+        return 'unknown';
+    }
+  }
+}
+
+class CarLifeControlCommand {
+  const CarLifeControlCommand({
+    required this.action,
+    this.queueIndex = -1,
+    this.source = '',
+    this.songId = '',
+  });
+
+  factory CarLifeControlCommand.fromMap(Map<String, Object?> map) {
+    return CarLifeControlCommand(
+      action: CarLifeControlAction.fromValue(map['action']),
+      queueIndex: _intValue(map['queueIndex'], defaultValue: -1),
+      source: _stringValue(map['source']),
+      songId: _stringValue(map['songId']),
+    );
+  }
+
+  final CarLifeControlAction action;
+  final int queueIndex;
+  final String source;
+  final String songId;
+}
+
+class CarLifeControlResult {
+  const CarLifeControlResult({
+    required this.handled,
+    this.reason = '',
+    this.queueIndex = -1,
+  });
+
+  final bool handled;
+  final String reason;
+  final int queueIndex;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'handled': handled,
+      'reason': reason,
+      'queueIndex': queueIndex,
+    };
+  }
+}
+
 class CarLifePlaybackContext {
   const CarLifePlaybackContext({
     required this.title,
@@ -76,6 +188,7 @@ class CarLifePlaybackContext {
     required this.playing,
     this.album = '',
     this.coverUrl = '',
+    this.audioUrl = '',
     this.source = '',
     this.songId = '',
     this.duration = Duration.zero,
@@ -89,6 +202,7 @@ class CarLifePlaybackContext {
   final bool playing;
   final String album;
   final String coverUrl;
+  final String audioUrl;
   final String source;
   final String songId;
   final Duration duration;
@@ -102,6 +216,7 @@ class CarLifePlaybackContext {
       'artist': artist,
       'album': album,
       'coverUrl': coverUrl,
+      'audioUrl': audioUrl,
       'source': source,
       'songId': songId,
       'playing': playing,
@@ -131,6 +246,9 @@ class CarLifeStatus {
     required this.installed,
     required this.launchable,
     required this.sdkLinked,
+    this.appKeyConfigured = true,
+    this.sdkInitialized = false,
+    this.sdkConnected = false,
     this.packageName = '',
     this.integrationMode = '',
     this.reason = '',
@@ -142,6 +260,9 @@ class CarLifeStatus {
       installed: map['installed'] == true,
       launchable: map['launchable'] == true,
       sdkLinked: map['sdkLinked'] == true,
+      appKeyConfigured: map['appKeyConfigured'] != false,
+      sdkInitialized: map['sdkInitialized'] == true,
+      sdkConnected: map['sdkConnected'] == true,
       packageName: _stringValue(map['packageName']),
       integrationMode: _stringValue(map['integrationMode']),
       reason: _stringValue(map['reason']),
@@ -152,13 +273,25 @@ class CarLifeStatus {
   final bool installed;
   final bool launchable;
   final bool sdkLinked;
+  final bool appKeyConfigured;
+  final bool sdkInitialized;
+  final bool sdkConnected;
   final String packageName;
   final String integrationMode;
   final String reason;
 
   String get displayText {
+    if (sdkConnected) {
+      return 'SDK 已连接';
+    }
+    if (sdkInitialized) {
+      return 'SDK 已初始化';
+    }
+    if (reason == 'app_key_missing' || (sdkLinked && !appKeyConfigured)) {
+      return 'SDK 待配置 AppKey';
+    }
     if (sdkLinked) {
-      return 'SDK 已接入';
+      return 'SDK 已接入，未连接';
     }
     if (launchable) {
       return '已安装，可拉起';

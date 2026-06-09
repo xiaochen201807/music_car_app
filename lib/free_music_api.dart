@@ -36,6 +36,23 @@ class FreeMusicSearchResult {
   final int page;
 }
 
+class FreeMusicSources {
+  const FreeMusicSources({
+    required this.allSources,
+    required this.defaultSources,
+    required this.descriptions,
+  });
+
+  final List<String> allSources;
+  final List<String> defaultSources;
+  final Map<String, String> descriptions;
+
+  List<String> get activeSources =>
+      defaultSources.isNotEmpty ? defaultSources : allSources;
+
+  String labelFor(String source) => descriptions[source] ?? source;
+}
+
 class FreeMusicPlaylist {
   const FreeMusicPlaylist({
     required this.id,
@@ -87,6 +104,32 @@ class FreeMusicResolvedUrl {
   final bool direct;
 }
 
+class FreeMusicQuality {
+  const FreeMusicQuality({
+    required this.bitrate,
+    required this.name,
+    this.format = '',
+    this.size = '',
+  });
+
+  final String bitrate;
+  final String name;
+  final String format;
+  final String size;
+}
+
+class FreeMusicQualityResult {
+  const FreeMusicQualityResult({
+    required this.matchedName,
+    required this.matchedArtist,
+    required this.qualities,
+  });
+
+  final String matchedName;
+  final String matchedArtist;
+  final List<FreeMusicQuality> qualities;
+}
+
 class FreeMusicLyricLine {
   const FreeMusicLyricLine({required this.time, required this.text});
 
@@ -114,6 +157,35 @@ class FreeMusicApi {
 
   final http.Client _client;
   final String baseUri;
+
+  Future<FreeMusicSources> fetchSources() async {
+    final Object? decoded = await _getJson('sources');
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException('sources returned non-object JSON');
+    }
+    final Map<String, String> descriptions = <String, String>{};
+    final Object? rawDescriptions = decoded['descriptions'];
+    if (rawDescriptions is Map) {
+      for (final MapEntry<Object?, Object?> entry in rawDescriptions.entries) {
+        final String key = _stringValue(entry.key);
+        if (key.isNotEmpty) {
+          descriptions[key] = _stringValue(entry.value);
+        }
+      }
+    }
+    return FreeMusicSources(
+      allSources: _stringList(decoded['all_sources'] ?? decoded['allSources']),
+      defaultSources: _stringList(
+        decoded['default_sources'] ?? decoded['defaultSources'],
+      ),
+      descriptions: Map<String, String>.unmodifiable(descriptions),
+    );
+  }
+
+  Future<List<String>> fetchHotSearchKeywords() async {
+    final Object? decoded = await _getJson('search/hot');
+    return _extractKeywordList(decoded);
+  }
 
   Future<FreeMusicSearchResult> searchSongs(
     String query, {
@@ -279,6 +351,64 @@ class FreeMusicApi {
     );
   }
 
+  Future<FreeMusicQualityResult> fetchQualities(FreeMusicSong song) async {
+    if (!song.canResolve) {
+      return const FreeMusicQualityResult(
+        matchedName: '',
+        matchedArtist: '',
+        qualities: <FreeMusicQuality>[],
+      );
+    }
+    final Uri uri = Uri.parse('$baseUri/qualities').replace(
+      queryParameters: <String, String>{
+        'name': song.name,
+        'artist': song.artist,
+        if (song.duration > 0) 'duration': '${song.duration}',
+      },
+    );
+    final Object? decoded = await _getJsonUri(uri, errorPrefix: 'qualities');
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException('qualities returned non-object JSON');
+    }
+    return FreeMusicQualityResult(
+      matchedName: _stringValue(decoded['matchedName']),
+      matchedArtist: _stringValue(decoded['matchedArtist']),
+      qualities: _qualitiesFromJson(decoded['qualities']),
+    );
+  }
+
+  Future<FreeMusicLyrics> fetchEnhancedLyrics(FreeMusicSong song) async {
+    if (!song.canResolve) {
+      return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
+    }
+    final Uri uri = Uri.parse('$baseUri/yrc').replace(
+      queryParameters: <String, String>{'id': song.id, 'source': song.source},
+    );
+    final http.Response response = await _client.get(uri, headers: _headers);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final String body = response.body.trim();
+      String raw = body;
+      try {
+        final Object? decoded = jsonDecode(body);
+        if (decoded is Map) {
+          raw = _stringValue(
+            decoded['lrc'] ??
+                decoded['lyric'] ??
+                decoded['yrc'] ??
+                decoded['data'] ??
+                '',
+          );
+        }
+      } on FormatException {
+        raw = body;
+      }
+      if (raw.trim().isNotEmpty) {
+        return FreeMusicLyrics(raw: raw, lines: _parseLyricLines(raw));
+      }
+    }
+    return fetchLyrics(song);
+  }
+
   Future<FreeMusicLyrics> fetchLyrics(FreeMusicSong song) async {
     if (!song.canResolve) {
       return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
@@ -311,6 +441,93 @@ class FreeMusicApi {
   void close() {
     _client.close();
   }
+
+  Future<Object?> _getJson(String path) async {
+    final Uri uri = Uri.parse('$baseUri/$path');
+    return _getJsonUri(uri, errorPrefix: path);
+  }
+
+  Future<Object?> _getJsonUri(Uri uri, {required String errorPrefix}) async {
+    final http.Response response = await _client.get(uri, headers: _headers);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        '$errorPrefix failed with HTTP ${response.statusCode}',
+      );
+    }
+    return jsonDecode(response.body);
+  }
+}
+
+const Map<String, String> _headers = <String, String>{
+  'Accept': 'application/json',
+  'Referer': 'https://music.sy110.eu.org/music',
+  'User-Agent': 'Mozilla/5.0 MusicCarApp',
+};
+
+List<String> _stringList(Object? value) {
+  if (value is Iterable) {
+    return value
+        .map(_stringValue)
+        .where((String item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+  return const <String>[];
+}
+
+List<String> _extractKeywordList(Object? value) {
+  if (value is Iterable) {
+    return value
+        .map((Object? item) {
+          if (item is Map) {
+            return _stringValue(
+              item['keyword'] ??
+                  item['name'] ??
+                  item['searchWord'] ??
+                  item['q'],
+            );
+          }
+          return _stringValue(item);
+        })
+        .where((String item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+  if (value is Map) {
+    for (final String key in <String>[
+      'keywords',
+      'hots',
+      'hot',
+      'data',
+      'result',
+      'list',
+    ]) {
+      final List<String> keywords = _extractKeywordList(value[key]);
+      if (keywords.isNotEmpty) {
+        return keywords;
+      }
+    }
+  }
+  return const <String>[];
+}
+
+List<FreeMusicQuality> _qualitiesFromJson(Object? value) {
+  if (value is! Iterable) {
+    return const <FreeMusicQuality>[];
+  }
+  return value
+      .whereType<Map>()
+      .map((Map<Object?, Object?> item) {
+        return FreeMusicQuality(
+          bitrate: _stringValue(item['br'] ?? item['bitrate']),
+          name: _stringValue(item['name'] ?? item['label']),
+          format: _stringValue(item['format']),
+          size: _stringValue(item['size']),
+        );
+      })
+      .where(
+        (FreeMusicQuality quality) =>
+            quality.bitrate.isNotEmpty || quality.name.isNotEmpty,
+      )
+      .toList(growable: false);
 }
 
 List<FreeMusicLyricLine> _parseLyricLines(String raw) {

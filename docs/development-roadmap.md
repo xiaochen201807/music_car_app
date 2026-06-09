@@ -23,8 +23,9 @@ native audio foundation:
 4. `[x]` In-app update checking and APK installation support remain available.
 5. `[x]` `audio_service` and `just_audio` remain the playback/media-session
    foundation.
-6. `[x]` Baidu CarLife first-stage package probe and launch bridge are exposed
-   through a Flutter/Android MethodChannel.
+6. `[~]` Baidu CarLife package probe, launch bridge, platform SDK initialization,
+   and current-queue template callbacks are wired; AppKey, real connection, and
+   head-unit validation remain pending.
 7. `[~]` Android media-button plumbing exists through `audio_service`, but real
    head-unit behavior still needs device validation after the native queue is
    fully connected.
@@ -51,6 +52,22 @@ The native car-media architecture is:
 Implementation record:
 
 - See `docs/work-log.md` for the chronological work log and current evidence.
+- See `docs/free-music-api-audit.md` for the FreeMusic API inventory and the
+  repeatable endpoint probe script.
+
+## Current Execution Order
+
+The implementation sequence is now gated as follows:
+
+1. `[~]` Complete and test the FreeMusic API client surface first. Keep every
+   discovered endpoint documented, even when it is not part of the first UI
+   release.
+2. `[~]` Redesign the landscape page layout around real API data, loading,
+   empty, error, retry, playlist, queue, lyrics, and playback states.
+3. `[ ]` Harden playback reliability with quality selection, source switching,
+   timeouts, and retry behavior.
+4. `[~]` Keep existing CarLife SDK work, but resume CarLife product integration
+   only after the core app is usable without projection.
 
 ## Main Risks
 
@@ -74,6 +91,9 @@ Implementation record:
 - `[x]` Add the iOS-style car music design asset under `docs/ui`.
 - `[x]` Build a native Flutter shell with large touch targets and a landscape
   layout.
+- `[~]` Align the primary prototype states: home/search, full-screen now
+  playing, playback queue, and persistent mini-player. Settings now carries the
+  larger CarLife/update actions so the home page stays focused on music.
 - `[x]` Keep app update checking reachable from the native UI.
 
 Exit criteria:
@@ -85,13 +105,24 @@ Exit criteria:
 ### Phase 2: Native Data Sources
 
 - `[x]` Add native search API methods with result pagination support.
+- `[x]` Audit the upstream `/api/v1/freemusic` surface and add a repeatable
+  PowerShell probe script under `scripts/test_free_music_api.ps1`.
 - `[~]` Add recommendation loading, playlist detail browsing, and offset-based
   playlist pagination; offline and large-playlist validation is still pending.
+- `[~]` Add typed client methods for sources, hot search, suggestions,
+  playlist search, album search, artist search, album songs, qualities, YRC,
+  source switching, charts, and personal FM. Sources, hot search, qualities,
+  and YRC are now implemented.
 - `[~]` Add artwork plus lyric loading and playback-position lyric highlighting
-  from search/playback metadata.
+  from search/playback metadata. Lyrics now prefer `/yrc` and fall back to
+  `/lyric`.
 - `[~]` Replace demo UI data with real API-backed models for paged search,
   queue, and recommended playlists.
-- `[~]` Add loading, empty, retry, and offline states for search.
+- `[~]` Add loading, empty, retry, and offline states for search and the
+  prototype-aligned recommendation surface.
+- `[~]` Use audited API data in the prototype UI: source labels, hot search
+  chips, recommendation playlists, queue songs, quality chips, and lyric
+  preview are wired to FreeMusic responses where client coverage exists.
 
 Exit criteria:
 
@@ -106,7 +137,7 @@ Exit criteria:
 - `[x]` Publish correct `PlaybackState.queueIndex`.
 - `[x]` Implement `skipToQueueItem(index)`.
 - `[x]` Implement repeat, shuffle, and sequential playback modes.
-- `[~]` Let the native queue decide the next item after completion.
+- `[x]` Let the native queue decide the next item after completion.
 - `[x]` Persist queue and current playback item locally.
 
 Exit criteria:
@@ -135,16 +166,19 @@ Exit criteria:
 - `[x]` Add Android package visibility declarations for common CarLife packages.
 - `[x]` Add Flutter service wrapper for CarLife status, launch, and structured
   playback-context sync calls.
-- `[x]` Add Android MethodChannel implementation for package probe and launch
-  fallback.
+- `[x]` Add Android MethodChannel implementation for package probe, launch
+  fallback, AppKey status, and playback-context sync.
 - `[x]` Add native UI entry card for `百度 CarLife`.
-- `[ ]` Obtain Baidu CarLife SDK/AAR or project-specific integration
-  documentation from the open platform flow.
-- `[ ]` Replace the placeholder `syncPlaybackContext` with real SDK sync.
-- `[~]` Cache current queue, metadata, artwork, and playback state in the
-  Android CarLife bridge; real SDK sync is still pending.
-- `[ ]` Receive CarLife play, pause, next, previous, and item-selection
-  callbacks and route them to `audio_service`.
+- `[~]` Link `Carlife_android_platformsdk_2.2.0.jar`; project AppKey,
+  certification, and official integration validation are still pending.
+- `[~]` Replace the cache-only `syncPlaybackContext` placeholder with SDK
+  initialization, jump, album-list, and song-list callbacks; live CarLife
+  connection and audio-byte streaming remain pending.
+- `[x]` Cache current queue, metadata, artwork, current audio URL, and playback
+  state in the Android CarLife bridge.
+- `[~]` Route CarLife song-data selection requests to Flutter queue-item
+  playback; play, pause, next, and previous callbacks are not exposed by the
+  current SDK jar and need approved-SDK validation.
 - `[ ]` Validate on a CarLife-capable head unit.
 
 Exit criteria:
