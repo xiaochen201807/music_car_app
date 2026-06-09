@@ -114,8 +114,12 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   String _lastSearchQuery = '';
   FreeMusicLyrics? _currentLyrics;
   FreeMusicSong? _currentSong;
+  FreeMusicPlaylist? _activePlaylist;
+  int _playlistTotal = 0;
+  int _playlistOffset = 0;
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
   List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
+  List<FreeMusicSong> _playlistSongs = const <FreeMusicSong>[];
   List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
   NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
   int _selectedTab = 0;
@@ -298,36 +302,52 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     setState(() {
+      _activePlaylist = playlist;
+      _playlistSongs = const <FreeMusicSong>[];
+      _playlistTotal = 0;
+      _playlistOffset = 0;
+    });
+    await _loadPlaylistSongs(reset: true);
+    if (mounted && _playlistSongs.isNotEmpty) {
+      _showPlaylistSheet();
+    }
+  }
+
+  Future<void> _loadPlaylistSongs({required bool reset}) async {
+    final FreeMusicPlaylist? playlist = _activePlaylist;
+    if (playlist == null || _isLoadingPlaylistSongs) {
+      return;
+    }
+    final int offset = reset ? 0 : _playlistOffset;
+    setState(() {
       _isLoadingPlaylistSongs = true;
       _playlistError = '';
     });
     try {
       final FreeMusicPlaylistPage page = await _freeMusicApi.fetchPlaylistSongs(
         playlist,
+        offset: offset,
         size: 30,
       );
       if (!mounted) {
         return;
       }
+      final List<FreeMusicSong> nextSongs = reset
+          ? page.songs
+          : <FreeMusicSong>[..._playlistSongs, ...page.songs];
       if (page.songs.isEmpty) {
         setState(() {
           _isLoadingPlaylistSongs = false;
-          _playlistError = '歌单暂无可播放歌曲';
+          _playlistError = reset ? '歌单暂无可播放歌曲' : '没有更多歌曲';
         });
-        _showSnack('歌单暂无可播放歌曲：${playlist.name}');
-        return;
-      }
-      await _playSongQueue(page.songs, 0);
-      if (!mounted) {
         return;
       }
       setState(() {
-        _searchResults = page.songs;
-        _playbackQueue = List<FreeMusicSong>.unmodifiable(page.songs);
-        _selectedQueueIndex = 0;
+        _playlistSongs = List<FreeMusicSong>.unmodifiable(nextSongs);
+        _playlistTotal = page.total;
+        _playlistOffset = nextSongs.length;
         _isLoadingPlaylistSongs = false;
       });
-      _showSnack('已加载歌单：${playlist.name}');
     } on FreeMusicApiException catch (error) {
       if (!mounted) {
         return;
@@ -347,6 +367,57 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       _showSnack('歌单加载失败：$error');
     }
+  }
+
+  Future<void> _playPlaylistSong(int index) async {
+    if (index < 0 || index >= _playlistSongs.length) {
+      return;
+    }
+    await _playSongQueue(_playlistSongs, index);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _searchResults = _playlistSongs;
+    });
+  }
+
+  void _showPlaylistSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter sheetSetState) {
+            return _PlaylistSheet(
+              playlist: _activePlaylist,
+              songs: _playlistSongs,
+              total: _playlistTotal,
+              busy: _isLoadingPlaylistSongs,
+              error: _playlistError,
+              canLoadMore:
+                  _playlistTotal == 0 || _playlistSongs.length < _playlistTotal,
+              onPlay: (int index) {
+                unawaited(_playPlaylistSong(index));
+              },
+              onLoadMore: () {
+                unawaited(() async {
+                  final Future<void> loadFuture = _loadPlaylistSongs(
+                    reset: false,
+                  );
+                  sheetSetState(() {});
+                  await loadFuture;
+                  if (mounted) {
+                    sheetSetState(() {});
+                  }
+                }());
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _playSearchResult(int index) async {
@@ -2195,6 +2266,259 @@ class _PlaylistRow extends StatelessWidget {
           ),
           const Icon(Icons.chevron_right_rounded, color: _AppColors.textMuted),
         ],
+      ),
+    );
+  }
+}
+
+class _PlaylistSheet extends StatelessWidget {
+  const _PlaylistSheet({
+    required this.playlist,
+    required this.songs,
+    required this.total,
+    required this.busy,
+    required this.error,
+    required this.canLoadMore,
+    required this.onPlay,
+    required this.onLoadMore,
+  });
+
+  final FreeMusicPlaylist? playlist;
+  final List<FreeMusicSong> songs;
+  final int total;
+  final bool busy;
+  final String error;
+  final bool canLoadMore;
+  final ValueChanged<int> onPlay;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final FreeMusicPlaylist? current = playlist;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: _GlassCard(
+          height: MediaQuery.sizeOf(context).height * 0.82,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  _ArtworkView(
+                    track: _demoQueue.first,
+                    imageUrl: current?.cover ?? '',
+                    size: 62,
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          current?.name ?? '推荐歌单',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _AppColors.textPrimary,
+                            fontSize: 23,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          <String>[
+                                if ((current?.creator ?? '').isNotEmpty)
+                                  current!.creator,
+                                current?.source ?? '',
+                                '${songs.length}/${total == 0 ? '?' : total} 首',
+                              ]
+                              .where((String value) => value.isNotEmpty)
+                              .join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _AppColors.textSecondary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                    color: _AppColors.textSecondary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: songs.isEmpty && busy
+                    ? const Center(child: CircularProgressIndicator())
+                    : songs.isEmpty && error.isNotEmpty
+                    ? _SearchMessage(
+                        icon: Icons.queue_music_rounded,
+                        title: '歌单加载失败',
+                        message: error,
+                      )
+                    : ListView.separated(
+                        itemCount: songs.length + 1,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (BuildContext context, int index) {
+                          if (index == songs.length) {
+                            return _LoadMoreButton(
+                              busy: busy,
+                              enabled: canLoadMore && !busy,
+                              error: error,
+                              onTap: onLoadMore,
+                            );
+                          }
+                          return _PlaylistSongRow(
+                            song: songs[index],
+                            visual: _demoQueue[index % _demoQueue.length],
+                            index: index,
+                            onTap: () => onPlay(index),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaylistSongRow extends StatelessWidget {
+  const _PlaylistSongRow({
+    required this.song,
+    required this.visual,
+    required this.index,
+    required this.onTap,
+  });
+
+  final FreeMusicSong song;
+  final _DemoTrack visual;
+  final int index;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 28,
+              child: Text(
+                '${index + 1}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _AppColors.textMuted,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _ArtworkView(
+              track: visual,
+              imageUrl: song.cover,
+              size: 48,
+              radius: 14,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    <String>[
+                      song.artist,
+                      if (song.album.isNotEmpty) song.album,
+                    ].where((String value) => value.isNotEmpty).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              _formatDuration(Duration(seconds: song.duration)),
+              style: const TextStyle(
+                color: _AppColors.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadMoreButton extends StatelessWidget {
+  const _LoadMoreButton({
+    required this.busy,
+    required this.enabled,
+    required this.error,
+    required this.onTap,
+  });
+
+  final bool busy;
+  final bool enabled;
+  final String error;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: TextButton.icon(
+        onPressed: enabled ? onTap : null,
+        icon: busy
+            ? const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(error.isEmpty ? Icons.expand_more_rounded : Icons.refresh),
+        label: Text(
+          busy
+              ? '加载中'
+              : error.isNotEmpty
+              ? '重试加载'
+              : enabled
+              ? '加载更多'
+              : '已加载全部',
+        ),
       ),
     );
   }

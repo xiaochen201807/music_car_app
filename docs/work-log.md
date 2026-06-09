@@ -207,3 +207,27 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-06-09 - Playlist Detail Pagination
+
+Implemented in this increment:
+
+- Recommended playlist cards now open a native playlist detail sheet instead of
+  immediately replacing playback with the first page.
+- The playlist sheet shows playlist cover, creator/source metadata, loaded song
+  count, total count, song artwork, artist/album text, and duration.
+- Playlist songs are fetched through `/playlist/page` with offset-based paging
+  and a native load-more/retry footer.
+- Selecting any loaded playlist song starts playback from that song while using
+  the currently loaded playlist page range as the native queue.
+
+Verification in this increment:
+
+- `dart format lib/main.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
