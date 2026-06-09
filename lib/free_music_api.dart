@@ -36,6 +36,38 @@ class FreeMusicSearchResult {
   final int page;
 }
 
+class FreeMusicPlaylist {
+  const FreeMusicPlaylist({
+    required this.id,
+    required this.source,
+    required this.name,
+    this.cover = '',
+    this.creator = '',
+    this.description = '',
+    this.link = '',
+    this.trackCount = 0,
+    this.playCount = 0,
+  });
+
+  final String id;
+  final String source;
+  final String name;
+  final String cover;
+  final String creator;
+  final String description;
+  final String link;
+  final int trackCount;
+  final int playCount;
+
+  bool get canLoad => id.isNotEmpty && source.isNotEmpty;
+}
+
+class FreeMusicRecommendResult {
+  const FreeMusicRecommendResult({required this.playlists});
+
+  final List<FreeMusicPlaylist> playlists;
+}
+
 class FreeMusicResolvedUrl {
   const FreeMusicResolvedUrl({
     required this.url,
@@ -120,6 +152,37 @@ class FreeMusicApi {
       songs: _songsFromJson(decoded['songs']),
       hasMore: decoded['hasMore'] == true,
       page: _intValue(decoded['page']),
+    );
+  }
+
+  Future<FreeMusicRecommendResult> fetchRecommendations({
+    List<String>? sources,
+  }) async {
+    final Uri uri = Uri.parse('$baseUri/recommend').replace(
+      queryParameters: <String, String>{
+        if (sources != null && sources.isNotEmpty)
+          'sources': sources.map((String source) => source.trim()).join(','),
+      },
+    );
+    final http.Response response = await _client.get(
+      uri,
+      headers: const <String, String>{
+        'Accept': 'application/json',
+        'Referer': 'https://music.sy110.eu.org/music',
+        'User-Agent': 'Mozilla/5.0 MusicCarApp',
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        'recommend failed with HTTP ${response.statusCode}',
+      );
+    }
+    final Object? decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException('recommend returned non-object JSON');
+    }
+    return FreeMusicRecommendResult(
+      playlists: _playlistsFromJson(decoded['playlists']),
     );
   }
 
@@ -237,6 +300,29 @@ List<FreeMusicLyricLine> _parseLyricLines(String raw) {
     return a.time.compareTo(b.time);
   });
   return List<FreeMusicLyricLine>.unmodifiable(lines);
+}
+
+List<FreeMusicPlaylist> _playlistsFromJson(Object? value) {
+  if (value is! Iterable) {
+    return const <FreeMusicPlaylist>[];
+  }
+  return value
+      .whereType<Map>()
+      .map((Map<Object?, Object?> item) {
+        return FreeMusicPlaylist(
+          id: _stringValue(item['id']),
+          source: _stringValue(item['source']),
+          name: _stringValue(item['name'] ?? item['title']),
+          cover: _stringValue(item['cover'] ?? item['picUrl'] ?? item['img']),
+          creator: _stringValue(item['creator'] ?? item['author']),
+          description: _stringValue(item['description']),
+          link: _stringValue(item['link']),
+          trackCount: _intValue(item['track_count'] ?? item['trackCount']),
+          playCount: _intValue(item['play_count'] ?? item['playCount']),
+        );
+      })
+      .where((FreeMusicPlaylist playlist) => playlist.canLoad)
+      .toList(growable: false);
 }
 
 List<FreeMusicSong> _songsFromJson(Object? value) {

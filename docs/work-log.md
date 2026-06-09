@@ -19,6 +19,8 @@ Current evidence:
   cover URL is available.
 - The app can fetch FreeMusic synced LRC lyrics and show them in a native lyric
   sheet from the mini-player.
+- The home page can load FreeMusic recommended playlists from `/recommend` and
+  render them with real playlist artwork and metadata.
 - Playback uses `audio_service` plus `just_audio`.
 - `NativeAudioController` can resolve FreeMusic song URLs, persist a queue, and
   skip through a synced probe queue.
@@ -30,7 +32,7 @@ Current evidence:
 
 Open gaps toward the full goal:
 
-- Recommendations and playlist surfaces are not fully API-backed yet.
+- Playlist song pagination/loading is not fully API-backed yet.
 - Lyrics are API-backed for the current search/playback queue, but lyric timing
   is not yet synchronized to the playback position.
 - Repeat, shuffle, artwork loading, and queue behavior still need real
@@ -41,7 +43,7 @@ Open gaps toward the full goal:
 
 Next implementation focus:
 
-- Add recommendation and playlist loading.
+- Add playlist detail/song loading and queue handoff from recommended playlists.
 - Synchronize lyric highlighting to playback position.
 - Continue CarLife SDK integration beyond package probe and launch fallback.
 - Keep tests and roadmap status updated with each increment.
@@ -76,6 +78,27 @@ Implemented in this increment:
   page into the native queue.
 - The queue panel now shows the real search-backed queue after playback starts,
   with the existing demo queue retained only as an empty-state placeholder.
+
+Verification in this increment:
+
+- `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
+- `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+Implemented in this increment:
+
+- Added `FreeMusicPlaylist` and `FreeMusicRecommendResult` models.
+- Added `FreeMusicApi.fetchRecommendations`, calling `/recommend` with optional
+  `sources` filtering and defensive playlist parsing.
+- The native home page now loads recommendations on startup and replaces the
+  demo home list with real recommended playlist rows when available.
+- Recommended playlist rows show real artwork, creator/source, track count, and
+  a placeholder selection path for the next playlist-detail increment.
 
 Verification in this increment:
 

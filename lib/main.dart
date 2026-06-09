@@ -102,15 +102,18 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isCheckingCarLife = false;
   bool _hasAutoCheckedUpdate = false;
   bool _isSearchingMusic = false;
+  bool _isLoadingRecommendations = false;
   bool _isLoadingLyrics = false;
   bool _syncingSessionPlaybackMode = false;
   int _searchRequestId = 0;
   String _searchError = '';
+  String _recommendationError = '';
   String _lyricsError = '';
   String _lastSearchQuery = '';
   FreeMusicLyrics? _currentLyrics;
   FreeMusicSong? _currentSong;
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
+  List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
   List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
   NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
   int _selectedTab = 0;
@@ -128,6 +131,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     widget.audioHandler?.onSetShuffleMode = _setShuffleModeFromSession;
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadRecommendations());
       unawaited(_refreshCarLifeStatus());
       if (widget.autoCheckForUpdates) {
         unawaited(_autoCheckForUpdate());
@@ -248,6 +252,47 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
         _isSearchingMusic = false;
       });
     }
+  }
+
+  Future<void> _loadRecommendations() async {
+    if (_isLoadingRecommendations || !mounted) {
+      return;
+    }
+    setState(() {
+      _isLoadingRecommendations = true;
+      _recommendationError = '';
+    });
+    try {
+      final FreeMusicRecommendResult result = await _freeMusicApi
+          .fetchRecommendations();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _recommendedPlaylists = result.playlists;
+        _isLoadingRecommendations = false;
+      });
+    } on FreeMusicApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _recommendationError = error.message;
+        _isLoadingRecommendations = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _recommendationError = '推荐加载失败：$error';
+        _isLoadingRecommendations = false;
+      });
+    }
+  }
+
+  void _showPlaylistInfo(FreeMusicPlaylist playlist) {
+    _showSnack('歌单歌曲加载待接入：${playlist.name}');
   }
 
   Future<void> _playSearchResult(int index) async {
@@ -640,6 +685,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               searchBusy: _isSearchingMusic,
               searchError: _searchError,
               lastSearchQuery: _lastSearchQuery,
+              recommendedPlaylists: _recommendedPlaylists,
+              recommendationsBusy: _isLoadingRecommendations,
+              recommendationError: _recommendationError,
               playbackState: playbackState,
               playbackMode: _playbackMode,
               lyricsAvailable: _currentLyrics?.lines.isNotEmpty ?? false,
@@ -660,6 +708,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPlaySearchResult: (int index) {
                 unawaited(_playSearchResult(index));
               },
+              onSelectPlaylist: _showPlaylistInfo,
               onPlayPause: () => _togglePlayback(playbackState.playing),
               onPlaybackMode: () {
                 unawaited(_cyclePlaybackMode());
@@ -758,6 +807,9 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.searchBusy,
     required this.searchError,
     required this.lastSearchQuery,
+    required this.recommendedPlaylists,
+    required this.recommendationsBusy,
+    required this.recommendationError,
     required this.playbackState,
     required this.playbackMode,
     required this.lyricsAvailable,
@@ -770,6 +822,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onSelectQueueIndex,
     required this.onSearch,
     required this.onPlaySearchResult,
+    required this.onSelectPlaylist,
     required this.onPlayPause,
     required this.onPlaybackMode,
     required this.onLyrics,
@@ -788,6 +841,9 @@ class _NativeMusicScaffold extends StatelessWidget {
   final bool searchBusy;
   final String searchError;
   final String lastSearchQuery;
+  final List<FreeMusicPlaylist> recommendedPlaylists;
+  final bool recommendationsBusy;
+  final String recommendationError;
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
   final bool lyricsAvailable;
@@ -800,6 +856,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final ValueChanged<int> onSelectQueueIndex;
   final VoidCallback onSearch;
   final ValueChanged<int> onPlaySearchResult;
+  final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
   final VoidCallback onLyrics;
@@ -843,10 +900,14 @@ class _NativeMusicScaffold extends StatelessWidget {
                               searchBusy: searchBusy,
                               searchError: searchError,
                               lastSearchQuery: lastSearchQuery,
+                              recommendedPlaylists: recommendedPlaylists,
+                              recommendationsBusy: recommendationsBusy,
+                              recommendationError: recommendationError,
                               carLifeStatus: carLifeStatus,
                               carLifeBusy: carLifeBusy,
                               onSearch: onSearch,
                               onPlaySearchResult: onPlaySearchResult,
+                              onSelectPlaylist: onSelectPlaylist,
                               onOpenCarLife: onOpenCarLife,
                               onRefreshCarLife: onRefreshCarLife,
                             ),
@@ -1147,10 +1208,14 @@ class _HomePanel extends StatelessWidget {
     required this.searchBusy,
     required this.searchError,
     required this.lastSearchQuery,
+    required this.recommendedPlaylists,
+    required this.recommendationsBusy,
+    required this.recommendationError,
     required this.carLifeStatus,
     required this.carLifeBusy,
     required this.onSearch,
     required this.onPlaySearchResult,
+    required this.onSelectPlaylist,
     required this.onOpenCarLife,
     required this.onRefreshCarLife,
   });
@@ -1161,16 +1226,23 @@ class _HomePanel extends StatelessWidget {
   final bool searchBusy;
   final String searchError;
   final String lastSearchQuery;
+  final List<FreeMusicPlaylist> recommendedPlaylists;
+  final bool recommendationsBusy;
+  final String recommendationError;
   final CarLifeStatus carLifeStatus;
   final bool carLifeBusy;
   final VoidCallback onSearch;
   final ValueChanged<int> onPlaySearchResult;
+  final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onOpenCarLife;
   final VoidCallback onRefreshCarLife;
 
   @override
   Widget build(BuildContext context) {
     final _NavItem activeItem = _navItems[selectedTab];
+    final FreeMusicPlaylist? heroPlaylist = recommendedPlaylists.isEmpty
+        ? null
+        : recommendedPlaylists.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -1228,57 +1300,63 @@ class _HomePanel extends StatelessWidget {
                       height: 188,
                       padding: const EdgeInsets.all(22),
                       child: LayoutBuilder(
-                        builder:
-                            (BuildContext context, BoxConstraints constraints) {
-                              final bool showHeroArt =
-                                  constraints.maxWidth >= 430;
-                              return Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                        builder: (BuildContext context, BoxConstraints constraints) {
+                          final bool showHeroArt = constraints.maxWidth >= 430;
+                          return Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      heroPlaylist?.name ?? '推荐',
+                                      style: TextStyle(
+                                        color: _AppColors.textPrimary,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      heroPlaylist == null
+                                          ? '为横屏车机重做的 iOS 风格音乐首页，正在接入推荐、歌单和完整原生队列。'
+                                          : '${heroPlaylist.creator.isEmpty ? heroPlaylist.source : heroPlaylist.creator} · ${_formatCount(heroPlaylist.trackCount)}首 · ${_formatCount(heroPlaylist.playCount)}次播放',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: _AppColors.textSecondary
+                                            .withValues(alpha: 0.92),
+                                        fontSize: 15,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
                                       children: <Widget>[
-                                        const Text(
-                                          '推荐',
-                                          style: TextStyle(
-                                            color: _AppColors.textPrimary,
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.w900,
+                                        const _ChipLabel(text: '推荐歌单'),
+                                        if (recommendationsBusy)
+                                          const _ChipLabel(text: '加载中')
+                                        else if (recommendationError.isNotEmpty)
+                                          const _ChipLabel(text: '可重试')
+                                        else
+                                          _ChipLabel(
+                                            text:
+                                                '${recommendedPlaylists.length} 个歌单',
                                           ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          '为横屏车机重做的 iOS 风格音乐首页，后续会接入搜索、歌单、歌词和完整原生队列。',
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: _AppColors.textSecondary
-                                                .withValues(alpha: 0.92),
-                                            fontSize: 15,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        const Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: <Widget>[
-                                            _ChipLabel(text: '大触控目标'),
-                                            _ChipLabel(text: '后台媒体键'),
-                                            _ChipLabel(text: '原生队列'),
-                                          ],
-                                        ),
                                       ],
                                     ),
-                                  ),
-                                  if (showHeroArt) ...const <Widget>[
-                                    SizedBox(width: 18),
-                                    _HeroEqualizer(),
                                   ],
-                                ],
-                              );
-                            },
+                                ),
+                              ),
+                              if (showHeroArt) ...const <Widget>[
+                                SizedBox(width: 18),
+                                _HeroEqualizer(),
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -1317,13 +1395,29 @@ class _HomePanel extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Expanded(
-                  child: _LibrarySection(title: '最近播放', tracks: _recentTracks),
+                  child: _PlaylistSection(
+                    title: '推荐歌单',
+                    playlists: recommendedPlaylists
+                        .take(4)
+                        .toList(growable: false),
+                    busy: recommendationsBusy,
+                    error: recommendationError,
+                    fallbackTracks: _recentTracks,
+                    onSelect: onSelectPlaylist,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _LibrarySection(
-                    title: '我的收藏',
-                    tracks: _favoriteTracks,
+                  child: _PlaylistSection(
+                    title: '更多推荐',
+                    playlists: recommendedPlaylists
+                        .skip(4)
+                        .take(4)
+                        .toList(growable: false),
+                    busy: recommendationsBusy,
+                    error: recommendationError,
+                    fallbackTracks: _favoriteTracks,
+                    onSelect: onSelectPlaylist,
                   ),
                 ),
               ],
@@ -1891,6 +1985,160 @@ class _LibrarySection extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlaylistSection extends StatelessWidget {
+  const _PlaylistSection({
+    required this.title,
+    required this.playlists,
+    required this.busy,
+    required this.error,
+    required this.fallbackTracks,
+    required this.onSelect,
+  });
+
+  final String title;
+  final List<FreeMusicPlaylist> playlists;
+  final bool busy;
+  final String error;
+  final List<_DemoTrack> fallbackTracks;
+  final ValueChanged<FreeMusicPlaylist> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (playlists.isEmpty && !busy && error.isEmpty) {
+      return _LibrarySection(title: title, tracks: fallbackTracks);
+    }
+    return _GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: _AppColors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (busy)
+                const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: error.isNotEmpty && playlists.isEmpty
+                ? _InlineMessage(text: error)
+                : ListView.separated(
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: playlists.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (BuildContext context, int index) {
+                      final FreeMusicPlaylist playlist = playlists[index];
+                      return _PlaylistRow(
+                        playlist: playlist,
+                        visual: _demoQueue[index % _demoQueue.length],
+                        onTap: () => onSelect(playlist),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaylistRow extends StatelessWidget {
+  const _PlaylistRow({
+    required this.playlist,
+    required this.visual,
+    required this.onTap,
+  });
+
+  final FreeMusicPlaylist playlist;
+  final _DemoTrack visual;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Row(
+        children: <Widget>[
+          _ArtworkView(
+            track: visual,
+            imageUrl: playlist.cover,
+            size: 46,
+            radius: 14,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  playlist.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  <String>[
+                    if (playlist.creator.isNotEmpty) playlist.creator,
+                    playlist.source,
+                    '${_formatCount(playlist.trackCount)}首',
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: _AppColors.textMuted),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineMessage extends StatelessWidget {
+  const _InlineMessage({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: _AppColors.textSecondary,
+          fontSize: 14,
+          height: 1.45,
+        ),
       ),
     );
   }
@@ -3001,6 +3249,16 @@ String _formatDuration(Duration duration) {
   final int minutes = duration.inMinutes;
   final int seconds = duration.inSeconds.remainder(60);
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+String _formatCount(int value) {
+  if (value >= 100000000) {
+    return '${(value / 100000000).toStringAsFixed(1)}亿';
+  }
+  if (value >= 10000) {
+    return '${(value / 10000).toStringAsFixed(1)}万';
+  }
+  return '$value';
 }
 
 IconData _iconForPlaybackMode(NativePlaybackMode mode) {

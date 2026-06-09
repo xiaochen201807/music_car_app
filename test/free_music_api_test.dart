@@ -85,6 +85,52 @@ void main() {
     expect(result.page, 1);
   });
 
+  test('FreeMusicApi fetches recommended playlists', () async {
+    late Uri requestedUri;
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org/api/v1/freemusic',
+      client: MockClient((http.Request request) async {
+        requestedUri = request.url;
+        return http.Response(
+          '''
+          {
+            "playlists": [
+              {
+                "id": "867916143",
+                "source": "netease",
+                "name": "中文说唱Flow",
+                "cover": "https://example.com/playlist.jpg",
+                "creator": "网易云推荐",
+                "description": "精选歌单",
+                "track_count": 647,
+                "play_count": 20872758,
+                "link": "https://example.com/playlist"
+              }
+            ]
+          }
+          ''',
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final FreeMusicRecommendResult result = await api.fetchRecommendations(
+      sources: <String>['netease', 'kuwo'],
+    );
+
+    expect(requestedUri.path, '/api/v1/freemusic/recommend');
+    expect(requestedUri.queryParameters['sources'], 'netease,kuwo');
+    expect(result.playlists, hasLength(1));
+    expect(result.playlists.single.id, '867916143');
+    expect(result.playlists.single.source, 'netease');
+    expect(result.playlists.single.name, '中文说唱Flow');
+    expect(result.playlists.single.cover, 'https://example.com/playlist.jpg');
+    expect(result.playlists.single.creator, '网易云推荐');
+    expect(result.playlists.single.trackCount, 647);
+    expect(result.playlists.single.playCount, 20872758);
+  });
+
   test('FreeMusicApi resolves song_url with expected query parameters', () async {
     late Uri requestedUri;
     late Map<String, String> requestedHeaders;
