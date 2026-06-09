@@ -252,6 +252,64 @@ void main() {
     },
   );
 
+  test('fastForward and rewind seek within track bounds', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+    await handler.loadFromSnapshot(
+      'https://example.com/song.mp3',
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/song.mp3',
+        playing: true,
+        title: '晴天',
+        duration: Duration(seconds: 60),
+      ),
+    );
+
+    player.currentPosition = const Duration(seconds: 50);
+    await handler.fastForward();
+    expect(player.currentPosition, const Duration(seconds: 60));
+
+    player.currentPosition = const Duration(seconds: 10);
+    await handler.rewind();
+    expect(player.currentPosition, Duration.zero);
+
+    player.currentPosition = const Duration(seconds: 20);
+    await handler.fastForward();
+    expect(player.currentPosition, const Duration(seconds: 35));
+
+    await handler.dispose();
+  });
+
+  test(
+    'seekForward and seekBackward perform immediate relative seek',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+      await handler.loadFromSnapshot(
+        'https://example.com/song.mp3',
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/song.mp3',
+          playing: true,
+          title: '晴天',
+          duration: Duration(seconds: 60),
+        ),
+      );
+
+      player.currentPosition = const Duration(seconds: 20);
+      await handler.seekForward(true);
+      expect(player.currentPosition, const Duration(seconds: 35));
+      await handler.seekForward(false);
+
+      await handler.seekBackward(true);
+      expect(player.currentPosition, const Duration(seconds: 20));
+      await handler.seekBackward(false);
+
+      await handler.dispose();
+    },
+  );
+
   test('setRepeatMode and setShuffleMode publish playback state', () async {
     final MusicAudioHandler handler = MusicAudioHandler(
       player: _FakeNativeAudioPlayer(),

@@ -309,3 +309,33 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-06-09 - Media Seek Controls
+
+Implemented in this increment:
+
+- `MusicAudioHandler` now implements `fastForward` and `rewind` for 15-second
+  relative seeking.
+- `seekForward(begin)` and `seekBackward(begin)` now support press-and-hold
+  style media-session controls with repeated bounded seeks.
+- Seek operations are clamped to the current media duration and never seek below
+  zero.
+- Tests cover fast-forward, rewind, and immediate seek-forward/seek-backward
+  behavior for notification/head-unit media controls.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart`
+
+ADB status:
+
+- `adb version` works locally.
+- No Android device was connected when checked with `adb devices -l`.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+

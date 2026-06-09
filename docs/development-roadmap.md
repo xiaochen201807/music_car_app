@@ -111,8 +111,9 @@ Exit criteria:
 
 Exit criteria:
 
-- `[ ]` Notification and media-button previous/next controls work while the app
-  is foregrounded, backgrounded, and screen-off.
+- `[~]` Notification and media-button previous/next/seek controls are wired in
+  code; foreground/background/screen-off real-device validation is still
+  pending.
 - `[ ]` Selecting a queue item from a compatible car/media surface starts that
   item directly.
 

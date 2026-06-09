@@ -43,10 +43,13 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   static const Duration _stallCheckInterval = Duration(seconds: 2);
   static const Duration _stallSkipThreshold = Duration(seconds: 10);
+  static const Duration _seekStep = Duration(seconds: 15);
+  static const Duration _continuousSeekInterval = Duration(milliseconds: 500);
 
   final NativeAudioPlayer _player;
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
   late final Timer _stallTimer;
+  Timer? _continuousSeekTimer;
   Future<bool> Function()? onPlayTrack;
   Future<void> Function()? onSkipToNextTrack;
   Future<void> Function()? onSkipToPreviousTrack;
@@ -150,7 +153,23 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   @override
   Future<void> seek(Duration position) async {
     _resetPlaybackStallMonitor();
-    await _player.seek(position);
+    await _player.seek(_boundedSeekPosition(position));
+  }
+
+  @override
+  Future<void> fastForward() => _seekRelative(_seekStep);
+
+  @override
+  Future<void> rewind() => _seekRelative(-_seekStep);
+
+  @override
+  Future<void> seekForward(bool begin) async {
+    await _setContinuousSeek(begin: begin, step: _seekStep);
+  }
+
+  @override
+  Future<void> seekBackward(bool begin) async {
+    await _setContinuousSeek(begin: begin, step: -_seekStep);
   }
 
   @override
@@ -233,6 +252,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @override
   Future<void> dispose() async {
+    _continuousSeekTimer?.cancel();
     _stallTimer.cancel();
     await _playbackSubscription.cancel();
     await _player.dispose();
@@ -315,6 +335,36 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       '${observedAt.difference(stalledSince).inSeconds}s, skipping next',
     );
     await autoSkipToNextAfterCompletion();
+  }
+
+  Future<void> _seekRelative(Duration offset) async {
+    await seek(_player.position + offset);
+  }
+
+  Future<void> _setContinuousSeek({
+    required bool begin,
+    required Duration step,
+  }) async {
+    _continuousSeekTimer?.cancel();
+    _continuousSeekTimer = null;
+    if (!begin) {
+      return;
+    }
+    await _seekRelative(step);
+    _continuousSeekTimer = Timer.periodic(_continuousSeekInterval, (_) {
+      unawaited(_seekRelative(step));
+    });
+  }
+
+  Duration _boundedSeekPosition(Duration requested) {
+    final Duration lowerBounded = requested < Duration.zero
+        ? Duration.zero
+        : requested;
+    final Duration? duration = mediaItem.valueOrNull?.duration;
+    if (duration == null || duration <= Duration.zero) {
+      return lowerBounded;
+    }
+    return lowerBounded > duration ? duration : lowerBounded;
   }
 
   void _resetPlaybackStallMonitor({DateTime? now}) {
