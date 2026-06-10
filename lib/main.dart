@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -6,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:palette_generator/palette_generator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -24,8 +27,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
   ]);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await WakelockPlus.enable();
@@ -53,7 +56,7 @@ Future<void> _ensureNotificationPermission() async {
   }
 }
 
-class MusicCarApp extends StatelessWidget {
+class MusicCarApp extends StatefulWidget {
   const MusicCarApp({
     super.key,
     this.homeOverride,
@@ -66,30 +69,67 @@ class MusicCarApp extends StatelessWidget {
   final bool autoCheckForUpdates;
 
   @override
+  State<MusicCarApp> createState() => _MusicCarAppState();
+}
+
+class _MusicCarAppState extends State<MusicCarApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  void _setThemeMode(ThemeMode mode) {
+    setState(() {
+      _themeMode = mode;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final ThemeData lightTheme = _buildAppTheme(
+      brightness: Brightness.light,
+      seedColor: AppColor.accentVioletStart,
+    );
+    final ThemeData darkTheme = _buildAppTheme(
+      brightness: Brightness.dark,
+      seedColor: AppColor.accentVioletStart,
+    );
     return MaterialApp(
       title: '车载音乐',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'sans',
-        colorScheme: const ColorScheme.dark(
-          primary: AppColor.accentVioletStart,
-          secondary: AppColor.accentRoseEnd,
-          surface: AppColor.glassTint,
-          error: AppColor.error,
-        ),
-        scaffoldBackgroundColor: AppColor.bgBase,
-        splashFactory: NoSplash.splashFactory,
-        useMaterial3: true,
-      ),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: _themeMode,
       home:
-          homeOverride ??
+          widget.homeOverride ??
           NativeMusicHomePage(
-            audioHandler: audioHandler,
-            autoCheckForUpdates: autoCheckForUpdates,
+            audioHandler: widget.audioHandler,
+            autoCheckForUpdates: widget.autoCheckForUpdates,
+            themeMode: _themeMode,
+            onThemeModeChanged: _setThemeMode,
           ),
     );
   }
+}
+
+ThemeData _buildAppTheme({
+  required Brightness brightness,
+  required Color seedColor,
+}) {
+  final ColorScheme colorScheme = ColorScheme.fromSeed(
+    seedColor: seedColor,
+    brightness: brightness,
+  );
+  return ThemeData(
+    fontFamily: 'sans',
+    colorScheme: colorScheme,
+    scaffoldBackgroundColor: colorScheme.surface,
+    splashFactory: NoSplash.splashFactory,
+    useMaterial3: true,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
+  );
 }
 
 class NativeMusicHomePage extends StatefulWidget {
@@ -97,10 +137,14 @@ class NativeMusicHomePage extends StatefulWidget {
     super.key,
     this.audioHandler,
     this.autoCheckForUpdates = true,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
   });
 
   final MusicAudioHandler? audioHandler;
   final bool autoCheckForUpdates;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   State<NativeMusicHomePage> createState() => _NativeMusicHomePageState();
@@ -163,6 +207,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   NativePlaybackMode _playbackMode = NativePlaybackMode.repeatAll;
   int _selectedTab = 0;
   int _selectedQueueIndex = 0;
+  Color _coverSeedColor = AppColor.accentVioletStart;
+  String _coverSeedUrl = '';
 
   @override
   void initState() {
@@ -391,6 +437,37 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     await _playSongQueue(_favoriteSongs, 0);
   }
 
+  Future<void> _updateCoverSeed(FreeMusicSong song) async {
+    final String cover = song.cover.trim();
+    if (cover.isEmpty || cover == _coverSeedUrl) {
+      return;
+    }
+    _coverSeedUrl = cover;
+    try {
+      final PaletteGenerator palette = await PaletteGenerator.fromImageProvider(
+        CachedNetworkImageProvider(cover),
+        maximumColorCount: 12,
+      );
+      final Color? color =
+          palette.vibrantColor?.color ??
+          palette.dominantColor?.color ??
+          palette.mutedColor?.color;
+      if (!mounted || color == null) {
+        return;
+      }
+      setState(() {
+        _coverSeedColor = color;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _coverSeedColor = AppColor.accentVioletStart;
+      });
+    }
+  }
+
   /// Restores the previous playback session (queue + current song) from
   /// [NativeAudioController]'s persisted state, then attempts to resume
   /// playback automatically so the user hears the same song they left off on.
@@ -412,6 +489,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       _selectedQueueIndex = restoredIndex;
       _currentSong = song;
     });
+    unawaited(_updateCoverSeed(song));
     unawaited(_loadLyricsForSong(song));
     unawaited(_loadQualitiesForSong(song));
     // Resume playback — NativeAudioController will re-resolve the audio URL
@@ -769,6 +847,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       _selectedQueueIndex = index;
       _currentSong = song;
     });
+    unawaited(_updateCoverSeed(song));
     unawaited(_loadLyricsForSong(song));
     unawaited(_loadQualitiesForSong(song));
     unawaited(_syncCarLifePlaybackContext(showResult: false));
@@ -786,6 +865,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       }
     });
     if (index >= 0 && index < _playbackQueue.length) {
+      unawaited(_updateCoverSeed(_playbackQueue[index]));
       unawaited(_loadLyricsForSong(_playbackQueue[index]));
       unawaited(_loadQualitiesForSong(_playbackQueue[index]));
     }
@@ -1073,6 +1153,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     } else {
       await handler.play();
     }
+  }
+
+  Future<void> _seekPlayback(Duration position) async {
+    await widget.audioHandler?.seek(position);
   }
 
   Future<void> _refreshCarLifeStatus() async {
@@ -1368,6 +1452,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               favoriteSongKeys: favoriteSongKeys,
               favoritesBusy: _isLoadingFavorites,
               currentSong: _currentSong,
+              coverSeedColor: _coverSeedColor,
+              themeMode: widget.themeMode,
               searchController: _searchController,
               searchResults: _searchResults,
               searchBusy: _isSearchingMusic,
@@ -1424,6 +1510,8 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPlayAllFavorites: () {
                 unawaited(_playAllFavorites());
               },
+              onThemeModeChanged:
+                  widget.onThemeModeChanged ?? (ThemeMode mode) {},
 
               onSelectPlaylist: (FreeMusicPlaylist playlist) {
                 unawaited(_playRecommendedPlaylist(playlist));
@@ -1433,6 +1521,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
                 unawaited(_cyclePlaybackMode());
               },
               onLyrics: _showLyricsSheet,
+              onSeek: (Duration position) {
+                unawaited(_seekPlayback(position));
+              },
               onPrevious: _skipToPreviousTrack,
               onNext: _skipToNextTrack,
               onOpenCarLife: _openCarLife,
@@ -1528,6 +1619,8 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.favoriteSongKeys,
     required this.favoritesBusy,
     required this.currentSong,
+    required this.coverSeedColor,
+    required this.themeMode,
     required this.searchController,
     required this.searchResults,
     required this.searchBusy,
@@ -1566,10 +1659,12 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onPlayFavorite,
     required this.onPlayAllFavorites,
+    required this.onThemeModeChanged,
     required this.onSelectPlaylist,
     required this.onPlayPause,
     required this.onPlaybackMode,
     required this.onLyrics,
+    required this.onSeek,
     required this.onPrevious,
     required this.onNext,
     required this.onOpenCarLife,
@@ -1585,6 +1680,8 @@ class _NativeMusicScaffold extends StatelessWidget {
   final Set<String> favoriteSongKeys;
   final bool favoritesBusy;
   final FreeMusicSong? currentSong;
+  final Color coverSeedColor;
+  final ThemeMode themeMode;
   final TextEditingController searchController;
   final List<FreeMusicSong> searchResults;
   final bool searchBusy;
@@ -1623,10 +1720,12 @@ class _NativeMusicScaffold extends StatelessWidget {
   final ValueChanged<FreeMusicSong> onToggleFavorite;
   final ValueChanged<int> onPlayFavorite;
   final VoidCallback onPlayAllFavorites;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
   final VoidCallback onLyrics;
+  final ValueChanged<Duration> onSeek;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onOpenCarLife;
@@ -1636,171 +1735,2203 @@ class _NativeMusicScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    void runSearchFromCurrentSurface() {
+    return _PortraitMusicScaffold(
+      selectedTab: selectedTab,
+      selectedQueueIndex: selectedQueueIndex,
+      queueSongs: queueSongs,
+      favoriteSongs: favoriteSongs,
+      favoriteSongKeys: favoriteSongKeys,
+      favoritesBusy: favoritesBusy,
+      currentSong: currentSong,
+      coverSeedColor: coverSeedColor,
+      themeMode: themeMode,
+      searchController: searchController,
+      searchResults: searchResults,
+      searchBusy: searchBusy,
+      searchMoreBusy: searchMoreBusy,
+      searchCanLoadMore: searchCanLoadMore,
+      searchError: searchError,
+      searchLoadMoreError: searchLoadMoreError,
+      lastSearchQuery: lastSearchQuery,
+      musicSources: musicSources,
+      sourceBusy: sourceBusy,
+      sourceError: sourceError,
+      hotSearchKeywords: hotSearchKeywords,
+      recommendedPlaylists: recommendedPlaylists,
+      recommendationsBusy: recommendationsBusy,
+      recommendationError: recommendationError,
+      playlistSongsBusy: playlistSongsBusy,
+      playbackState: playbackState,
+      playbackMode: playbackMode,
+      lyrics: lyrics,
+      lyricsAvailable: lyricsAvailable,
+      lyricsBusy: lyricsBusy,
+      lyricsError: lyricsError,
+      qualities: qualities,
+      qualitiesBusy: qualitiesBusy,
+      qualityError: qualityError,
+      currentTrack: currentTrack,
+      carLifeStatus: carLifeStatus,
+      updateBusy: updateBusy,
+      carLifeBusy: carLifeBusy,
+      onSelectTab: onSelectTab,
+      onSelectQueueIndex: onSelectQueueIndex,
+      onSearch: onSearch,
+      onLoadMoreSearchResults: onLoadMoreSearchResults,
+      onPlaySearchResult: onPlaySearchResult,
+      onAddToQueue: onAddToQueue,
+      onToggleFavorite: onToggleFavorite,
+      onPlayFavorite: onPlayFavorite,
+      onPlayAllFavorites: onPlayAllFavorites,
+      onThemeModeChanged: onThemeModeChanged,
+      onSelectPlaylist: onSelectPlaylist,
+      onPlayPause: onPlayPause,
+      onPlaybackMode: onPlaybackMode,
+      onLyrics: onLyrics,
+      onSeek: onSeek,
+      onPrevious: onPrevious,
+      onNext: onNext,
+      onOpenCarLife: onOpenCarLife,
+      onSyncCarLife: onSyncCarLife,
+      onRefreshCarLife: onRefreshCarLife,
+      onCheckUpdate: onCheckUpdate,
+    );
+  }
+}
+
+class _PortraitMusicScaffold extends StatelessWidget {
+  const _PortraitMusicScaffold({
+    required this.selectedTab,
+    required this.selectedQueueIndex,
+    required this.queueSongs,
+    required this.favoriteSongs,
+    required this.favoriteSongKeys,
+    required this.favoritesBusy,
+    required this.currentSong,
+    required this.coverSeedColor,
+    required this.themeMode,
+    required this.searchController,
+    required this.searchResults,
+    required this.searchBusy,
+    required this.searchMoreBusy,
+    required this.searchCanLoadMore,
+    required this.searchError,
+    required this.searchLoadMoreError,
+    required this.lastSearchQuery,
+    required this.musicSources,
+    required this.sourceBusy,
+    required this.sourceError,
+    required this.hotSearchKeywords,
+    required this.recommendedPlaylists,
+    required this.recommendationsBusy,
+    required this.recommendationError,
+    required this.playlistSongsBusy,
+    required this.playbackState,
+    required this.playbackMode,
+    required this.lyrics,
+    required this.lyricsAvailable,
+    required this.lyricsBusy,
+    required this.lyricsError,
+    required this.qualities,
+    required this.qualitiesBusy,
+    required this.qualityError,
+    required this.currentTrack,
+    required this.carLifeStatus,
+    required this.updateBusy,
+    required this.carLifeBusy,
+    required this.onSelectTab,
+    required this.onSelectQueueIndex,
+    required this.onSearch,
+    required this.onLoadMoreSearchResults,
+    required this.onPlaySearchResult,
+    required this.onAddToQueue,
+    required this.onToggleFavorite,
+    required this.onPlayFavorite,
+    required this.onPlayAllFavorites,
+    required this.onThemeModeChanged,
+    required this.onSelectPlaylist,
+    required this.onPlayPause,
+    required this.onPlaybackMode,
+    required this.onLyrics,
+    required this.onSeek,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onOpenCarLife,
+    required this.onSyncCarLife,
+    required this.onRefreshCarLife,
+    required this.onCheckUpdate,
+  });
+
+  final int selectedTab;
+  final int selectedQueueIndex;
+  final List<FreeMusicSong> queueSongs;
+  final List<FreeMusicSong> favoriteSongs;
+  final Set<String> favoriteSongKeys;
+  final bool favoritesBusy;
+  final FreeMusicSong? currentSong;
+  final Color coverSeedColor;
+  final ThemeMode themeMode;
+  final TextEditingController searchController;
+  final List<FreeMusicSong> searchResults;
+  final bool searchBusy;
+  final bool searchMoreBusy;
+  final bool searchCanLoadMore;
+  final String searchError;
+  final String searchLoadMoreError;
+  final String lastSearchQuery;
+  final FreeMusicSources? musicSources;
+  final bool sourceBusy;
+  final String sourceError;
+  final List<String> hotSearchKeywords;
+  final List<FreeMusicPlaylist> recommendedPlaylists;
+  final bool recommendationsBusy;
+  final String recommendationError;
+  final bool playlistSongsBusy;
+  final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
+  final FreeMusicLyrics? lyrics;
+  final bool lyricsAvailable;
+  final bool lyricsBusy;
+  final String lyricsError;
+  final List<FreeMusicQuality> qualities;
+  final bool qualitiesBusy;
+  final String qualityError;
+  final _DemoTrack currentTrack;
+  final CarLifeStatus carLifeStatus;
+  final bool updateBusy;
+  final bool carLifeBusy;
+  final ValueChanged<int> onSelectTab;
+  final ValueChanged<int> onSelectQueueIndex;
+  final VoidCallback onSearch;
+  final VoidCallback onLoadMoreSearchResults;
+  final ValueChanged<int> onPlaySearchResult;
+  final ValueChanged<int> onAddToQueue;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
+  final ValueChanged<int> onPlayFavorite;
+  final VoidCallback onPlayAllFavorites;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
+  final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
+  final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
+  final VoidCallback onLyrics;
+  final ValueChanged<Duration> onSeek;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onOpenCarLife;
+  final VoidCallback onSyncCarLife;
+  final VoidCallback onRefreshCarLife;
+  final VoidCallback onCheckUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData baseTheme = Theme.of(context);
+    final ColorScheme dynamicScheme = ColorScheme.fromSeed(
+      seedColor: coverSeedColor,
+      brightness: baseTheme.brightness,
+    );
+    final ThemeData theme = baseTheme.copyWith(colorScheme: dynamicScheme);
+
+    void runSearchFromHome() {
       if (selectedTab != 1) {
         onSelectTab(1);
       }
       onSearch();
     }
 
-    return Stack(
-      fit: StackFit.expand,
-      children: <Widget>[
-        _AtmosphereBackground(track: currentTrack),
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final bool showNowPlayingPanel =
-                constraints.maxWidth >= 980 &&
-                selectedTab != 3 &&
-                selectedTab != 4;
-            final Widget centerPanel = switch (selectedTab) {
-              2 => _FavoritesPanel(
-                songs: favoriteSongs,
-                busy: favoritesBusy,
-                favoriteSongKeys: favoriteSongKeys,
-                onPlay: onPlayFavorite,
-                onPlayAll: onPlayAllFavorites,
-                onToggleFavorite: onToggleFavorite,
-              ),
-              3 => _QueuePanel(
-                selectedIndex: selectedQueueIndex,
-                songs: queueSongs,
-                onSelect: onSelectQueueIndex,
-              ),
-              4 => _NowPlayingFullScreenPanel(
-                track: currentTrack,
-                currentSong: currentSong,
-                currentSongIsFavorite:
-                    currentSong != null &&
-                    favoriteSongKeys.contains(favoriteSongKey(currentSong!)),
-                playbackState: playbackState,
-                playbackMode: playbackMode,
-                lyrics: lyrics,
-                lyricsAvailable: lyricsAvailable,
-                lyricsBusy: lyricsBusy,
-                lyricsError: lyricsError,
-                qualities: qualities,
-                qualitiesBusy: qualitiesBusy,
-                qualityError: qualityError,
-                onPlayPause: onPlayPause,
-                onPlaybackMode: onPlaybackMode,
-                onLyrics: onLyrics,
-                onToggleFavorite: currentSong == null
-                    ? null
-                    : () => onToggleFavorite(currentSong!),
-                onPrevious: onPrevious,
-                onNext: onNext,
-              ),
-              5 => _SettingsPanel(
-                carLifeStatus: carLifeStatus,
-                carLifeBusy: carLifeBusy,
-                updateBusy: updateBusy,
-                onOpenCarLife: onOpenCarLife,
-                onSyncCarLife: onSyncCarLife,
-                onRefreshCarLife: onRefreshCarLife,
-                onCheckUpdate: onCheckUpdate,
-              ),
-              _ => _HomePanel(
-                selectedTab: selectedTab,
-                searchController: searchController,
-                searchResults: searchResults,
-                searchBusy: searchBusy,
-                searchMoreBusy: searchMoreBusy,
-                searchCanLoadMore: searchCanLoadMore,
-                searchError: searchError,
-                searchLoadMoreError: searchLoadMoreError,
-                lastSearchQuery: lastSearchQuery,
-                musicSources: musicSources,
-                sourceBusy: sourceBusy,
-                sourceError: sourceError,
-                hotSearchKeywords: hotSearchKeywords,
-                recommendedPlaylists: recommendedPlaylists,
-                recommendationsBusy: recommendationsBusy,
-                recommendationError: recommendationError,
-                playlistSongsBusy: playlistSongsBusy,
-                favoriteSongKeys: favoriteSongKeys,
-                carLifeStatus: carLifeStatus,
-                carLifeBusy: carLifeBusy,
-                onSearch: runSearchFromCurrentSurface,
-                onLoadMoreSearchResults: onLoadMoreSearchResults,
-                onPlaySearchResult: onPlaySearchResult,
-                onAddToQueue: onAddToQueue,
-                onToggleFavorite: onToggleFavorite,
-                onSelectPlaylist: onSelectPlaylist,
+    final Widget page = switch (selectedTab) {
+      1 => _PortraitSearchView(
+        controller: searchController,
+        songs: searchResults,
+        busy: searchBusy,
+        loadMoreBusy: searchMoreBusy,
+        canLoadMore: searchCanLoadMore,
+        error: searchError,
+        loadMoreError: searchLoadMoreError,
+        query: lastSearchQuery,
+        hotSearchKeywords: hotSearchKeywords,
+        favoriteSongKeys: favoriteSongKeys,
+        onSearch: onSearch,
+        onHotKeyword: (String keyword) {
+          searchController.text = keyword;
+          onSearch();
+        },
+        onLoadMore: onLoadMoreSearchResults,
+        onPlay: onPlaySearchResult,
+        onAddToQueue: onAddToQueue,
+        onToggleFavorite: onToggleFavorite,
+      ),
+      2 => _PortraitLibraryView(
+        favoriteSongs: favoriteSongs,
+        favoriteSongKeys: favoriteSongKeys,
+        favoritesBusy: favoritesBusy,
+        queueSongs: queueSongs,
+        selectedQueueIndex: selectedQueueIndex,
+        onPlayFavorite: onPlayFavorite,
+        onPlayAllFavorites: onPlayAllFavorites,
+        onToggleFavorite: onToggleFavorite,
+        onSelectQueueIndex: onSelectQueueIndex,
+      ),
+      4 => _PortraitPlayerView(
+        currentSong: currentSong,
+        fallbackTrack: currentTrack,
+        playbackState: playbackState,
+        playbackMode: playbackMode,
+        coverSeedColor: coverSeedColor,
+        lyrics: lyrics,
+        lyricsBusy: lyricsBusy,
+        lyricsError: lyricsError,
+        qualities: qualities,
+        qualitiesBusy: qualitiesBusy,
+        qualityError: qualityError,
+        favorite:
+            currentSong != null &&
+            favoriteSongKeys.contains(favoriteSongKey(currentSong!)),
+        onClose: () => onSelectTab(0),
+        onToggleFavorite: currentSong == null
+            ? null
+            : () => onToggleFavorite(currentSong!),
+        onPlayPause: onPlayPause,
+        onPlaybackMode: onPlaybackMode,
+        onLyrics: onLyrics,
+        onSeek: onSeek,
+        onPrevious: onPrevious,
+        onNext: onNext,
+      ),
+      5 => _PortraitSettingsView(
+        themeMode: themeMode,
+        carLifeStatus: carLifeStatus,
+        carLifeBusy: carLifeBusy,
+        updateBusy: updateBusy,
+        onThemeModeChanged: onThemeModeChanged,
+        onOpenCarLife: onOpenCarLife,
+        onSyncCarLife: onSyncCarLife,
+        onRefreshCarLife: onRefreshCarLife,
+        onCheckUpdate: onCheckUpdate,
+      ),
+      _ => _PortraitHomeView(
+        controller: searchController,
+        recommendedPlaylists: recommendedPlaylists,
+        recommendationsBusy: recommendationsBusy,
+        recommendationError: recommendationError,
+        playlistSongsBusy: playlistSongsBusy,
+        queueSongs: queueSongs,
+        searchResults: searchResults,
+        favoriteSongs: favoriteSongs,
+        hotSearchKeywords: hotSearchKeywords,
+        musicSources: musicSources,
+        sourceBusy: sourceBusy,
+        sourceError: sourceError,
+        carLifeStatus: carLifeStatus,
+        onSearch: runSearchFromHome,
+        onHotKeyword: (String keyword) {
+          searchController.text = keyword;
+          runSearchFromHome();
+        },
+        onSelectPlaylist: onSelectPlaylist,
+        onOpenFavorites: () => onSelectTab(2),
+        onOpenDownloads: () => onSelectTab(5),
+        onOpenSettings: () => onSelectTab(5),
+      ),
+    };
 
-                onOpenCarLife: onOpenCarLife,
-                onSyncCarLife: onSyncCarLife,
-                onRefreshCarLife: onRefreshCarLife,
-              ),
-            };
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
+    return Theme(
+      data: theme,
+      child: _PortraitDynamicBackground(
+        seedColor: coverSeedColor,
+        child: Scaffold(
+          extendBody: true,
+          backgroundColor: Colors.transparent,
+          body: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: KeyedSubtree(key: ValueKey<int>(selectedTab), child: page),
+          ),
+          bottomNavigationBar: selectedTab == 4
+              ? null
+              : _PortraitBottomChrome(
+                  selectedTab: selectedTab,
+                  currentSong: currentSong,
+                  fallbackTrack: currentTrack,
+                  playbackState: playbackState,
+                  playbackMode: playbackMode,
+                  coverSeedColor: coverSeedColor,
+                  lyricsAvailable: lyricsAvailable,
+                  lyricsBusy: lyricsBusy,
+                  onSelectTab: onSelectTab,
+                  onPlayPause: onPlayPause,
+                  onPlaybackMode: onPlaybackMode,
+                  onLyrics: onLyrics,
+                  onPrevious: onPrevious,
+                  onNext: onNext,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PortraitDynamicBackground extends StatelessWidget {
+  const _PortraitDynamicBackground({
+    required this.seedColor,
+    required this.child,
+  });
+
+  final Color seedColor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            seedColor.withValues(alpha: 0.32),
+            colors.surface,
+            colors.surface,
+          ],
+          stops: const <double>[0, 0.38, 1],
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _PortraitHomeView extends StatelessWidget {
+  const _PortraitHomeView({
+    required this.controller,
+    required this.recommendedPlaylists,
+    required this.recommendationsBusy,
+    required this.recommendationError,
+    required this.playlistSongsBusy,
+    required this.queueSongs,
+    required this.searchResults,
+    required this.favoriteSongs,
+    required this.hotSearchKeywords,
+    required this.musicSources,
+    required this.sourceBusy,
+    required this.sourceError,
+    required this.carLifeStatus,
+    required this.onSearch,
+    required this.onHotKeyword,
+    required this.onSelectPlaylist,
+    required this.onOpenFavorites,
+    required this.onOpenDownloads,
+    required this.onOpenSettings,
+  });
+
+  final TextEditingController controller;
+  final List<FreeMusicPlaylist> recommendedPlaylists;
+  final bool recommendationsBusy;
+  final String recommendationError;
+  final bool playlistSongsBusy;
+  final List<FreeMusicSong> queueSongs;
+  final List<FreeMusicSong> searchResults;
+  final List<FreeMusicSong> favoriteSongs;
+  final List<String> hotSearchKeywords;
+  final FreeMusicSources? musicSources;
+  final bool sourceBusy;
+  final String sourceError;
+  final CarLifeStatus carLifeStatus;
+  final VoidCallback onSearch;
+  final ValueChanged<String> onHotKeyword;
+  final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
+  final VoidCallback onOpenFavorites;
+  final VoidCallback onOpenDownloads;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final List<FreeMusicSong> timelineSongs = queueSongs.isNotEmpty
+        ? queueSongs.take(5).toList(growable: false)
+        : searchResults.take(5).toList(growable: false);
+    final List<String> sourceLabels =
+        musicSources?.activeSources
+            .map((String source) => musicSources?.labelFor(source) ?? source)
+            .take(3)
+            .toList(growable: false) ??
+        const <String>[];
+
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: <Widget>[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              AppSpace.lg,
+              AppSpace.xl,
+              140,
+            ),
+            sliver: SliverList.list(
+              children: <Widget>[
+                Row(
                   children: <Widget>[
                     Expanded(
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          _SideNavigationRail(
-                            compact: constraints.maxHeight < 620,
-                            selectedIndex: selectedTab,
-                            updateBusy: updateBusy,
-                            onSelect: onSelectTab,
-                            onCheckUpdate: onCheckUpdate,
-                          ),
-                          const SizedBox(width: 18),
-                          Expanded(
-                            flex: showNowPlayingPanel ? 7 : 10,
-                            child: centerPanel,
-                          ),
-                          if (showNowPlayingPanel) ...<Widget>[
-                            const SizedBox(width: 18),
-                            Expanded(
-                              flex: 5,
-                              child: _NowPlayingPanel(
-                                track: currentTrack,
-                                currentSong: currentSong,
-                                currentSongIsFavorite:
-                                    currentSong != null &&
-                                    favoriteSongKeys.contains(
-                                      favoriteSongKey(currentSong!),
-                                    ),
-                                playbackState: playbackState,
-                                playbackMode: playbackMode,
-                                onPlayPause: onPlayPause,
-                                onPlaybackMode: onPlaybackMode,
-                                onToggleFavorite: currentSong == null
-                                    ? null
-                                    : () => onToggleFavorite(currentSong!),
-                                onPrevious: onPrevious,
-                                onNext: onNext,
-                              ),
+                          Text(
+                            'Music Car',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.8,
                             ),
-                          ],
+                          ),
+                          const SizedBox(height: AppSpace.xs),
+                          Text(
+                            'Portrait streaming deck',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    _MiniPlayerBar(
-                      track: currentTrack,
-                      playbackState: playbackState,
-                      playbackMode: playbackMode,
-                      lyricsAvailable: lyricsAvailable,
-                      lyricsBusy: lyricsBusy,
-                      onPlayPause: onPlayPause,
-                      onPlaybackMode: onPlaybackMode,
-                      onLyrics: onLyrics,
-                      onPrevious: onPrevious,
-                      onNext: onNext,
+                    _PortraitCircleButton(
+                      icon: Icons.settings_rounded,
+                      label: '设置',
+                      onTap: onOpenSettings,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.xl2),
+                _PortraitSearchHero(controller: controller, onSearch: onSearch),
+                const SizedBox(height: AppSpace.xl),
+                Wrap(
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.sm,
+                  children: <Widget>[
+                    if (sourceBusy)
+                      const _PortraitChip(label: '来源加载中')
+                    else if (sourceError.isNotEmpty)
+                      const _PortraitChip(label: '来源可重试')
+                    else
+                      for (final String label in sourceLabels)
+                        _PortraitChip(label: label),
+                    for (final String keyword in hotSearchKeywords.take(4))
+                      _PortraitChip(
+                        label: keyword,
+                        onTap: () => onHotKeyword(keyword),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.xl2),
+                _PortraitMetricGrid(
+                  favoriteCount: favoriteSongs.length,
+                  queueCount: queueSongs.length,
+                  carLifeReady: carLifeStatus.launchable,
+                  onOpenFavorites: onOpenFavorites,
+                  onOpenDownloads: onOpenDownloads,
+                ),
+                const SizedBox(height: AppSpace.xl2),
+                _PortraitSectionHeader(
+                  title: '推荐歌单',
+                  label: recommendationsBusy || playlistSongsBusy
+                      ? '同步中'
+                      : '${recommendedPlaylists.length} 个',
+                ),
+                const SizedBox(height: AppSpace.md),
+                if (recommendationError.isNotEmpty &&
+                    recommendedPlaylists.isEmpty)
+                  _PortraitMessageCard(
+                    icon: Icons.cloud_off_rounded,
+                    title: '推荐加载失败',
+                    message: recommendationError,
+                  )
+                else
+                  _PortraitPlaylistGrid(
+                    playlists: recommendedPlaylists,
+                    busy: playlistSongsBusy,
+                    onSelect: onSelectPlaylist,
+                  ),
+                const SizedBox(height: AppSpace.xl2),
+                _PortraitSectionHeader(
+                  title: '播放时间线',
+                  label: timelineSongs.isEmpty
+                      ? '待生成'
+                      : '${timelineSongs.length} 首',
+                ),
+                const SizedBox(height: AppSpace.md),
+                if (timelineSongs.isEmpty)
+                  const _PortraitMessageCard(
+                    icon: Icons.timeline_rounded,
+                    title: '暂无播放时间线',
+                    message: '搜索并播放歌曲后，这里会显示最近队列。',
+                  )
+                else
+                  for (int index = 0; index < timelineSongs.length; index += 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                      child: _PortraitTimelineTile(
+                        song: timelineSongs[index],
+                        index: index,
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitSearchHero extends StatelessWidget {
+  const _PortraitSearchHero({required this.controller, required this.onSearch});
+
+  final TextEditingController controller;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      color: colors.surfaceContainerHighest.withValues(alpha: 0.78),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.panel),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.md),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: TextField(
+                controller: controller,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => onSearch(),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  prefixIcon: Icon(Icons.search_rounded),
+                  hintText: '搜索歌曲、歌手或专辑',
+                ),
+              ),
+            ),
+            FilledButton(onPressed: onSearch, child: const Text('搜索')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PortraitMetricGrid extends StatelessWidget {
+  const _PortraitMetricGrid({
+    required this.favoriteCount,
+    required this.queueCount,
+    required this.carLifeReady,
+    required this.onOpenFavorites,
+    required this.onOpenDownloads,
+  });
+
+  final int favoriteCount;
+  final int queueCount;
+  final bool carLifeReady;
+  final VoidCallback onOpenFavorites;
+  final VoidCallback onOpenDownloads;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: AppSpace.md,
+      mainAxisSpacing: AppSpace.md,
+      childAspectRatio: 1.42,
+      children: <Widget>[
+        _PortraitMetricCard(
+          icon: Icons.favorite_rounded,
+          title: '收藏',
+          value: '$favoriteCount 首',
+          onTap: onOpenFavorites,
+        ),
+        _PortraitMetricCard(
+          icon: Icons.offline_pin_rounded,
+          title: '离线',
+          value: '缓存管理',
+          onTap: onOpenDownloads,
+        ),
+        _PortraitMetricCard(
+          icon: Icons.queue_music_rounded,
+          title: '队列',
+          value: '$queueCount 首',
+          onTap: onOpenFavorites,
+        ),
+        _PortraitMetricCard(
+          icon: Icons.directions_car_filled_rounded,
+          title: 'CarLife',
+          value: carLifeReady ? '可启动' : '待连接',
+          onTap: onOpenDownloads,
+        ),
+      ],
+    );
+  }
+}
+
+class _PortraitMetricCard extends StatelessWidget {
+  const _PortraitMetricCard({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: onTap,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        padding: const EdgeInsets.all(AppSpace.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Icon(icon, color: colors.primary),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: theme.textTheme.titleMedium),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  value,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PortraitPlaylistGrid extends StatelessWidget {
+  const _PortraitPlaylistGrid({
+    required this.playlists,
+    required this.busy,
+    required this.onSelect,
+  });
+
+  final List<FreeMusicPlaylist> playlists;
+  final bool busy;
+  final ValueChanged<FreeMusicPlaylist> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<FreeMusicPlaylist> visible = playlists.take(6).toList();
+    if (visible.isEmpty) {
+      return const _PortraitFallbackGrid();
+    }
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: visible.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpace.md,
+        mainAxisSpacing: AppSpace.md,
+        childAspectRatio: 0.82,
+      ),
+      itemBuilder: (BuildContext context, int index) {
+        return _PortraitPlaylistCard(
+          playlist: visible[index],
+          visual: _demoQueue[index % _demoQueue.length],
+          onTap: busy ? null : () => onSelect(visible[index]),
+        );
+      },
+    );
+  }
+}
+
+class _PortraitPlaylistCard extends StatelessWidget {
+  const _PortraitPlaylistCard({
+    required this.playlist,
+    required this.visual,
+    required this.onTap,
+  });
+
+  final FreeMusicPlaylist playlist;
+  final _DemoTrack visual;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              child: _PortraitArtwork(
+                visual: visual,
+                imageUrl: playlist.cover,
+                icon: Icons.queue_music_rounded,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            playlist.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            playlist.creator.isEmpty ? playlist.source : playlist.creator,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitFallbackGrid extends StatelessWidget {
+  const _PortraitFallbackGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 4,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpace.md,
+        mainAxisSpacing: AppSpace.md,
+        childAspectRatio: 0.82,
+      ),
+      itemBuilder: (BuildContext context, int index) {
+        final _DemoTrack track = _demoQueue[index % _demoQueue.length];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: _PortraitArtwork(
+                visual: track,
+                imageUrl: '',
+                icon: Icons.album_rounded,
+              ),
+            ),
+            const SizedBox(height: AppSpace.sm),
+            Text(track.title, style: Theme.of(context).textTheme.titleSmall),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PortraitTimelineTile extends StatelessWidget {
+  const _PortraitTimelineTile({required this.song, required this.index});
+
+  final FreeMusicSong song;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Row(
+      children: <Widget>[
+        SizedBox(
+          width: AppSpace.xl3,
+          child: Column(
+            children: <Widget>[
+              Container(
+                width: AppSpace.sm,
+                height: AppSpace.sm,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              Container(
+                width: 2,
+                height: AppSpace.xl3,
+                color: colors.outlineVariant,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _PortraitSurface(
+            child: Row(
+              children: <Widget>[
+                _PortraitArtwork(
+                  visual: _demoQueue[index % _demoQueue.length],
+                  imageUrl: song.cover,
+                  size: 52,
+                  icon: Icons.music_note_rounded,
+                ),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        song.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        song.artist.isEmpty ? song.source : song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  _formatDuration(Duration(seconds: song.duration)),
+                  style: theme.textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PortraitSearchView extends StatelessWidget {
+  const _PortraitSearchView({
+    required this.controller,
+    required this.songs,
+    required this.busy,
+    required this.loadMoreBusy,
+    required this.canLoadMore,
+    required this.error,
+    required this.loadMoreError,
+    required this.query,
+    required this.hotSearchKeywords,
+    required this.favoriteSongKeys,
+    required this.onSearch,
+    required this.onHotKeyword,
+    required this.onLoadMore,
+    required this.onPlay,
+    required this.onAddToQueue,
+    required this.onToggleFavorite,
+  });
+
+  final TextEditingController controller;
+  final List<FreeMusicSong> songs;
+  final bool busy;
+  final bool loadMoreBusy;
+  final bool canLoadMore;
+  final String error;
+  final String loadMoreError;
+  final String query;
+  final List<String> hotSearchKeywords;
+  final Set<String> favoriteSongKeys;
+  final VoidCallback onSearch;
+  final ValueChanged<String> onHotKeyword;
+  final VoidCallback onLoadMore;
+  final ValueChanged<int> onPlay;
+  final ValueChanged<int> onAddToQueue;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: <Widget>[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              AppSpace.lg,
+              AppSpace.xl,
+              140,
+            ),
+            sliver: SliverList.list(
+              children: <Widget>[
+                Text(
+                  '搜索',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                _PortraitSearchHero(controller: controller, onSearch: onSearch),
+                const SizedBox(height: AppSpace.md),
+                Wrap(
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.sm,
+                  children: <Widget>[
+                    for (final String keyword in hotSearchKeywords.take(8))
+                      _PortraitChip(
+                        label: keyword,
+                        onTap: () => onHotKeyword(keyword),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.xl),
+                if (busy && songs.isEmpty)
+                  const Center(child: CircularProgressIndicator())
+                else if (error.isNotEmpty)
+                  _PortraitMessageCard(
+                    icon: Icons.cloud_off_rounded,
+                    title: '搜索失败',
+                    message: error,
+                  )
+                else if (query.isEmpty)
+                  const _PortraitMessageCard(
+                    icon: Icons.travel_explore_rounded,
+                    title: '探索在线曲库',
+                    message: '输入歌名、歌手或专辑，结果会沿用现有 FreeMusic API。',
+                  )
+                else if (songs.isEmpty)
+                  const _PortraitMessageCard(
+                    icon: Icons.music_off_rounded,
+                    title: '没有结果',
+                    message: '换一个关键词再试。',
+                  )
+                else
+                  for (int index = 0; index < songs.length; index += 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                      child: _PortraitSongTile(
+                        song: songs[index],
+                        visual: _demoQueue[index % _demoQueue.length],
+                        favorite: favoriteSongKeys.contains(
+                          favoriteSongKey(songs[index]),
+                        ),
+                        onPlay: () => onPlay(index),
+                        onAddToQueue: () => onAddToQueue(index),
+                        onToggleFavorite: () => onToggleFavorite(songs[index]),
+                      ),
+                    ),
+                if (query.isNotEmpty)
+                  Center(
+                    child: TextButton.icon(
+                      onPressed:
+                          (canLoadMore || loadMoreError.isNotEmpty) &&
+                              !busy &&
+                              !loadMoreBusy
+                          ? onLoadMore
+                          : null,
+                      icon: loadMoreBusy
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.expand_more_rounded),
+                      label: Text(
+                        loadMoreBusy
+                            ? '加载中'
+                            : loadMoreError.isNotEmpty
+                            ? '重试加载'
+                            : canLoadMore
+                            ? '加载更多'
+                            : '已加载全部',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitLibraryView extends StatelessWidget {
+  const _PortraitLibraryView({
+    required this.favoriteSongs,
+    required this.favoriteSongKeys,
+    required this.favoritesBusy,
+    required this.queueSongs,
+    required this.selectedQueueIndex,
+    required this.onPlayFavorite,
+    required this.onPlayAllFavorites,
+    required this.onToggleFavorite,
+    required this.onSelectQueueIndex,
+  });
+
+  final List<FreeMusicSong> favoriteSongs;
+  final Set<String> favoriteSongKeys;
+  final bool favoritesBusy;
+  final List<FreeMusicSong> queueSongs;
+  final int selectedQueueIndex;
+  final ValueChanged<int> onPlayFavorite;
+  final VoidCallback onPlayAllFavorites;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
+  final ValueChanged<int> onSelectQueueIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: <Widget>[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              AppSpace.lg,
+              AppSpace.xl,
+              140,
+            ),
+            sliver: SliverList.list(
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        '音乐库',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: favoriteSongs.isEmpty
+                          ? null
+                          : onPlayAllFavorites,
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('播放收藏'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.xl),
+                _PortraitSectionHeader(
+                  title: '收藏',
+                  label: favoritesBusy ? '加载中' : '${favoriteSongs.length} 首',
+                ),
+                const SizedBox(height: AppSpace.md),
+                if (favoriteSongs.isEmpty)
+                  const _PortraitMessageCard(
+                    icon: Icons.favorite_border_rounded,
+                    title: '还没有收藏',
+                    message: '在搜索、歌单或播放器点红心即可收藏。',
+                  )
+                else
+                  for (int index = 0; index < favoriteSongs.length; index += 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                      child: _PortraitSongTile(
+                        song: favoriteSongs[index],
+                        visual: _demoQueue[index % _demoQueue.length],
+                        favorite: favoriteSongKeys.contains(
+                          favoriteSongKey(favoriteSongs[index]),
+                        ),
+                        onPlay: () => onPlayFavorite(index),
+                        onAddToQueue: null,
+                        onToggleFavorite: () =>
+                            onToggleFavorite(favoriteSongs[index]),
+                      ),
+                    ),
+                const SizedBox(height: AppSpace.xl2),
+                _PortraitSectionHeader(
+                  title: '当前队列',
+                  label: queueSongs.isEmpty ? '空' : '${queueSongs.length} 首',
+                ),
+                const SizedBox(height: AppSpace.md),
+                if (queueSongs.isEmpty)
+                  const _PortraitMessageCard(
+                    icon: Icons.queue_music_rounded,
+                    title: '队列为空',
+                    message: '播放搜索结果或歌单后，这里会显示队列。',
+                  )
+                else
+                  for (int index = 0; index < queueSongs.length; index += 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                      child: _PortraitQueueTile(
+                        song: queueSongs[index],
+                        visual: _demoQueue[index % _demoQueue.length],
+                        selected: selectedQueueIndex == index,
+                        onTap: () => onSelectQueueIndex(index),
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitPlayerView extends StatelessWidget {
+  const _PortraitPlayerView({
+    required this.currentSong,
+    required this.fallbackTrack,
+    required this.playbackState,
+    required this.playbackMode,
+    required this.coverSeedColor,
+    required this.lyrics,
+    required this.lyricsBusy,
+    required this.lyricsError,
+    required this.qualities,
+    required this.qualitiesBusy,
+    required this.qualityError,
+    required this.favorite,
+    required this.onClose,
+    required this.onToggleFavorite,
+    required this.onPlayPause,
+    required this.onPlaybackMode,
+    required this.onLyrics,
+    required this.onSeek,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final FreeMusicSong? currentSong;
+  final _DemoTrack fallbackTrack;
+  final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
+  final Color coverSeedColor;
+  final FreeMusicLyrics? lyrics;
+  final bool lyricsBusy;
+  final String lyricsError;
+  final List<FreeMusicQuality> qualities;
+  final bool qualitiesBusy;
+  final String qualityError;
+  final bool favorite;
+  final VoidCallback onClose;
+  final VoidCallback? onToggleFavorite;
+  final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
+  final VoidCallback onLyrics;
+  final ValueChanged<Duration> onSeek;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final String title = playbackState.title.isEmpty
+        ? currentSong?.name ?? fallbackTrack.title
+        : playbackState.title;
+    final String artist = playbackState.artist.isEmpty
+        ? currentSong?.artist ?? fallbackTrack.artist
+        : playbackState.artist;
+    final Duration duration = playbackState.duration ?? fallbackTrack.duration;
+    final double progress = duration == Duration.zero
+        ? 0
+        : playbackState.position.inMilliseconds / duration.inMilliseconds;
+    final List<FreeMusicLyricLine> lyricLines =
+        lyrics?.lines ?? const <FreeMusicLyricLine>[];
+    final int activeLine = activeLyricLineIndex(
+      lyricLines,
+      playbackState.position,
+    );
+    final String lyric = lyricsBusy
+        ? '歌词加载中...'
+        : lyricsError.isNotEmpty
+        ? '歌词加载失败'
+        : activeLine >= 0
+        ? lyricLines[activeLine].text
+        : '等待歌词同步';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            coverSeedColor.withValues(alpha: 0.45),
+            colors.surface,
+            colors.surface,
+          ],
+          stops: const <double>[0, 0.44, 1],
+        ),
+      ),
+      child: SafeArea(
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.xl,
+                AppSpace.md,
+                AppSpace.xl,
+                AppSpace.xl3,
+              ),
+              sliver: SliverList.list(
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      _PortraitCircleButton(
+                        icon: Icons.keyboard_arrow_down_rounded,
+                        label: '收起',
+                        onTap: onClose,
+                      ),
+                      const SizedBox(width: AppSpace.sm),
+                      Text(
+                        '正在播放',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Spacer(),
+                      _PortraitCircleButton(
+                        icon: favorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        label: favorite ? '取消收藏' : '收藏',
+                        selected: favorite,
+                        onTap: onToggleFavorite,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.xl2),
+                  Hero(
+                    tag: 'now-playing-artwork',
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.panel),
+                        child: _PortraitArtwork(
+                          visual: fallbackTrack,
+                          imageUrl: playbackState.coverUrl.isEmpty
+                              ? currentSong?.cover ?? ''
+                              : playbackState.coverUrl,
+                          icon: Icons.album_rounded,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xl2),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  Text(
+                    artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xl2),
+                  _WaveformSeekBar(
+                    value: progress.clamp(0, 1).toDouble(),
+                    color: colors.primary,
+                    trackColor: colors.surfaceContainerHighest,
+                    onChanged: duration == Duration.zero
+                        ? null
+                        : (double value) => onSeek(
+                            Duration(
+                              milliseconds: (duration.inMilliseconds * value)
+                                  .round(),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  Row(
+                    children: <Widget>[
+                      Text(_formatDuration(playbackState.position)),
+                      const Spacer(),
+                      Text(_formatDuration(duration)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.xl2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: <Widget>[
+                      _PortraitCircleButton(
+                        icon: _iconForPlaybackMode(playbackMode),
+                        label: _labelForPlaybackMode(playbackMode),
+                        onTap: onPlaybackMode,
+                      ),
+                      _PortraitCircleButton(
+                        icon: Icons.skip_previous_rounded,
+                        label: '上一曲',
+                        large: true,
+                        onTap: onPrevious,
+                      ),
+                      _PortraitPlayButton(
+                        playing: playbackState.playing,
+                        onTap: onPlayPause,
+                      ),
+                      _PortraitCircleButton(
+                        icon: Icons.skip_next_rounded,
+                        label: '下一曲',
+                        large: true,
+                        onTap: onNext,
+                      ),
+                      _PortraitCircleButton(
+                        icon: Icons.lyrics_rounded,
+                        label: '歌词',
+                        onTap: onLyrics,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.xl2),
+                  _PortraitSurface(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          lyric,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpace.md),
+                        _QualityChips(
+                          qualities: qualities,
+                          busy: qualitiesBusy,
+                          error: qualityError,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PortraitSettingsView extends StatelessWidget {
+  const _PortraitSettingsView({
+    required this.themeMode,
+    required this.carLifeStatus,
+    required this.carLifeBusy,
+    required this.updateBusy,
+    required this.onThemeModeChanged,
+    required this.onOpenCarLife,
+    required this.onSyncCarLife,
+    required this.onRefreshCarLife,
+    required this.onCheckUpdate,
+  });
+
+  final ThemeMode themeMode;
+  final CarLifeStatus carLifeStatus;
+  final bool carLifeBusy;
+  final bool updateBusy;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
+  final VoidCallback onOpenCarLife;
+  final VoidCallback onSyncCarLife;
+  final VoidCallback onRefreshCarLife;
+  final VoidCallback onCheckUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.xl,
+          AppSpace.lg,
+          AppSpace.xl,
+          140,
+        ),
+        children: <Widget>[
+          Text(
+            '设置',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: AppSpace.xl),
+          _PortraitSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('主题模式', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpace.md),
+                SegmentedButton<ThemeMode>(
+                  segments: const <ButtonSegment<ThemeMode>>[
+                    ButtonSegment<ThemeMode>(
+                      value: ThemeMode.system,
+                      label: Text('系统'),
+                      icon: Icon(Icons.brightness_auto_rounded),
+                    ),
+                    ButtonSegment<ThemeMode>(
+                      value: ThemeMode.light,
+                      label: Text('白天'),
+                      icon: Icon(Icons.light_mode_rounded),
+                    ),
+                    ButtonSegment<ThemeMode>(
+                      value: ThemeMode.dark,
+                      label: Text('黑夜'),
+                      icon: Icon(Icons.dark_mode_rounded),
+                    ),
+                  ],
+                  selected: <ThemeMode>{themeMode},
+                  onSelectionChanged: (Set<ThemeMode> modes) {
+                    onThemeModeChanged(modes.single);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _PortraitSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('离线缓存', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  '下载/缓存管理界面将在下一步接入，播放层会保持优先缓存、未命中再走在线 URL。',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpace.md),
+                FilledButton.tonalIcon(
+                  onPressed: null,
+                  icon: const Icon(Icons.download_rounded),
+                  label: const Text('缓存管理开发中'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _CarLifeCard(
+            status: carLifeStatus,
+            busy: carLifeBusy,
+            onOpen: onOpenCarLife,
+            onSync: onSyncCarLife,
+            onRefresh: onRefreshCarLife,
+          ),
+          const SizedBox(height: AppSpace.lg),
+          FilledButton.icon(
+            onPressed: updateBusy ? null : onCheckUpdate,
+            icon: const Icon(Icons.system_update_rounded),
+            label: Text(updateBusy ? '检查中' : '检查更新'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitBottomChrome extends StatelessWidget {
+  const _PortraitBottomChrome({
+    required this.selectedTab,
+    required this.currentSong,
+    required this.fallbackTrack,
+    required this.playbackState,
+    required this.playbackMode,
+    required this.coverSeedColor,
+    required this.lyricsAvailable,
+    required this.lyricsBusy,
+    required this.onSelectTab,
+    required this.onPlayPause,
+    required this.onPlaybackMode,
+    required this.onLyrics,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final int selectedTab;
+  final FreeMusicSong? currentSong;
+  final _DemoTrack fallbackTrack;
+  final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
+  final Color coverSeedColor;
+  final bool lyricsAvailable;
+  final bool lyricsBusy;
+  final ValueChanged<int> onSelectTab;
+  final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
+  final VoidCallback onLyrics;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final int navigationIndex = switch (selectedTab) {
+      1 => 1,
+      2 || 3 => 2,
+      4 => 3,
+      _ => 0,
+    };
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(
+        AppSpace.md,
+        0,
+        AppSpace.md,
+        AppSpace.md,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _PortraitMiniPlayerBar(
+            currentSong: currentSong,
+            fallbackTrack: fallbackTrack,
+            playbackState: playbackState,
+            playbackMode: playbackMode,
+            coverSeedColor: coverSeedColor,
+            lyricsAvailable: lyricsAvailable,
+            lyricsBusy: lyricsBusy,
+            onOpenPlayer: () => onSelectTab(4),
+            onPlayPause: onPlayPause,
+            onPlaybackMode: onPlaybackMode,
+            onLyrics: onLyrics,
+            onPrevious: onPrevious,
+            onNext: onNext,
+          ),
+          const SizedBox(height: AppSpace.sm),
+          NavigationBar(
+            selectedIndex: navigationIndex,
+            backgroundColor: colors.surfaceContainerHighest.withValues(
+              alpha: 0.92,
+            ),
+            elevation: 0,
+            onDestinationSelected: (int index) {
+              final int target = switch (index) {
+                1 => 1,
+                2 => 2,
+                3 => 4,
+                _ => 0,
+              };
+              onSelectTab(target);
+            },
+            destinations: const <NavigationDestination>[
+              NavigationDestination(
+                icon: Icon(Icons.home_rounded),
+                label: '首页',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                label: '搜索',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.library_music_rounded),
+                label: '音乐库',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.graphic_eq_rounded),
+                label: '播放',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitMiniPlayerBar extends StatelessWidget {
+  const _PortraitMiniPlayerBar({
+    required this.currentSong,
+    required this.fallbackTrack,
+    required this.playbackState,
+    required this.playbackMode,
+    required this.coverSeedColor,
+    required this.lyricsAvailable,
+    required this.lyricsBusy,
+    required this.onOpenPlayer,
+    required this.onPlayPause,
+    required this.onPlaybackMode,
+    required this.onLyrics,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final FreeMusicSong? currentSong;
+  final _DemoTrack fallbackTrack;
+  final PlaybackUiState playbackState;
+  final NativePlaybackMode playbackMode;
+  final Color coverSeedColor;
+  final bool lyricsAvailable;
+  final bool lyricsBusy;
+  final VoidCallback onOpenPlayer;
+  final VoidCallback onPlayPause;
+  final VoidCallback onPlaybackMode;
+  final VoidCallback onLyrics;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final String title = playbackState.title.isEmpty
+        ? currentSong?.name ?? fallbackTrack.title
+        : playbackState.title;
+    final String artist = playbackState.artist.isEmpty
+        ? currentSong?.artist ?? fallbackTrack.artist
+        : playbackState.artist;
+    return Material(
+      color: colors.surfaceContainerHighest.withValues(alpha: 0.94),
+      borderRadius: BorderRadius.circular(AppRadius.panel),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.panel),
+        onTap: onOpenPlayer,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.sm),
+          child: Row(
+            children: <Widget>[
+              Hero(
+                tag: 'now-playing-artwork',
+                child: _PortraitArtwork(
+                  visual: fallbackTrack,
+                  imageUrl: playbackState.coverUrl.isEmpty
+                      ? currentSong?.cover ?? ''
+                      : playbackState.coverUrl,
+                  size: 52,
+                  icon: Icons.album_rounded,
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
               ),
-            );
-          },
+              IconButton(
+                tooltip: _labelForPlaybackMode(playbackMode),
+                onPressed: onPlaybackMode,
+                icon: Icon(_iconForPlaybackMode(playbackMode)),
+              ),
+              IconButton(
+                tooltip: lyricsAvailable || lyricsBusy ? '歌词' : '歌词',
+                onPressed: onLyrics,
+                icon: const Icon(Icons.lyrics_rounded),
+              ),
+              IconButton.filled(
+                style: IconButton.styleFrom(backgroundColor: coverSeedColor),
+                onPressed: onPlayPause,
+                icon: Icon(
+                  playbackState.playing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _PortraitSongTile extends StatelessWidget {
+  const _PortraitSongTile({
+    required this.song,
+    required this.visual,
+    required this.favorite,
+    required this.onPlay,
+    required this.onAddToQueue,
+    required this.onToggleFavorite,
+  });
+
+  final FreeMusicSong song;
+  final _DemoTrack visual;
+  final bool favorite;
+  final VoidCallback onPlay;
+  final VoidCallback? onAddToQueue;
+  final VoidCallback onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return _PortraitSurface(
+      onTap: onPlay,
+      child: Row(
+        children: <Widget>[
+          _PortraitArtwork(
+            visual: visual,
+            imageUrl: song.cover,
+            size: 56,
+            icon: Icons.music_note_rounded,
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  song.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  <String>[
+                    song.artist,
+                    if (song.album.isNotEmpty) song.album,
+                    song.source,
+                  ].where((String value) => value.isNotEmpty).join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: favorite ? '取消收藏' : '收藏',
+            onPressed: onToggleFavorite,
+            icon: Icon(
+              favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: favorite ? colors.primary : colors.onSurfaceVariant,
+            ),
+          ),
+          if (onAddToQueue != null)
+            IconButton(
+              tooltip: '加入队列',
+              onPressed: onAddToQueue,
+              icon: const Icon(Icons.playlist_add_rounded),
+            ),
+          IconButton.filledTonal(
+            tooltip: '播放',
+            onPressed: onPlay,
+            icon: const Icon(Icons.play_arrow_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitQueueTile extends StatelessWidget {
+  const _PortraitQueueTile({
+    required this.song,
+    required this.visual,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final FreeMusicSong song;
+  final _DemoTrack visual;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return _PortraitSurface(
+      selected: selected,
+      onTap: onTap,
+      child: Row(
+        children: <Widget>[
+          _PortraitArtwork(
+            visual: visual,
+            imageUrl: song.cover,
+            size: 52,
+            icon: Icons.music_note_rounded,
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  song.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  song.artist.isEmpty ? song.source : song.artist,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (selected)
+            Icon(Icons.graphic_eq_rounded, color: colors.primary)
+          else
+            const Icon(Icons.chevron_right_rounded),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitSectionHeader extends StatelessWidget {
+  const _PortraitSectionHeader({required this.title, required this.label});
+
+  final String title;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        _PortraitChip(label: label),
       ],
     );
+  }
+}
+
+class _PortraitMessageCard extends StatelessWidget {
+  const _PortraitMessageCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return _PortraitSurface(
+      child: Column(
+        children: <Widget>[
+          Icon(icon, size: 42, color: theme.colorScheme.primary),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortraitSurface extends StatelessWidget {
+  const _PortraitSurface({
+    required this.child,
+    this.onTap,
+    this.selected = false,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final BorderRadius radius = BorderRadius.circular(AppRadius.card);
+    final Widget content = Ink(
+      decoration: BoxDecoration(
+        color: selected
+            ? colors.primaryContainer.withValues(alpha: 0.62)
+            : colors.surfaceContainerHighest.withValues(alpha: 0.72),
+        borderRadius: radius,
+        border: Border.all(
+          color: selected ? colors.primary : colors.outlineVariant,
+        ),
+      ),
+      padding: const EdgeInsets.all(AppSpace.md),
+      child: child,
+    );
+    if (onTap == null) {
+      return content;
+    }
+    return InkWell(borderRadius: radius, onTap: onTap, child: content);
+  }
+}
+
+class _PortraitChip extends StatelessWidget {
+  const _PortraitChip({required this.label, this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return ActionChip(
+      label: Text(label),
+      onPressed: onTap,
+      backgroundColor: colors.surfaceContainerHighest.withValues(alpha: 0.7),
+      side: BorderSide(color: colors.outlineVariant),
+    );
+  }
+}
+
+class _PortraitCircleButton extends StatelessWidget {
+  const _PortraitCircleButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.large = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool selected;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: label,
+      child: IconButton.filledTonal(
+        style: IconButton.styleFrom(
+          backgroundColor: selected ? colors.primaryContainer : null,
+          fixedSize: Size.square(large ? 58 : 46),
+        ),
+        iconSize: large ? 30 : 24,
+        onPressed: onTap,
+        icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+class _PortraitPlayButton extends StatelessWidget {
+  const _PortraitPlayButton({required this.playing, required this.onTap});
+
+  final bool playing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filled(
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(76),
+        elevation: 6,
+      ),
+      iconSize: 42,
+      onPressed: onTap,
+      icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+    );
+  }
+}
+
+class _PortraitArtwork extends StatelessWidget {
+  const _PortraitArtwork({
+    required this.visual,
+    required this.imageUrl,
+    required this.icon,
+    this.size,
+  });
+
+  final _DemoTrack visual;
+  final String imageUrl;
+  final IconData icon;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final Uri? uri = Uri.tryParse(imageUrl);
+    final bool canLoad =
+        uri != null &&
+        uri.hasAbsolutePath &&
+        (uri.isScheme('http') || uri.isScheme('https'));
+    final Widget placeholder = DecoratedBox(
+      decoration: BoxDecoration(
+        color: visual.color.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Center(child: Icon(icon, color: colors.onSurfaceVariant)),
+    );
+    final Widget image = canLoad
+        ? CachedNetworkImage(
+            imageUrl: imageUrl,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            placeholder: (_, _) => placeholder,
+            errorWidget: (_, _, _) => placeholder,
+          )
+        : placeholder;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      child: SizedBox(width: size, height: size, child: image),
+    );
+  }
+}
+
+class _WaveformSeekBar extends StatelessWidget {
+  const _WaveformSeekBar({
+    required this.value,
+    required this.color,
+    required this.trackColor,
+    required this.onChanged,
+  });
+
+  final double value;
+  final Color color;
+  final Color trackColor;
+  final ValueChanged<double>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: onChanged == null
+          ? null
+          : (TapDownDetails details) {
+              final RenderBox box = context.findRenderObject()! as RenderBox;
+              onChanged!(
+                (details.localPosition.dx / box.size.width).clamp(0, 1),
+              );
+            },
+      onHorizontalDragUpdate: onChanged == null
+          ? null
+          : (DragUpdateDetails details) {
+              final RenderBox box = context.findRenderObject()! as RenderBox;
+              onChanged!(
+                (details.localPosition.dx / box.size.width).clamp(0, 1),
+              );
+            },
+      child: SizedBox(
+        height: 52,
+        child: CustomPaint(
+          painter: _WaveformSeekPainter(
+            value: value,
+            color: color,
+            trackColor: trackColor,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WaveformSeekPainter extends CustomPainter {
+  const _WaveformSeekPainter({
+    required this.value,
+    required this.color,
+    required this.trackColor,
+  });
+
+  final double value;
+  final Color color;
+  final Color trackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const int barCount = 48;
+    final double gap = size.width / (barCount * 1.72);
+    final double barWidth = gap * 0.72;
+    final double progressX = size.width * value.clamp(0, 1);
+    final Paint paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = barWidth;
+    for (int index = 0; index < barCount; index += 1) {
+      final double x = (index + 0.5) * size.width / barCount;
+      final double wave =
+          0.38 +
+          (math.sin(index * 0.72) + 1) * 0.18 +
+          (math.sin(index * 1.37) + 1) * 0.09;
+      final double height = size.height * wave;
+      paint.color = x <= progressX ? color : trackColor;
+      canvas.drawLine(
+        Offset(x, (size.height - height) / 2),
+        Offset(x, (size.height + height) / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformSeekPainter oldDelegate) {
+    return oldDelegate.value != value ||
+        oldDelegate.color != color ||
+        oldDelegate.trackColor != trackColor;
   }
 }
 

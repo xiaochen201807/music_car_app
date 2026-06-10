@@ -3,6 +3,31 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-10 - Portrait Namida-Inspired UI Foundation
+
+Implemented in this increment:
+
+- Created the first portrait-first native shell on the
+  `codex/portrait-music-redesign` branch while keeping the existing FreeMusic
+  API, native playback controller, audio service, favorites, and CarLife
+  service paths intact.
+- Changed app orientation preference from landscape to portrait.
+- Added Material 3 Light/Dark theme support with a settings-page theme mode
+  switch.
+- Added cover-palette extraction through `palette_generator` and used the
+  current artwork color as a dynamic seed for the portrait UI.
+- Replaced the default visible shell with a portrait layout: home search hero,
+  recommendation grid cards, playback timeline, library page, bottom mini
+  player/navigation, and an immersive full-screen player.
+- Added a Namida-inspired waveform seekbar and hooked it to the existing
+  `audio_service` seek path.
+- Kept CarLife controls reachable from the portrait settings page.
+
+Verification in this increment:
+
+- Updated the widget test to cover the portrait shell, library page, player
+  page, and settings page.
+
 ## 2026-06-10 - Local Favorites List
 
 Implemented in this increment:

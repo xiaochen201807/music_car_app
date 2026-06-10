@@ -16,8 +16,9 @@ The current implementation includes a native Flutter shell plus the existing
 native audio foundation:
 
 1. `[x]` Flutter renders the main music experience without WebView.
-2. `[x]` Flutter forces landscape orientation, immersive mode, and wakelock for
-   car head units.
+2. `[~]` Flutter is being rebuilt as a portrait-first app. The first portrait
+   shell, Material 3 theme switch, recommendation grid, timeline, mini-player,
+   and immersive player are wired; real-device portrait validation remains.
 3. `[x]` The UI provides home, search entry, recommendation, now-playing, queue,
    favorites, lyrics entry, and mini-player surfaces.
 4. `[x]` In-app update checking and APK installation support remain available.
@@ -63,8 +64,9 @@ The implementation sequence is now gated as follows:
 1. `[~]` Complete and test the FreeMusic API client surface first. Keep every
    discovered endpoint documented, even when it is not part of the first UI
    release.
-2. `[~]` Redesign the landscape page layout around real API data, loading,
-   empty, error, retry, playlist, queue, lyrics, and playback states.
+2. `[~]` Redesign the page layout around portrait-first real API data,
+   loading, empty, error, retry, playlist, queue, lyrics, and playback states.
+   The first Namida-inspired portrait shell is now active.
 3. `[ ]` Harden playback reliability with quality selection, source switching,
    timeouts, and retry behavior.
 4. `[~]` Keep existing CarLife SDK work, but resume CarLife product integration
@@ -128,6 +130,10 @@ Exit criteria:
 - `[x]` Apply the cold glassmorphism UI design system with shared tokens,
   `GlassCard`, cached artwork placeholders, and the rebuilt home
   recommendation grid.
+- `[~]` Add a portrait-first Material 3 shell with dynamic artwork color,
+  recommendation grid, timeline, bottom mini-player/navigation, and immersive
+  full-screen player with waveform seekbar. Download/cache UI and full
+  real-device visual validation remain pending.
 - `[~]` Use audited API data in the prototype UI: source labels, hot search
   chips, recommendation playlists, queue songs, quality chips, and lyric
   preview are wired to FreeMusic responses where client coverage exists.
