@@ -383,29 +383,41 @@ class PortraitMetricGrid extends StatelessWidget {
       mainAxisSpacing: AppSpace.md,
       childAspectRatio: 1.42,
       children: <Widget>[
-        PortraitMetricCard(
-          icon: Icons.favorite_rounded,
-          title: '收藏',
-          value: '$favoriteCount 首',
-          onTap: onOpenFavorites,
+        StaggeredAnimatedItem(
+          index: 0,
+          child: PortraitMetricCard(
+            icon: Icons.favorite_rounded,
+            title: '收藏',
+            value: '$favoriteCount 首',
+            onTap: onOpenFavorites,
+          ),
         ),
-        PortraitMetricCard(
-          icon: Icons.offline_pin_rounded,
-          title: '离线',
-          value: '缓存管理',
-          onTap: onOpenDownloads,
+        StaggeredAnimatedItem(
+          index: 1,
+          child: PortraitMetricCard(
+            icon: Icons.offline_pin_rounded,
+            title: '离线',
+            value: '缓存管理',
+            onTap: onOpenDownloads,
+          ),
         ),
-        PortraitMetricCard(
-          icon: Icons.queue_music_rounded,
-          title: '队列',
-          value: '$queueCount 首',
-          onTap: onOpenFavorites,
+        StaggeredAnimatedItem(
+          index: 2,
+          child: PortraitMetricCard(
+            icon: Icons.queue_music_rounded,
+            title: '队列',
+            value: '$queueCount 首',
+            onTap: onOpenFavorites,
+          ),
         ),
-        PortraitMetricCard(
-          icon: Icons.directions_car_filled_rounded,
-          title: 'CarLife',
-          value: carLifeReady ? '可启动' : '待连接',
-          onTap: onOpenDownloads,
+        StaggeredAnimatedItem(
+          index: 3,
+          child: PortraitMetricCard(
+            icon: Icons.directions_car_filled_rounded,
+            title: 'CarLife',
+            value: carLifeReady ? '可启动' : '待连接',
+            onTap: onOpenDownloads,
+          ),
         ),
       ],
     );
@@ -571,19 +583,22 @@ class PortraitFallbackGrid extends StatelessWidget {
       ),
       itemBuilder: (BuildContext context, int index) {
         final DemoTrack track = demoQueue[index % demoQueue.length];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(
-              child: PortraitArtwork(
-                visual: track,
-                imageUrl: '',
-                icon: Icons.album_rounded,
+        return StaggeredAnimatedItem(
+          index: index,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: PortraitArtwork(
+                  visual: track,
+                  imageUrl: '',
+                  icon: Icons.album_rounded,
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpace.sm),
-            Text(track.title, style: Theme.of(context).textTheme.titleSmall),
-          ],
+              const SizedBox(height: AppSpace.sm),
+              Text(track.title, style: Theme.of(context).textTheme.titleSmall),
+            ],
+          ),
         );
       },
     );

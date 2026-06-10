@@ -209,14 +209,19 @@ class PortraitPlayerView extends StatelessWidget {
                         onClose();
                       }
                     },
-                    onTap: onPlayPause,
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      onPlayPause();
+                    },
                     onHorizontalDragEnd: (DragEndDetails details) {
                       if (details.primaryVelocity != null) {
                         if (details.primaryVelocity! < 0) {
                           // 向左滑动 -> 上一首
+                          HapticFeedback.mediumImpact();
                           onPrevious();
                         } else if (details.primaryVelocity! > 0) {
                           // 向右滑动 -> 下一首
+                          HapticFeedback.mediumImpact();
                           onNext();
                         }
                       }
@@ -264,12 +269,15 @@ class PortraitPlayerView extends StatelessWidget {
                     trackColor: colors.surfaceContainerHighest,
                     onChanged: duration == Duration.zero
                         ? null
-                        : (double value) => onSeek(
-                            Duration(
-                              milliseconds: (duration.inMilliseconds * value)
-                                  .round(),
-                            ),
-                          ),
+                        : (double value) {
+                            HapticFeedback.lightImpact();
+                            onSeek(
+                              Duration(
+                                milliseconds: (duration.inMilliseconds * value)
+                                    .round(),
+                              ),
+                            );
+                          },
                   ),
                   const SizedBox(height: AppSpace.sm),
                   Row(
@@ -474,7 +482,10 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                       playbackState: widget.playbackState,
                       playbackMode: widget.playbackMode,
                       coverSeedColor: widget.coverSeedColor,
-                      onOpenPlayer: () => widget.onSelectTab(4),
+                      onOpenPlayer: () {
+                        HapticFeedback.lightImpact();
+                        widget.onSelectTab(4);
+                      },
                       onPlayPause: widget.onPlayPause,
                       onPlaybackMode: widget.onPlaybackMode,
                       onQuality: widget.onQuality,
@@ -528,6 +539,7 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                                   3 => 5,
                                   _ => 0,
                                 };
+                                HapticFeedback.lightImpact();
                                 widget.onSelectTab(target);
                               },
                               destinations: const <NavigationDestination>[
@@ -982,27 +994,42 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                           style: active
                               ? theme.textTheme.titleLarge!.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: colors.onSurface,
+                                  color: Colors.white,
                                   letterSpacing: -0.3,
                                   shadows: <Shadow>[
                                     Shadow(
-                                      color: colors.onSurface.withValues(alpha: 0.25),
-                                      offset: const Offset(0, 1),
-                                      blurRadius: 10,
+                                      color: AppColor.accentRoseEnd.withValues(alpha: 0.35),
+                                      offset: Offset.zero,
+                                      blurRadius: 14,
                                     ),
                                   ],
                                 )
                               : theme.textTheme.titleMedium!.copyWith(
                                   fontWeight: FontWeight.w500,
-                                  color: colors.onSurface.withValues(alpha: 0.28),
+                                  color: colors.onSurface.withValues(alpha: 0.20),
                                   fontSize: 15,
                                 ),
-                          child: Text(
-                            line.text,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
+                          child: active
+                              ? ShaderMask(
+                                  shaderCallback: (Rect bounds) {
+                                    return AppColor.accentGradient.createShader(
+                                      Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                                    );
+                                  },
+                                  blendMode: BlendMode.srcIn,
+                                  child: Text(
+                                    line.text,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                              : Text(
+                                  line.text,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
                         ),
                       ),
                     ),

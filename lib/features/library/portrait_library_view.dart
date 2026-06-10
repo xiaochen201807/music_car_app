@@ -8,6 +8,7 @@ import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_queue_tile.dart';
 import '../../shared/portrait_section_header.dart';
 import '../../shared/portrait_song_tile.dart';
+import '../../shared/staggered_animated_item.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/portrait_segmented_tab.dart';
 
@@ -178,25 +179,28 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                     for (int index = 0;
                         index < widget.favoriteSongs.length;
                         index += 1)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                        child: PortraitSongTile(
-                          song: widget.favoriteSongs[index],
-                          visual: demoQueue[index % demoQueue.length],
-                          favorite: widget.favoriteSongKeys.contains(
-                            favoriteSongKey(widget.favoriteSongs[index]),
+                      StaggeredAnimatedItem(
+                        index: index,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                          child: PortraitSongTile(
+                            song: widget.favoriteSongs[index],
+                            visual: demoQueue[index % demoQueue.length],
+                            favorite: widget.favoriteSongKeys.contains(
+                              favoriteSongKey(widget.favoriteSongs[index]),
+                            ),
+                            downloaded: widget.downloadedSongKeys.contains(
+                              '${widget.favoriteSongs[index].source}_${widget.favoriteSongs[index].id}',
+                            ),
+                            onPlay: () => widget.onPlayFavorite(index),
+                            onAddToQueue: null,
+                            onToggleFavorite: () => widget.onToggleFavorite(
+                                widget.favoriteSongs[index]),
+                            onDownload: () =>
+                                widget.onDownload(widget.favoriteSongs[index]),
+                            onDeleteCache: () =>
+                                widget.onDeleteCache(widget.favoriteSongs[index]),
                           ),
-                          downloaded: widget.downloadedSongKeys.contains(
-                            '${widget.favoriteSongs[index].source}_${widget.favoriteSongs[index].id}',
-                          ),
-                          onPlay: () => widget.onPlayFavorite(index),
-                          onAddToQueue: null,
-                          onToggleFavorite: () => widget.onToggleFavorite(
-                              widget.favoriteSongs[index]),
-                          onDownload: () =>
-                              widget.onDownload(widget.favoriteSongs[index]),
-                          onDeleteCache: () =>
-                              widget.onDeleteCache(widget.favoriteSongs[index]),
                         ),
                       ),
                 ] else ...<Widget>[
@@ -215,21 +219,24 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                     for (int index = 0;
                         index < widget.downloadedSongs.length;
                         index += 1)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                        child: PortraitSongTile(
-                          song: widget.downloadedSongs[index],
-                          visual: demoQueue[index % demoQueue.length],
-                          favorite: widget.favoriteSongKeys.contains(
-                            favoriteSongKey(widget.downloadedSongs[index]),
+                      StaggeredAnimatedItem(
+                        index: index,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                          child: PortraitSongTile(
+                            song: widget.downloadedSongs[index],
+                            visual: demoQueue[index % demoQueue.length],
+                            favorite: widget.favoriteSongKeys.contains(
+                              favoriteSongKey(widget.downloadedSongs[index]),
+                            ),
+                            downloaded: true,
+                            onPlay: () => widget.onPlayDownloaded(index),
+                            onAddToQueue: null,
+                            onToggleFavorite: () => widget.onToggleFavorite(
+                                widget.downloadedSongs[index]),
+                            onDeleteCache: () => widget.onDeleteCache(
+                                widget.downloadedSongs[index]),
                           ),
-                          downloaded: true,
-                          onPlay: () => widget.onPlayDownloaded(index),
-                          onAddToQueue: null,
-                          onToggleFavorite: () => widget.onToggleFavorite(
-                              widget.downloadedSongs[index]),
-                          onDeleteCache: () => widget.onDeleteCache(
-                              widget.downloadedSongs[index]),
                         ),
                       ),
                 ],
@@ -251,13 +258,16 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                   for (int index = 0;
                       index < widget.queueSongs.length;
                       index += 1)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                      child: PortraitQueueTile(
-                        song: widget.queueSongs[index],
-                        visual: demoQueue[index % demoQueue.length],
-                        selected: widget.selectedQueueIndex == index,
-                        onTap: () => widget.onSelectQueueIndex(index),
+                    StaggeredAnimatedItem(
+                      index: index,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: PortraitQueueTile(
+                          song: widget.queueSongs[index],
+                          visual: demoQueue[index % demoQueue.length],
+                          selected: widget.selectedQueueIndex == index,
+                          onTap: () => widget.onSelectQueueIndex(index),
+                        ),
                       ),
                     ),
               ],

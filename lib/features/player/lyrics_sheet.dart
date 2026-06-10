@@ -4,6 +4,7 @@ import '../../theme/design_tokens.dart';
 import '../../utils/formatters.dart';
 import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_message_card.dart';
+import '../../widgets/luxury_loading_indicator.dart';
 
 
 class LyricsSheet extends StatelessWidget {
@@ -166,7 +167,7 @@ class _LyricsContentState extends State<LyricsContent> {
     final ColorScheme colors = theme.colorScheme;
 
     if (widget.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: LuxuryLoadingIndicator());
     }
     if (widget.error.isNotEmpty) {
       return PortraitMessageCard(
@@ -235,15 +236,40 @@ class _LyricsContentState extends State<LyricsContent> {
                 ),
               ),
               Expanded(
-                child: Text(
-                  line.text,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: active ? colors.primary : colors.onSurface,
-                    fontSize: active ? 22 : 20,
-                    height: 1.38,
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w800,
-                  ),
-                ),
+                child: active
+                    ? ShaderMask(
+                        shaderCallback: (Rect bounds) {
+                          return AppColor.accentGradient.createShader(
+                            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                          );
+                        },
+                        blendMode: BlendMode.srcIn,
+                        child: Text(
+                          line.text,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontSize: 22,
+                            height: 1.38,
+                            fontWeight: FontWeight.w900,
+                            shadows: <Shadow>[
+                              Shadow(
+                                color: AppColor.accentRoseEnd.withValues(alpha: 0.35),
+                                offset: Offset.zero,
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Text(
+                        line.text,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colors.onSurface.withValues(alpha: 0.22),
+                          fontSize: 18,
+                          height: 1.38,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
               ),
             ],
           ),
