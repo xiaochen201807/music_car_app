@@ -1,45 +1,56 @@
-# Namida-Inspired 质感与可用性提升计划（底部导航与首页布局优化）
+# 页面左右滑动切换实现方案
 
-本计划旨在根据您的最新截图与使用反馈，优化应用的底部导航路径与首页的元素层级，让整体操作动线更符合日常与车载的使用直觉。
+为竖屏模式下的主 Shell 添加左右滑动手势支持，使用户可以通过左右滑动在 **首页-搜索-音乐库-设置** 之间进行顺畅的切换，而无需频繁点击底栏。
 
----
+## 用户审核要求
 
-## Proposed Changes
+在当前的设计中，全屏播放器界面 `PortraitPlayerView` 同样属于导航项中的一环（`selectedTab == 4`）。我们将常规页面和全屏播放器解耦：
+- 常规页面使用 `PageView` 组合并始终保存在底层，完美保留每个页面的滚动位置、输入内容等状态。
+- 全屏播放器仅在打开时作为全屏覆盖层滑入。
+- 该优化提升了应用整体的流畅度，并消除了状态丢失的问题。
 
-### Component 5: 底部导航栏 Tab 调整与全屏播放跳转
+> [!NOTE]
+> 左右滑动切换只会发生在：**首页 (0) ↔ 搜索 (1) ↔ 音乐库 (2) ↔ 设置 (5)**。
+> 全屏播放器页面本身有其切歌的左右滑动手势，因此将它排除在常规 Tab 滚动之外，防止手势冲突。
 
-#### [MODIFY] [portrait_player_view.dart](file:///Volumes/移动磁盘/bb/music_car_app/lib/features/player/portrait_player_view.dart)
-* **Tab 路由跳转微调**：
-  - 将底部导航 `PortraitBottomChrome` 的第四个 Tab 由 `'播放'` 替换为 `'设置'`（图标改为 `Icons.settings_rounded`）。
-  - 当点击第四个 Tab 时，路由跳转到 `selectedTab = 5`（设置视图）。
-  - 微调 `navigationIndex` 指向，使切换到设置页面时，第四个 Tab 能够被正确高亮。
-* **MiniPlayer 触发全屏播放**：
-  - 确认 `PortraitMiniPlayerBar` 上的点击行为持续映射为 `onSelectTab(4)`（跳转至全屏播放器），维持“点击上方迷你播放栏即可呼出播放器”的高效动线。
+## 方案设计
 
----
+### 1. 双向状态绑定与防死循环
+引入 `PageController`，与全局 `appState.selectedTab` 建立双向映射：
+- **从底栏点击或代码跳转（外部更新）**：`build` 方法检测到 `selectedTab` 变动，通过 `PageController.animateToPage` 以动画平滑滚动到对应页面。
+- **从页面左右滑动（内部更新）**：`PageView.onPageChanged` 监听到滚动，调用 `appState.selectTab` 同步更新底栏状态。
+- **死循环防止**：在通过代码触发滚动时，设置 `_isAnimatingToPage = true`，在此期间忽略 `onPageChanged` 对 `appState.selectTab` 的重复调用。
 
-### Component 6: 首页布局调整与层级优化
-
-#### [MODIFY] [portrait_home_view.dart](file:///Volumes/移动磁盘/bb/music_car_app/lib/features/home/portrait_home_view.dart)
-* **移除冗余设置入口**：
-  - 移除首页顶部 Header 旁边的“设置”齿轮按钮（因为设置已挪到最下方的导航 Tab 里）。
-* **移除音乐源选择**：
-  - 在搜索栏下方的芯片（Chip）列表中，移除“网易云音乐”、“酷我音乐”、“海屿你”等音乐源切换芯片，仅保留热搜词芯片，精简界面信息。
-* **快捷卡片下沉**：
-  - 将快捷卡片网格 `PortraitMetricGrid`（收藏、离线、队列、CarLife）移动到“推荐歌单”模块的下方，使其摆放在页面的最底部。
+### 2. 状态保留与覆盖层设计
+为了避免每次进入播放器都销毁常规 Tab 页面导致状态丢失，将架构优化为：
+- `Stack` 底层：`PageView`（包含首页、搜索、音乐库、设置），通过 `IgnorePointer` 在播放器打开时禁用手势。
+- `Stack` 顶层：`AnimatedSwitcher` 承载 `PortraitPlayerView`。
 
 ---
 
-## Verification Plan
+## 拟定修改
 
-### Automated Tests
-* 静态分析：执行 `flutter analyze lib test` 确保 0 errors, 0 warnings, 0 infos。
-* 单元测试：执行 `flutter test` 确保无任何功能回归。
+### 竖屏主 Shell 组件 (features/shell)
 
-### Manual Verification
-1. **导航动线测试**：
-   - 点击底部导航栏的“设置”按钮，验证是否能顺畅切入设置页面，且底部的设置 Tab 呈现选中态。
-   - 在播放音乐时，点击底部导航栏上方的迷你播放条（除按钮外的区域），验证能否向上滑出全屏播放器。
-2. **首页布局测试**：
-   - 打开首页，确认顶部标题右侧无多余设置按钮；搜索栏下方的音乐源切换已全部隐藏。
-   - 滚动首页，确认“推荐歌单”处于上部，而“收藏、离线、队列、CarLife”四个卡片垫底显示在底部。
+#### [MODIFY] [portrait_music_shell.dart](file:///Volumes/%E7%A7%BB%E5%8A%A8%E7%A3%81%E7%9B%98/bb/music_car_app/lib/features/shell/portrait_music_shell.dart)
+- 将 `PortraitMusicScaffold` 从 `StatelessWidget` 重构为 `StatefulWidget`。
+- 添加 `PageController` 成员变量，在 `didChangeDependencies` 进行基于当前 `selectedTab` 的初始化。
+- 提取并重构 `_buildScaffold` 中的子页面构建逻辑。
+- 将 `body` 替换为 `Stack`，结合 `PageView`（常规页）与 `AnimatedSwitcher + PortraitPlayerView`（全屏播放器覆盖层），并处理好 `IgnorePointer` 手势隔离。
+- 实现双向绑定同步方法 `_onPageChanged`，以及在 `build` 周期内对 `selectedTab` 修改的后帧监测 (`addPostFrameCallback`) 与滚动同步。
+
+---
+
+## 验证计划
+
+### 自动构建与静态检查
+- 运行 `flutter analyze` 确保无 Lint 错误和编译警告。
+
+### 手动测试流程
+1. **常规滑动测试**：在首页向左滑动，看是否能平滑过渡到搜索页，同时底栏“搜索”图标被高亮激活。继续滑动直至“设置”页。
+2. **底栏点击测试**：在“设置”页点击底栏的“首页”，看页面是否带有平滑滚动动画返回首页。
+3. **按钮跳转测试**：在首页点击“收藏”或“离线”卡片，看是否能正确滑入“音乐库”或“设置”页，且底栏正确跟随。
+4. **播放器交互与手势冲突测试**：
+   - 点击迷你播放器打开全屏播放器，看播放器是否从底部正常滑入覆盖。
+   - 在播放器中尝试左右滑动切歌，看是否与常规页面发生冲突（不应引起底页滚动）。
+   - 关闭播放器，常规页面应该恢复，且恢复后原先的滚动进度、搜索框输入等状态依然保留。
