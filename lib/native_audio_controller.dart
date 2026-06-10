@@ -329,6 +329,20 @@ class NativeAudioController {
     return true;
   }
 
+  Future<bool> playSong(FreeMusicSong song) async {
+    await _restoreFuture;
+    final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
+      audioUrl: '',
+      playing: true,
+      song: song,
+      title: song.name,
+      artist: song.artist,
+      coverUrl: song.cover,
+      duration: Duration(seconds: song.duration),
+    );
+    return syncFromProbe(snapshot);
+  }
+
   Future<bool> skipToNext() async {
     await _restoreFuture;
     return _skipToQueueOffset(1);

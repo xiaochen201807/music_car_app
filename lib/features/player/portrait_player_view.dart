@@ -664,14 +664,14 @@ class PortraitMiniPlayerBar extends StatelessWidget {
               ),
             ),
             IconButton(
+              tooltip: '上一首',
+              onPressed: onPrevious,
+              icon: const Icon(Icons.skip_previous_rounded),
+            ),
+            IconButton(
               tooltip: labelForPlaybackMode(playbackMode),
               onPressed: onPlaybackMode,
               icon: Icon(iconForPlaybackMode(playbackMode)),
-            ),
-            IconButton(
-              tooltip: '音质',
-              onPressed: onQuality,
-              icon: const Icon(Icons.equalizer_rounded),
             ),
             GlassPill(
               onTap: () {
@@ -690,6 +690,16 @@ class PortraitMiniPlayerBar extends StatelessWidget {
                   color: playbackState.playing ? colors.primary : colors.onSurface,
                 ),
               ),
+            ),
+            IconButton(
+              tooltip: '音质',
+              onPressed: onQuality,
+              icon: const Icon(Icons.equalizer_rounded),
+            ),
+            IconButton(
+              tooltip: '下一首',
+              onPressed: onNext,
+              icon: const Icon(Icons.skip_next_rounded),
             ),
           ],
         ),
