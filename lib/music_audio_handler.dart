@@ -167,6 +167,11 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> setVolume(double volume) async {
+    await _player.setVolume(volume);
+  }
+
+  @override
   Future<void> fastForward() => _seekRelative(_seekStep);
 
   @override

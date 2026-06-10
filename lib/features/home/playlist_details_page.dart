@@ -16,15 +16,21 @@ class PlaylistDetailsPage extends StatefulWidget {
     required this.playlist,
     required this.api,
     required this.favoriteSongKeys,
+    required this.downloadedSongKeys,
     required this.onPlay,
     required this.onToggleFavorite,
+    required this.onDownload,
+    required this.onDeleteCache,
   });
 
   final FreeMusicPlaylist playlist;
   final FreeMusicApi api;
   final Set<String> favoriteSongKeys;
+  final Set<String> downloadedSongKeys;
   final Function(List<FreeMusicSong> songs, int index) onPlay;
   final ValueChanged<FreeMusicSong> onToggleFavorite;
+  final ValueChanged<FreeMusicSong> onDownload;
+  final ValueChanged<FreeMusicSong> onDeleteCache;
 
   @override
   State<PlaylistDetailsPage> createState() => _PlaylistDetailsPageState();
@@ -289,11 +295,16 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                               favorite: widget.favoriteSongKeys.contains(
                                 favoriteSongKey(song),
                               ),
+                              downloaded: widget.downloadedSongKeys.contains(
+                                '${song.source}_${song.id}',
+                              ),
                               onTap: () => widget.onPlay(_songs, index),
                               onToggleFavorite: () {
                                 widget.onToggleFavorite(song);
                                 setState(() {});
                               },
+                              onDownload: () => widget.onDownload(song),
+                              onDeleteCache: () => widget.onDeleteCache(song),
                             ),
                           ),
                         );
@@ -317,16 +328,22 @@ class PlaylistSongRow extends StatelessWidget {
     required this.visual,
     required this.index,
     required this.favorite,
+    required this.downloaded,
     required this.onTap,
     required this.onToggleFavorite,
+    this.onDownload,
+    this.onDeleteCache,
   });
 
   final FreeMusicSong song;
   final DemoTrack visual;
   final int index;
   final bool favorite;
+  final bool downloaded;
   final VoidCallback onTap;
   final VoidCallback onToggleFavorite;
+  final VoidCallback? onDownload;
+  final VoidCallback? onDeleteCache;
 
   @override
   Widget build(BuildContext context) {
@@ -361,13 +378,28 @@ class PlaylistSongRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    song.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  Row(
+                    children: <Widget>[
+                      if (downloaded)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            size: 14,
+                            color: colors.primary,
+                          ),
+                        ),
+                      Expanded(
+                        child: Text(
+                          song.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: AppSpace.xs),
                   Text(
@@ -400,6 +432,41 @@ class PlaylistSongRow extends StatelessWidget {
                 color: colors.onSurfaceVariant,
               ),
             ),
+            if (onDownload != null || onDeleteCache != null)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded),
+                onSelected: (String value) {
+                  if (value == 'download') {
+                    onDownload?.call();
+                  } else if (value == 'delete_cache') {
+                    onDeleteCache?.call();
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  if (onDownload != null && !downloaded)
+                    const PopupMenuItem<String>(
+                      value: 'download',
+                      child: Row(
+                        children: <Widget>[
+                          Icon(Icons.download_rounded),
+                          SizedBox(width: AppSpace.sm),
+                          Text('下载到本地'),
+                        ],
+                      ),
+                    ),
+                  if (onDeleteCache != null && downloaded)
+                    const PopupMenuItem<String>(
+                      value: 'delete_cache',
+                      child: Row(
+                        children: <Widget>[
+                          Icon(Icons.delete_outline_rounded, color: Colors.red),
+                          SizedBox(width: AppSpace.sm),
+                          Text('删除缓存', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
           ],
         ),
       ),

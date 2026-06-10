@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:music_car_app/features/player/portrait_player_view.dart';
 import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/utils/lyrics_utils.dart';
 
@@ -24,5 +26,36 @@ void main() {
     expect(activeLyricLineIndex(lines, const Duration(seconds: 7)), 1);
     expect(activeLyricLineIndex(lines, const Duration(seconds: 8)), 2);
     expect(activeLyricLineIndex(lines, const Duration(seconds: 99)), 2);
+  });
+
+  testWidgets('PlayerLyricsView triggers onSeek when tapping a lyric line', (
+    WidgetTester tester,
+  ) async {
+    final FreeMusicLyrics lyrics = FreeMusicLyrics(
+      raw: 'raw',
+      lines: lines,
+    );
+    Duration? seekedDuration;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlayerLyricsView(
+            lyrics: lyrics,
+            position: const Duration(seconds: 1),
+            lyricsBusy: false,
+            lyricsError: '',
+            onSeek: (Duration duration) {
+              seekedDuration = duration;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('第二句'));
+    await tester.pumpAndSettle();
+
+    expect(seekedDuration, const Duration(seconds: 5));
   });
 }

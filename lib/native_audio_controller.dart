@@ -129,6 +129,8 @@ abstract class NativeAudioPlayer {
 
   Future<void> seek(Duration position);
 
+  Future<void> setVolume(double volume);
+
   Future<void> play();
 
   Future<void> pause();
@@ -178,6 +180,9 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
+
+  @override
+  Future<void> setVolume(double volume) => _player.setVolume(volume);
 
   @override
   Future<void> play() => _player.play();
@@ -537,11 +542,37 @@ class NativeAudioController {
     return -1;
   }
 
+  Future<void> _fadeOut(Duration duration) async {
+    const int steps = 10;
+    final int intervalMs = (duration.inMilliseconds / steps).round();
+    for (int i = steps; i >= 0; i--) {
+      final double vol = i / steps;
+      await _player.setVolume(vol);
+      await Future<void>.delayed(Duration(milliseconds: intervalMs));
+    }
+  }
+
+  Future<void> _fadeIn(Duration duration) async {
+    const int steps = 10;
+    final int intervalMs = (duration.inMilliseconds / steps).round();
+    for (int i = 0; i <= steps; i++) {
+      final double vol = i / steps;
+      await _player.setVolume(vol);
+      await Future<void>.delayed(Duration(milliseconds: intervalMs));
+    }
+  }
+
   Future<bool> _loadQueueIndex(int index) async {
     final FreeMusicSong song = _playlist[index];
     if (!song.canResolve) {
       return false;
     }
+
+    final bool wasPlaying = _player.playing;
+    if (wasPlaying) {
+      await _fadeOut(const Duration(milliseconds: 250));
+    }
+
     final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
       audioUrl: '',
       playing: true,
@@ -558,8 +589,14 @@ class NativeAudioController {
       debugPrint(
         '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
       );
+      if (wasPlaying) {
+        await _player.setVolume(1.0);
+      }
       return false;
     }
+
+    await _player.setVolume(0.0);
+
     _currentIndex = index;
     _loadedUrl = audioUrl;
     _loadedSnapshot = snapshot;
@@ -567,6 +604,8 @@ class NativeAudioController {
     await _player.play();
     await _persistState();
     debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
+
+    await _fadeIn(const Duration(milliseconds: 250));
     return true;
   }
 

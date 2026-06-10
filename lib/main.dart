@@ -14,6 +14,7 @@ import 'favorite_song_store.dart';
 import 'free_music_api.dart';
 import 'music_audio_handler.dart';
 import 'models/app_update_info.dart';
+import 'models/cached_track.dart';
 import 'models/demo_track.dart';
 import 'models/playback_ui_state.dart';
 import 'native_audio_controller.dart';
@@ -729,6 +730,84 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
+  Set<String> get _downloadedSongKeys {
+    return _downloadService.getAllCachedTracks()
+        .map<String>((CachedTrack t) => '${t.source}_${t.id}')
+        .toSet();
+  }
+
+  List<FreeMusicSong> get _downloadedSongs {
+    return _downloadService.getAllCachedTracks().map<FreeMusicSong>((CachedTrack track) {
+      return FreeMusicSong(
+        id: track.id,
+        source: track.source,
+        name: track.title,
+        artist: track.artist,
+        cover: track.cover,
+        duration: track.duration,
+      );
+    }).toList();
+  }
+
+  Future<void> _downloadSong(FreeMusicSong song) async {
+    try {
+      _showSnack('正在解析 "${song.name}" 的品质...');
+      List<FreeMusicQuality> qualities = const <FreeMusicQuality>[];
+      try {
+        final FreeMusicQualityResult res =
+            await _freeMusicApi.fetchQualities(song);
+        qualities = res.qualities;
+      } catch (_) {}
+      final FreeMusicQuality targetQuality = qualities.isNotEmpty
+          ? qualities.first
+          : const FreeMusicQuality(name: '标准', bitrate: '128k');
+
+      _showSnack('开始下载: ${song.name}');
+      final Stream<double> progressStream =
+          _downloadService.downloadTrack(song, targetQuality);
+
+      progressStream.listen(
+        (double progress) {
+          if (progress >= 1.0) {
+            _showSnack('下载成功: ${song.name}');
+            if (mounted) {
+              setState(() {});
+            }
+          }
+        },
+        onError: (Object error) {
+          _showSnack('下载失败: $error');
+        },
+      );
+    } catch (e) {
+      _showSnack('下载失败: $e');
+    }
+  }
+
+  Future<void> _deleteSongCache(FreeMusicSong song) async {
+    try {
+      await _downloadService.deleteTrack(song.source, song.id);
+      _showSnack('已删除本地缓存: ${song.name}');
+      setState(() {});
+    } catch (e) {
+      _showSnack('删除失败: $e');
+    }
+  }
+
+  Future<void> _playDownloadedSong(int index) async {
+    final List<FreeMusicSong> list = _downloadedSongs;
+    if (index >= 0 && index < list.length) {
+      await _playSongQueue(list, index);
+    }
+  }
+
+  Future<void> _playAllDownloadedSongs() async {
+    final List<FreeMusicSong> list = _downloadedSongs;
+    if (list.isNotEmpty) {
+      await _playSongQueue(list, 0);
+    }
+  }
+
   void _openPlaylistDetails(FreeMusicPlaylist playlist) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -736,12 +815,15 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
           playlist: playlist,
           api: _freeMusicApi,
           favoriteSongKeys: _favoriteSongKeys,
+          downloadedSongKeys: _downloadedSongKeys,
           onPlay: (List<FreeMusicSong> songs, int index) {
             unawaited(_playSongQueue(songs, index));
           },
           onToggleFavorite: (FreeMusicSong song) {
             unawaited(_toggleFavoriteSong(song));
           },
+          onDownload: _downloadSong,
+          onDeleteCache: _deleteSongCache,
         ),
       ),
     );
@@ -1514,6 +1596,12 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
                   ),
                 );
               },
+              downloadedSongKeys: _downloadedSongKeys,
+              downloadedSongs: _downloadedSongs,
+              onPlayDownloaded: _playDownloadedSong,
+              onPlayAllDownloaded: _playAllDownloadedSongs,
+              onDownload: _downloadSong,
+              onDeleteCache: _deleteSongCache,
             );
           },
         ),
@@ -1624,6 +1712,12 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onRefreshCarLife,
     required this.onCheckUpdate,
     required this.onOpenDownloads,
+    required this.downloadedSongKeys,
+    required this.downloadedSongs,
+    required this.onPlayDownloaded,
+    required this.onPlayAllDownloaded,
+    required this.onDownload,
+    required this.onDeleteCache,
   });
 
   final int selectedTab;
@@ -1686,6 +1780,12 @@ class _NativeMusicScaffold extends StatelessWidget {
   final VoidCallback onRefreshCarLife;
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
+  final Set<String> downloadedSongKeys;
+  final List<FreeMusicSong> downloadedSongs;
+  final ValueChanged<int> onPlayDownloaded;
+  final VoidCallback onPlayAllDownloaded;
+  final ValueChanged<FreeMusicSong> onDownload;
+  final ValueChanged<FreeMusicSong> onDeleteCache;
 
   @override
   Widget build(BuildContext context) {
@@ -1750,6 +1850,12 @@ class _NativeMusicScaffold extends StatelessWidget {
       onRefreshCarLife: onRefreshCarLife,
       onCheckUpdate: onCheckUpdate,
       onOpenDownloads: onOpenDownloads,
+      downloadedSongKeys: downloadedSongKeys,
+      downloadedSongs: downloadedSongs,
+      onPlayDownloaded: onPlayDownloaded,
+      onPlayAllDownloaded: onPlayAllDownloaded,
+      onDownload: onDownload,
+      onDeleteCache: onDeleteCache,
     );
   }
 }
@@ -1816,6 +1922,12 @@ class _PortraitMusicScaffold extends StatelessWidget {
     required this.onRefreshCarLife,
     required this.onCheckUpdate,
     required this.onOpenDownloads,
+    required this.downloadedSongKeys,
+    required this.downloadedSongs,
+    required this.onPlayDownloaded,
+    required this.onPlayAllDownloaded,
+    required this.onDownload,
+    required this.onDeleteCache,
   });
 
   final int selectedTab;
@@ -1878,6 +1990,12 @@ class _PortraitMusicScaffold extends StatelessWidget {
   final VoidCallback onRefreshCarLife;
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
+  final Set<String> downloadedSongKeys;
+  final List<FreeMusicSong> downloadedSongs;
+  final ValueChanged<int> onPlayDownloaded;
+  final VoidCallback onPlayAllDownloaded;
+  final ValueChanged<FreeMusicSong> onDownload;
+  final ValueChanged<FreeMusicSong> onDeleteCache;
 
   @override
   Widget build(BuildContext context) {
@@ -1907,6 +2025,7 @@ class _PortraitMusicScaffold extends StatelessWidget {
         query: lastSearchQuery,
         hotSearchKeywords: hotSearchKeywords,
         favoriteSongKeys: favoriteSongKeys,
+        downloadedSongKeys: downloadedSongKeys,
         onSearch: onSearch,
         onHotKeyword: (String keyword) {
           searchController.text = keyword;
@@ -1916,6 +2035,7 @@ class _PortraitMusicScaffold extends StatelessWidget {
         onPlay: onPlaySearchResult,
         onAddToQueue: onAddToQueue,
         onToggleFavorite: onToggleFavorite,
+        onDownload: onDownload,
       ),
       2 => PortraitLibraryView(
         favoriteSongs: favoriteSongs,
@@ -1927,6 +2047,12 @@ class _PortraitMusicScaffold extends StatelessWidget {
         onPlayAllFavorites: onPlayAllFavorites,
         onToggleFavorite: onToggleFavorite,
         onSelectQueueIndex: onSelectQueueIndex,
+        downloadedSongs: downloadedSongs,
+        downloadedSongKeys: downloadedSongKeys,
+        onPlayDownloaded: onPlayDownloaded,
+        onPlayAllDownloaded: onPlayAllDownloaded,
+        onDownload: onDownload,
+        onDeleteCache: onDeleteCache,
       ),
       4 => PortraitPlayerView(
         currentSong: currentSong,
@@ -2041,19 +2167,29 @@ class _PortraitDynamicBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            seedColor.withValues(alpha: 0.32),
-            colors.surface,
-            colors.surface,
-          ],
-          stops: const <double>[0, 0.38, 1],
-        ),
-      ),
+    return TweenAnimationBuilder<Color?>(
+      duration: const Duration(milliseconds: 1500),
+      curve: Curves.easeInOut,
+      tween: ColorTween(end: seedColor),
+      builder:
+          (BuildContext context, Color? animatedColor, Widget? childWidget) {
+        final Color currentSeed = animatedColor ?? seedColor;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                currentSeed.withValues(alpha: 0.32),
+                colors.surface,
+                colors.surface,
+              ],
+              stops: const <double>[0, 0.38, 1],
+            ),
+          ),
+          child: childWidget,
+        );
+      },
       child: child,
     );
   }

@@ -51,9 +51,16 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
     isPlaying = true;
   }
 
+  double volume = 1.0;
+
   @override
   Future<void> seek(Duration position) async {
     currentPosition = position;
+  }
+
+  @override
+  Future<void> setVolume(double val) async {
+    volume = val;
   }
 
   @override

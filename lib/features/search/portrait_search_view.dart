@@ -22,12 +22,14 @@ class PortraitSearchView extends StatelessWidget {
     required this.query,
     required this.hotSearchKeywords,
     required this.favoriteSongKeys,
+    required this.downloadedSongKeys,
     required this.onSearch,
     required this.onHotKeyword,
     required this.onLoadMore,
     required this.onPlay,
     required this.onAddToQueue,
     required this.onToggleFavorite,
+    required this.onDownload,
   });
 
   final TextEditingController controller;
@@ -40,12 +42,14 @@ class PortraitSearchView extends StatelessWidget {
   final String query;
   final List<String> hotSearchKeywords;
   final Set<String> favoriteSongKeys;
+  final Set<String> downloadedSongKeys;
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final VoidCallback onLoadMore;
   final ValueChanged<int> onPlay;
   final ValueChanged<int> onAddToQueue;
   final ValueChanged<FreeMusicSong> onToggleFavorite;
+  final ValueChanged<FreeMusicSong> onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -115,9 +119,14 @@ class PortraitSearchView extends StatelessWidget {
                           favorite: favoriteSongKeys.contains(
                             favoriteSongKey(songs[index]),
                           ),
+                          downloaded: downloadedSongKeys.contains(
+                            '${songs[index].source}_${songs[index].id}',
+                          ),
                           onPlay: () => onPlay(index),
                           onAddToQueue: () => onAddToQueue(index),
-                          onToggleFavorite: () => onToggleFavorite(songs[index]),
+                          onToggleFavorite: () =>
+                              onToggleFavorite(songs[index]),
+                          onDownload: () => onDownload(songs[index]),
                         ),
                       ),
                     ),

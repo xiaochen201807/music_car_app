@@ -741,6 +741,11 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> setVolume(double volume) async {
+    // 音量渐变属于播放副效应，不影响核心音频调度断言
+  }
+
+  @override
   Future<Duration?> setUrl(String url) async {
     calls.add('setUrl:$url');
     return null;

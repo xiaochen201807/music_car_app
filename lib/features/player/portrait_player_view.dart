@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
@@ -101,20 +102,42 @@ class PortraitPlayerView extends StatelessWidget {
 
     // lyric calculation handled inside PlayerLyricsView
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            coverSeedColor.withValues(alpha: 0.45),
-            colors.surface,
-            colors.surface,
-          ],
-          stops: const <double>[0, 0.44, 1],
-        ),
-      ),
-      child: SafeArea(
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification notification) {
+        if (notification is ScrollUpdateNotification) {
+          if (notification.metrics.pixels <= 0 &&
+              notification.scrollDelta != null &&
+              notification.scrollDelta! < -8) {
+            onClose();
+            return true;
+          }
+        }
+        return false;
+      },
+      child: TweenAnimationBuilder<Color?>(
+        duration: const Duration(milliseconds: 1500),
+        curve: Curves.easeInOut,
+        tween: ColorTween(end: coverSeedColor),
+        builder:
+            (BuildContext context, Color? animatedColor, Widget? childWidget) {
+          final Color seed = animatedColor ?? coverSeedColor;
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  seed.withValues(alpha: 0.45),
+                  colors.surface,
+                  colors.surface,
+                ],
+                stops: const <double>[0, 0.44, 1],
+              ),
+            ),
+            child: childWidget,
+          );
+        },
+        child: SafeArea(
         child: CustomScrollView(
           slivers: <Widget>[
             SliverPadding(
@@ -152,18 +175,26 @@ class PortraitPlayerView extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpace.xl2),
-                  Hero(
-                    tag: 'now-playing-artwork',
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadius.panel),
-                        child: PortraitArtwork(
-                          visual: fallbackTrack,
-                          imageUrl: playbackState.coverUrl.isEmpty
-                              ? currentSong?.cover ?? ''
-                              : playbackState.coverUrl,
-                          icon: Icons.album_rounded,
+                  GestureDetector(
+                    onVerticalDragEnd: (DragEndDetails details) {
+                      if (details.primaryVelocity != null &&
+                          details.primaryVelocity! > 200) {
+                        onClose();
+                      }
+                    },
+                    child: Hero(
+                      tag: 'now-playing-artwork',
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.panel),
+                          child: PortraitArtwork(
+                            visual: fallbackTrack,
+                            imageUrl: playbackState.coverUrl.isEmpty
+                                ? currentSong?.cover ?? ''
+                                : playbackState.coverUrl,
+                            icon: Icons.album_rounded,
+                          ),
                         ),
                       ),
                     ),
@@ -254,6 +285,7 @@ class PortraitPlayerView extends StatelessWidget {
                           position: playbackState.position,
                           lyricsBusy: lyricsBusy,
                           lyricsError: lyricsError,
+                          onSeek: onSeek,
                         ),
                         const SizedBox(height: AppSpace.md),
                         QualityChips(
@@ -270,6 +302,7 @@ class PortraitPlayerView extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -562,12 +595,14 @@ class PlayerLyricsView extends StatefulWidget {
     required this.position,
     required this.lyricsBusy,
     required this.lyricsError,
+    this.onSeek,
   });
 
   final FreeMusicLyrics? lyrics;
   final Duration position;
   final bool lyricsBusy;
   final String lyricsError;
+  final ValueChanged<Duration>? onSeek;
 
   @override
   State<PlayerLyricsView> createState() => _PlayerLyricsViewState();
@@ -576,6 +611,15 @@ class PlayerLyricsView extends StatefulWidget {
 class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   final ScrollController _scrollController = ScrollController();
   int _lastIndex = -1;
+  bool _isUserScrolling = false;
+  int _centerIndex = 0;
+  Timer? _userScrollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
 
   @override
   void didUpdateWidget(PlayerLyricsView oldWidget) {
@@ -584,14 +628,32 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     final int activeIndex = activeLyricLineIndex(lines, widget.position);
     if (activeIndex != _lastIndex && activeIndex >= 0) {
       _lastIndex = activeIndex;
-      _scrollToIndex(activeIndex);
+      if (!_isUserScrolling) {
+        _scrollToIndex(activeIndex);
+      }
     }
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
+    _userScrollTimer?.cancel();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final double offset = _scrollController.offset;
+    final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
+    if (lines.isEmpty) return;
+    final int calculatedIndex =
+        (offset / 32.0).round().clamp(0, lines.length - 1);
+    if (calculatedIndex != _centerIndex) {
+      setState(() {
+        _centerIndex = calculatedIndex;
+      });
+    }
   }
 
   void _scrollToIndex(int index) {
@@ -610,6 +672,96 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  void _startRestoreAutoScrollTimer() {
+    _userScrollTimer?.cancel();
+    _userScrollTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _isUserScrolling = false;
+        });
+        final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
+        final int activeIndex = activeLyricLineIndex(lines, widget.position);
+        if (activeIndex >= 0) {
+          _scrollToIndex(activeIndex);
+        }
+      }
+    });
+  }
+
+  Widget _buildSeekOverlay(FreeMusicLyricLine line) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 60 - 16, // Vertically center on the line height 32
+      height: 32,
+      child: IgnorePointer(
+        ignoring: false,
+        child: Row(
+          children: <Widget>[
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: colors.primary.withValues(alpha: 0.25),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            GestureDetector(
+              onTap: () {
+                widget.onSeek?.call(line.time);
+                setState(() {
+                  _isUserScrolling = false;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.sm,
+                  vertical: AppSpace.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                  border: Border.all(
+                    color: colors.primary.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      Icons.play_arrow_rounded,
+                      size: 14,
+                      color: colors.onPrimaryContainer,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      formatDuration(line.time),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: colors.primary.withValues(alpha: 0.25),
+              ),
+            ),
+            const SizedBox(width: AppSpace.md),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -640,7 +792,9 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
         height: 120,
         child: Center(
           child: Text(
-            widget.lyrics?.raw.isNotEmpty == true ? widget.lyrics!.raw : '等待歌词同步',
+            widget.lyrics?.raw.isNotEmpty == true
+                ? widget.lyrics!.raw
+                : '等待歌词同步',
             textAlign: TextAlign.center,
             style: theme.textTheme.titleMedium?.copyWith(
               color: colors.onSurfaceVariant,
@@ -655,47 +809,86 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
 
     return SizedBox(
       height: 120,
-      child: ShaderMask(
-        shaderCallback: (Rect rect) {
-          return const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[
-              Colors.transparent,
-              Colors.white,
-              Colors.white,
-              Colors.transparent,
-            ],
-            stops: <double>[0, 0.22, 0.78, 1],
-          ).createShader(rect);
-        },
-        blendMode: BlendMode.dstIn,
-        child: ListView.builder(
-          controller: _scrollController,
-          itemCount: lines.length,
-          itemExtent: 32,
-          padding: const EdgeInsets.symmetric(vertical: 44),
-          physics: const NeverScrollableScrollPhysics(),
-          itemBuilder: (BuildContext context, int index) {
-            final bool active = index == activeIndex;
-            return Align(
-              alignment: Alignment.center,
-              child: Text(
-                lines[index].text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  fontSize: active ? 18 : 16,
-                  color: active
-                      ? colors.primary
-                      : colors.onSurface.withValues(alpha: 0.38),
+      child: Stack(
+        children: <Widget>[
+          ShaderMask(
+            shaderCallback: (Rect rect) {
+              return const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Colors.transparent,
+                  Colors.white,
+                  Colors.white,
+                  Colors.transparent,
+                ],
+                stops: <double>[0, 0.22, 0.78, 1],
+              ).createShader(rect);
+            },
+            blendMode: BlendMode.dstIn,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (ScrollNotification notification) {
+                if (notification is ScrollStartNotification) {
+                  if (notification.dragDetails != null) {
+                    setState(() {
+                      _isUserScrolling = true;
+                    });
+                    _userScrollTimer?.cancel();
+                  }
+                } else if (notification is ScrollEndNotification) {
+                  _startRestoreAutoScrollTimer();
+                }
+                return false;
+              },
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: lines.length,
+                itemExtent: 32,
+                padding: const EdgeInsets.symmetric(vertical: 44),
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
                 ),
+                itemBuilder: (BuildContext context, int index) {
+                  final bool active = index == activeIndex;
+                  final FreeMusicLyricLine line = lines[index];
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        widget.onSeek?.call(line.time);
+                        setState(() {
+                          _isUserScrolling = false;
+                        });
+                      },
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Text(
+                          line.text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight:
+                                active ? FontWeight.w900 : FontWeight.w700,
+                            fontSize: active ? 18 : 16,
+                            color: active
+                                ? colors.primary
+                                : colors.onSurface.withValues(alpha: 0.38),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+          if (_isUserScrolling &&
+              lines.isNotEmpty &&
+              _centerIndex >= 0 &&
+              _centerIndex < lines.length)
+            _buildSeekOverlay(lines[_centerIndex]),
+        ],
       ),
     );
   }
