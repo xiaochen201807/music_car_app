@@ -12,7 +12,6 @@ import '../../utils/formatters.dart';
 import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
-import '../../shared/portrait_surface.dart';
 import '../../widgets/glass_card.dart';
 import 'waveform_seekbar.dart';
 
@@ -279,19 +278,12 @@ class PortraitPlayerView extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpace.xl),
-                  PortraitSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: <Widget>[
-                        PlayerLyricsView(
-                          lyrics: lyrics,
-                          position: playbackState.position,
-                          lyricsBusy: lyricsBusy,
-                          lyricsError: lyricsError,
-                          onSeek: onSeek,
-                        ),
-                      ],
-                    ),
+                  PlayerLyricsView(
+                    lyrics: lyrics,
+                    position: playbackState.position,
+                    lyricsBusy: lyricsBusy,
+                    lyricsError: lyricsError,
+                    onSeek: onSeek,
                   ),
                   const SizedBox(height: AppSpace.xl2),
                   Padding(
@@ -697,6 +689,8 @@ class PlayerLyricsView extends StatefulWidget {
 }
 
 class _PlayerLyricsViewState extends State<PlayerLyricsView> {
+  static const double _lyricLineHeight = 48.0;
+
   final ScrollController _scrollController = ScrollController();
   int _lastIndex = -1;
   bool _isUserScrolling = false;
@@ -736,7 +730,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
     if (lines.isEmpty) return;
     final int calculatedIndex =
-        (offset / 32.0).round().clamp(0, lines.length - 1);
+        (offset / _lyricLineHeight).round().clamp(0, lines.length - 1);
     if (calculatedIndex != _centerIndex) {
       setState(() {
         _centerIndex = calculatedIndex;
@@ -748,16 +742,15 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     if (!_scrollController.hasClients) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      const double lineExtent = 32.0;
-      final double target = (index * lineExtent) - 44.0;
+      final double target = index * _lyricLineHeight;
       final double clamped = target.clamp(
         _scrollController.position.minScrollExtent,
         _scrollController.position.maxScrollExtent,
       );
       _scrollController.animateTo(
         clamped,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOutCubic,
       );
     });
   }
@@ -784,8 +777,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     return Positioned(
       left: 0,
       right: 0,
-      top: 60 - 16, // Vertically center on the line height 32
-      height: 32,
+      top: 76.0, // Vertically center on the line height 48 inside a 200 height container
+      height: 48.0,
       child: IgnorePointer(
         ignoring: false,
         child: Row(
@@ -914,7 +907,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                   Colors.white,
                   Colors.transparent,
                 ],
-                stops: <double>[0, 0.15, 0.85, 1],
+                stops: <double>[0, 0.25, 0.75, 1],
               ).createShader(rect);
             },
             blendMode: BlendMode.dstIn,
@@ -935,8 +928,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
               child: ListView.builder(
                 controller: _scrollController,
                 itemCount: lines.length,
-                itemExtent: 40,
-                padding: const EdgeInsets.symmetric(vertical: 80),
+                itemExtent: _lyricLineHeight,
+                padding: const EdgeInsets.symmetric(vertical: 76.0),
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
@@ -957,14 +950,21 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                         child: AnimatedDefaultTextStyle(
                           duration: const Duration(milliseconds: 300),
                           style: active
-                              ? theme.textTheme.headlineSmall!.copyWith(
+                              ? theme.textTheme.titleLarge!.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: colors.primary,
+                                  color: colors.onSurface,
                                   letterSpacing: -0.3,
+                                  shadows: <Shadow>[
+                                    Shadow(
+                                      color: colors.onSurface.withValues(alpha: 0.25),
+                                      offset: const Offset(0, 1),
+                                      blurRadius: 10,
+                                    ),
+                                  ],
                                 )
                               : theme.textTheme.titleMedium!.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.onSurface.withValues(alpha: 0.45),
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.onSurface.withValues(alpha: 0.28),
                                   fontSize: 15,
                                 ),
                           child: Text(
@@ -978,25 +978,6 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                     ),
                   );
                 },
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 200 / 2 - AppSpace.xl,
-            height: AppSpace.xl4,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    colors.primary.withValues(alpha: 0.15),
-                    Colors.transparent,
-                  ],
-                  stops: const <double>[0.5, 1],
-                ),
               ),
             ),
           ),
