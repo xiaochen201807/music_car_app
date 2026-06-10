@@ -15,7 +15,6 @@ import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/luxury_loading_indicator.dart';
-import 'waveform_seekbar.dart';
 
 IconData iconForPlaybackMode(NativePlaybackMode mode) {
   switch (mode) {
@@ -161,6 +160,30 @@ class PortraitPlayerView extends StatelessWidget {
               Positioned.fill(
                 child: childWidget!,
               ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: 3.0,
+                  color: colors.surfaceContainerHighest.withValues(alpha: 0.2),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: progress.clamp(0.0, 1.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: AppColor.accentGradient,
+                          borderRadius: const BorderRadius.only(
+                            topRight: Radius.circular(2.0),
+                            bottomRight: Radius.circular(2.0),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -261,31 +284,6 @@ class PortraitPlayerView extends StatelessWidget {
                       color: colors.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
-                  ),
-                  const SizedBox(height: AppSpace.lg),
-                  WaveformSeekBar(
-                    value: progress.clamp(0, 1).toDouble(),
-                    color: colors.primary,
-                    trackColor: colors.surfaceContainerHighest,
-                    onChanged: duration == Duration.zero
-                        ? null
-                        : (double value) {
-                            HapticFeedback.lightImpact();
-                            onSeek(
-                              Duration(
-                                milliseconds: (duration.inMilliseconds * value)
-                                    .round(),
-                              ),
-                            );
-                          },
-                  ),
-                  const SizedBox(height: AppSpace.sm),
-                  Row(
-                    children: <Widget>[
-                      Text(formatDuration(playbackState.position)),
-                      const Spacer(),
-                      Text(formatDuration(duration)),
-                    ],
                   ),
                   const SizedBox(height: AppSpace.xl),
                   PlayerLyricsView(
