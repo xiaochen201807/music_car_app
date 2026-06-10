@@ -160,11 +160,14 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
     PlaybackUiState playbackState,
   ) {
     final ThemeData baseTheme = Theme.of(context);
-    final ColorScheme dynamicScheme = ColorScheme.fromSeed(
-      seedColor: appState.coverSeedColor,
-      brightness: baseTheme.brightness,
-    );
-    final ThemeData theme = baseTheme.copyWith(colorScheme: dynamicScheme);
+    final ThemeData theme = baseTheme.brightness == Brightness.light
+        ? baseTheme
+        : baseTheme.copyWith(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: appState.coverSeedColor,
+              brightness: baseTheme.brightness,
+            ),
+          );
     final bool visualEffectsPaused =
         _reducePageMotionEffects || !appState.visualAnimationsEnabled;
 
@@ -321,20 +324,16 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       playlistSongsBusy: false,
       queueSongs: appState.playbackQueue,
       searchResults: appState.searchResults,
-      favoriteSongs: appState.favoriteSongs,
       hotSearchKeywords: appState.hotSearchKeywords,
       musicSources: appState.musicSources,
       sourceBusy: appState.isLoadingApiBootstrap,
       sourceError: appState.apiBootstrapError,
-      carLifeStatus: appState.carLifeStatus,
       onSearch: runSearchFromHome,
       onHotKeyword: (String keyword) {
         appState.searchController.text = keyword;
         runSearchFromHome();
       },
       onSelectPlaylist: appState.openPlaylistDetails,
-      onOpenFavorites: () => appState.selectTab(2),
-      onOpenDownloads: () => appState.selectTab(5),
     );
   }
 
@@ -383,17 +382,11 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
     return PortraitSettingsView(
       themeMode: appState.widget.themeMode,
       preferredBitrate: appState.preferredBitrate,
-      carLifeStatus: appState.carLifeStatus,
-      carLifeBusy: appState.isCheckingCarLife || appState.isSyncingCarLife,
       updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
       onThemeModeChanged:
           appState.widget.onThemeModeChanged ?? (ThemeMode mode) {},
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
-      onOpenCarLife: appState.openCarLife,
-      onSyncCarLife: () =>
-          appState.syncCarLifePlaybackContext(showResult: true),
-      onRefreshCarLife: appState.refreshCarLifeStatus,
       onCheckUpdate: () => appState.checkForUpdate(),
       onOpenDownloads: () => appState.openDownloads(),
     );

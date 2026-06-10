@@ -145,10 +145,23 @@ ThemeData _buildAppTheme({
   required Brightness brightness,
   required Color seedColor,
 }) {
-  final ColorScheme colorScheme = ColorScheme.fromSeed(
+  final ColorScheme baseColorScheme = ColorScheme.fromSeed(
     seedColor: seedColor,
     brightness: brightness,
   );
+  final ColorScheme colorScheme = brightness == Brightness.light
+      ? baseColorScheme.copyWith(
+          surface: AppColor.paperBase,
+          surfaceContainer: AppColor.paperWarm,
+          surfaceContainerHighest: AppColor.paperCool,
+          onSurface: AppColor.paperInk,
+          onSurfaceVariant: AppColor.paperMuted,
+          primaryContainer: AppColor.paperAccentContainer,
+          onPrimaryContainer: AppColor.paperOnAccentContainer,
+          outline: AppColor.paperStrokeHairline,
+          shadow: AppColor.paperShadow,
+        )
+      : baseColorScheme;
   return ThemeData(
     fontFamily: 'sans',
     colorScheme: colorScheme,
@@ -1134,6 +1147,24 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     return bestQuality;
   }
 
+  String _qualityDisplayLabel(FreeMusicQuality quality) {
+    final String combined =
+        '${quality.bitrate} ${quality.name} ${quality.format}'.toLowerCase();
+    if (combined.contains('flac') ||
+        combined.contains('lossless') ||
+        combined.contains('无损')) {
+      return '无损 FLAC';
+    }
+    final int value = _parseBitrateValue(combined);
+    if (value >= 256) {
+      return '极高 320K';
+    }
+    if (value >= 128) {
+      return '较高 128K';
+    }
+    return '标准';
+  }
+
   void _showQualitySheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -1171,6 +1202,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             ),
           );
         } else {
+          final FreeMusicQuality selectedQuality = findBestQuality(
+            qualities,
+            _preferredBitrate,
+          );
           content = ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1182,13 +1217,15 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             separatorBuilder: (_, _) => const SizedBox(height: AppSpace.xs),
             itemBuilder: (BuildContext context, int index) {
               final FreeMusicQuality q = qualities[index];
-              final String label = q.name.isNotEmpty ? q.name : q.bitrate;
+              final String label = _qualityDisplayLabel(q);
               final String subtitle = <String>[
                 if (q.format.isNotEmpty) q.format,
                 if (q.size.isNotEmpty) q.size,
-                if (q.bitrate.isNotEmpty && q.name.isNotEmpty) q.bitrate,
+                if (q.bitrate.isNotEmpty) q.bitrate,
               ].join(' · ');
-              final bool isSelected = q.bitrate == _preferredBitrate;
+              final bool isSelected =
+                  q.bitrate == selectedQuality.bitrate &&
+                  q.format == selectedQuality.format;
               return ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.control),

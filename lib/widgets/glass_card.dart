@@ -27,19 +27,35 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BorderRadiusGeometry borderRadius = BorderRadius.circular(radius);
+    final bool isLight = Theme.of(context).brightness == Brightness.light;
     final bool ancestorHasBlur = GlassBackdropScope.hasBlur(context);
     final bool blurDisabled =
         GlassPerformanceMode.of(context) || ancestorHasBlur;
     final double effectiveBlur = blurDisabled ? 0 : blur;
+    final List<BoxShadow> effectiveShadows = isLight && shadows.isNotEmpty
+        ? const <BoxShadow>[
+            BoxShadow(
+              color: AppColor.paperShadow,
+              blurRadius: 28,
+              offset: Offset(0, 14),
+            ),
+          ]
+        : shadows;
     final Widget content = Container(
       width: width,
       height: height,
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
+        color: isLight
+            ? AppColor.paperGlassTint.withValues(alpha: 0.70)
+            : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
         borderRadius: borderRadius,
-        border: Border.all(color: AppColor.strokeHairline),
-        boxShadow: shadows,
+        border: Border.all(
+          color: isLight
+              ? AppColor.paperStrokeHairline
+              : AppColor.strokeHairline,
+        ),
+        boxShadow: effectiveShadows,
       ),
       child: Stack(
         children: <Widget>[
@@ -48,10 +64,13 @@ class GlassCard extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: borderRadius,
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: <Color>[AppColor.sheenTop, Colors.transparent],
+                    colors: <Color>[
+                      isLight ? AppColor.paperSheenTop : AppColor.sheenTop,
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),

@@ -17,12 +17,14 @@ permissions:
 jobs:
   build-android-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     concurrency:
       group: android-apk-${{ github.ref }}
       cancel-in-progress: ${{ github.ref_type != 'tag' }}
     env:
       GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
+      CLOUDFLARE_R2_ENDPOINT: https://${{ vars.CLOUDFLARE_R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      CLOUDFLARE_R2_PREFIX: ${{ vars.CLOUDFLARE_R2_PREFIX || 'music_car_app' }}
 
     steps:
       - name: Checkout
@@ -84,10 +86,18 @@ jobs:
 
       - name: Build Release APK
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        shell: bash
         run: |
           build_args="--release --split-per-abi"
-          if [ -n "${MUSIC_CAR_UPDATE_MANIFEST_URL:-}" ]; then
-            build_args="$build_args --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=$MUSIC_CAR_UPDATE_MANIFEST_URL"
+          update_manifest_url="${MUSIC_CAR_UPDATE_MANIFEST_URL:-}"
+          if [ -z "$update_manifest_url" ]; then
+            update_manifest_url="${CLOUDFLARE_R2_UPDATE_MANIFEST_URL:-}"
+          fi
+          if [ -z "$update_manifest_url" ] && [ -n "${CLOUDFLARE_R2_PUBLIC_BASE_URL:-}" ]; then
+            update_manifest_url="${CLOUDFLARE_R2_PUBLIC_BASE_URL%/}/${CLOUDFLARE_R2_PREFIX%/}/update.json"
+          fi
+          if [ -n "$update_manifest_url" ]; then
+            build_args="$build_args --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=$update_manifest_url"
           fi
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             version_name="${GITHUB_REF_NAME#v}"
@@ -106,6 +116,8 @@ jobs:
           flutter build apk $build_args
         env:
           MUSIC_CAR_UPDATE_MANIFEST_URL: ${{ vars.MUSIC_CAR_UPDATE_MANIFEST_URL }}
+          CLOUDFLARE_R2_UPDATE_MANIFEST_URL: ${{ secrets.CLOUDFLARE_R2_UPDATE_MANIFEST_URL }}
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
 
       - name: List APK Outputs
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
@@ -119,8 +131,25 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
 
-      - name: Generate Update Manifest
+      - name: Validate Cloudflare R2 Upload Secrets
         if: github.ref_type == 'tag'
+        env:
+          CLOUDFLARE_R2_ACCOUNT_ID: ${{ vars.CLOUDFLARE_R2_ACCOUNT_ID }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
+        run: |
+          test -n "$CLOUDFLARE_R2_ACCOUNT_ID" || { echo "Missing variable: CLOUDFLARE_R2_ACCOUNT_ID"; exit 1; }
+          test -n "$CLOUDFLARE_R2_ACCESS_KEY_ID" || { echo "Missing secret: CLOUDFLARE_R2_ACCESS_KEY_ID"; exit 1; }
+          test -n "$CLOUDFLARE_R2_SECRET_ACCESS_KEY" || { echo "Missing secret: CLOUDFLARE_R2_SECRET_ACCESS_KEY"; exit 1; }
+          test -n "$CLOUDFLARE_R2_BUCKET" || { echo "Missing secret: CLOUDFLARE_R2_BUCKET"; exit 1; }
+          test -n "$CLOUDFLARE_R2_PUBLIC_BASE_URL" || { echo "Missing secret: CLOUDFLARE_R2_PUBLIC_BASE_URL"; exit 1; }
+
+      - name: Generate Cloudflare R2 Update Manifest
+        if: github.ref_type == 'tag'
+        env:
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -133,6 +162,7 @@ jobs:
           fi
 
           tag="${GITHUB_REF_NAME}"
+          prefix="${CLOUDFLARE_R2_PREFIX%/}"
           # The tag is the source of truth for the released version. Derive the
           # version name/code from it so the manifest always matches the APK
           # built above, even if pubspec.yaml was not bumped. The versionCode
@@ -157,6 +187,7 @@ jobs:
           export VERSION_NAME="$version_name"
           export VERSION_CODE="$version_code"
           export TAG_NAME="$tag"
+          export CLOUDFLARE_R2_PREFIX="$prefix"
           export RELEASE_URL="$release_url"
           export GITHUB_DOWNLOAD_BASE="$github_download_base"
           export PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -178,15 +209,21 @@ jobs:
               return ""
 
           github_download_base = os.environ["GITHUB_DOWNLOAD_BASE"].rstrip("/")
+          public_base = os.environ["CLOUDFLARE_R2_PUBLIC_BASE_URL"].rstrip("/")
+          prefix = os.environ["CLOUDFLARE_R2_PREFIX"].strip("/")
+          tag = os.environ["TAG_NAME"]
           assets = []
           for apk_path in apk_paths:
               data = apk_path.read_bytes()
               name = apk_path.name
+              object_key = f"{prefix}/{tag}/{name}"
               assets.append({
                   "abi": abi_from_name(name),
                   "name": name,
-                  "url": f"{github_download_base}/{name}",
-                  "fallbackUrls": [],
+                  "url": f"{public_base}/{object_key}",
+                  "fallbackUrls": [
+                      f"{github_download_base}/{name}",
+                  ],
                   "sha256": hashlib.sha256(data).hexdigest(),
                   "size": len(data),
               })
@@ -215,6 +252,192 @@ jobs:
           name: update-manifest
           path: build/update-manifest/update.json
           if-no-files-found: error
+
+      - name: Upload Android APKs To Cloudflare R2
+        if: github.ref_type == 'tag'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          prefix="${CLOUDFLARE_R2_PREFIX%/}"
+          bucket="${CLOUDFLARE_R2_BUCKET}"
+          endpoint="${CLOUDFLARE_R2_ENDPOINT}"
+
+          aws --version
+          aws configure set default.s3.multipart_threshold 8MB
+          aws configure set default.s3.multipart_chunksize 8MB
+
+          for apk in build/app/outputs/flutter-apk/*-release.apk; do
+            key="${prefix}/${tag}/$(basename "$apk")"
+            aws s3 cp "$apk" "s3://${bucket}/${key}" \
+              --endpoint-url "$endpoint" \
+              --content-type application/vnd.android.package-archive \
+              --only-show-errors
+            echo "uploaded s3://${bucket}/${key}"
+          done
+
+          aws s3 cp build/update-manifest/update.json "s3://${bucket}/${prefix}/${tag}/update.json" \
+            --endpoint-url "$endpoint" \
+            --content-type application/json \
+            --only-show-errors
+          echo "uploaded s3://${bucket}/${prefix}/${tag}/update.json"
+
+          aws s3 cp build/update-manifest/update.json "s3://${bucket}/${prefix}/update.json" \
+            --endpoint-url "$endpoint" \
+            --content-type application/json \
+            --only-show-errors
+          echo "uploaded s3://${bucket}/${prefix}/update.json"
+
+      - name: Prune Old Cloudflare R2 Releases
+        if: github.ref_type == 'tag'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_RELEASES_TO_KEEP: '3'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          prefix="${CLOUDFLARE_R2_PREFIX%/}"
+          bucket="${CLOUDFLARE_R2_BUCKET}"
+          endpoint="${CLOUDFLARE_R2_ENDPOINT}"
+          keep="${CLOUDFLARE_R2_RELEASES_TO_KEEP}"
+          mkdir -p build/r2-prune
+
+          aws s3api list-objects-v2 \
+            --bucket "$bucket" \
+            --prefix "${prefix}/" \
+            --delimiter "/" \
+            --endpoint-url "$endpoint" \
+            --output json > build/r2-prune/common-prefixes.json
+
+          export R2_PRUNE_PREFIX="$prefix"
+          export R2_PRUNE_KEEP="$keep"
+          python3 - <<'PY' > build/r2-prune/delete-prefixes.txt
+          import json
+          import os
+          import pathlib
+          import re
+          import sys
+
+          prefix = os.environ["R2_PRUNE_PREFIX"].strip("/")
+          keep = int(os.environ["R2_PRUNE_KEEP"])
+          payload = json.loads(
+              pathlib.Path("build/r2-prune/common-prefixes.json").read_text(encoding="utf-8")
+          )
+
+          def parse_tag(tag):
+              match = re.fullmatch(r"v?(\d+(?:\.\d+)*)(?:[-+].*)?", tag)
+              if match is None:
+                  return None
+              parts = tuple(int(part) for part in match.group(1).split("."))
+              return parts
+
+          releases = []
+          for item in payload.get("CommonPrefixes", []):
+              object_prefix = str(item.get("Prefix", ""))
+              if not object_prefix.startswith(f"{prefix}/"):
+                  continue
+              tag = object_prefix[len(prefix) + 1 :].strip("/")
+              version = parse_tag(tag)
+              if version is None:
+                  continue
+              releases.append((version, tag, object_prefix))
+
+          releases.sort(key=lambda item: (item[0], item[1]), reverse=True)
+          for _, tag, object_prefix in releases[:keep]:
+              print(f"keep {tag}", file=sys.stderr)
+          for _, tag, object_prefix in releases[keep:]:
+              print(f"delete {tag}", file=sys.stderr)
+              print(object_prefix)
+          PY
+
+          if [ ! -s build/r2-prune/delete-prefixes.txt ]; then
+            echo "No old Cloudflare R2 release directories to delete."
+            exit 0
+          fi
+
+          while IFS= read -r old_prefix; do
+            [ -n "$old_prefix" ] || continue
+            echo "deleting s3://${bucket}/${old_prefix}"
+            aws s3 rm "s3://${bucket}/${old_prefix}" \
+              --endpoint-url "$endpoint" \
+              --recursive \
+              --only-show-errors
+          done < build/r2-prune/delete-prefixes.txt
+
+      - name: Verify Cloudflare R2 Public URLs
+        if: github.ref_type == 'tag'
+        env:
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+          CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          prefix="${CLOUDFLARE_R2_PREFIX%/}"
+          public_base="${CLOUDFLARE_R2_PUBLIC_BASE_URL%/}"
+          latest_manifest_url="${public_base}/${prefix}/update.json"
+          tagged_manifest_url="${public_base}/${prefix}/${tag}/update.json"
+
+          echo "Cloudflare R2 bucket: ${CLOUDFLARE_R2_BUCKET}"
+          echo "Cloudflare R2 prefix: ${prefix}"
+          echo "Cloudflare R2 latest manifest: ${latest_manifest_url}"
+          echo "Cloudflare R2 tagged manifest: ${tagged_manifest_url}"
+          echo "Cloudflare R2 expected uploaded objects:"
+          for apk in build/app/outputs/flutter-apk/*-release.apk; do
+            echo "s3://${CLOUDFLARE_R2_BUCKET}/${prefix}/${tag}/$(basename "$apk")"
+          done
+          echo "s3://${CLOUDFLARE_R2_BUCKET}/${prefix}/${tag}/update.json"
+          echo "s3://${CLOUDFLARE_R2_BUCKET}/${prefix}/update.json"
+
+          echo "generated update.json:"
+          cat build/update-manifest/update.json
+
+          echo "public latest manifest response:"
+          curl --fail --location --show-error --silent \
+            --max-time 20 \
+            --write-out '\nHTTP %{http_code} %{content_type} %{size_download} bytes\n' \
+            "$latest_manifest_url"
+
+          echo "public APK HEAD responses:"
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+
+          payload = json.loads(pathlib.Path("build/update-manifest/update.json").read_text(encoding="utf-8"))
+          for asset in payload.get("assets", []):
+              url = asset.get("url", "")
+              if not url:
+                  continue
+              print(f"APK {asset.get('abi') or '-'} {asset.get('name')}: {url}")
+              subprocess.run(
+                  [
+                      "curl",
+                      "--fail",
+                      "--location",
+                      "--head",
+                      "--show-error",
+                      "--silent",
+                      "--max-time",
+                      "20",
+                      "--write-out",
+                      "HTTP %{http_code} %{content_type} %{size_download} bytes\\n",
+                      url,
+                  ],
+                  check=True,
+              )
+          PY
 
       - name: Publish APK To GitHub Release
         if: github.ref_type == 'tag'

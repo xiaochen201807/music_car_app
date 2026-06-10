@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
-import '../../services/carlife_service.dart';
 import '../../theme/design_tokens.dart';
 import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
@@ -24,17 +23,13 @@ class PortraitHomeView extends StatefulWidget {
     required this.playlistSongsBusy,
     required this.queueSongs,
     required this.searchResults,
-    required this.favoriteSongs,
     required this.hotSearchKeywords,
     required this.musicSources,
     required this.sourceBusy,
     required this.sourceError,
-    required this.carLifeStatus,
     required this.onSearch,
     required this.onHotKeyword,
     required this.onSelectPlaylist,
-    required this.onOpenFavorites,
-    required this.onOpenDownloads,
   });
 
   final TextEditingController controller;
@@ -44,17 +39,13 @@ class PortraitHomeView extends StatefulWidget {
   final bool playlistSongsBusy;
   final List<FreeMusicSong> queueSongs;
   final List<FreeMusicSong> searchResults;
-  final List<FreeMusicSong> favoriteSongs;
   final List<String> hotSearchKeywords;
   final FreeMusicSources? musicSources;
   final bool sourceBusy;
   final String sourceError;
-  final CarLifeStatus carLifeStatus;
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
-  final VoidCallback onOpenFavorites;
-  final VoidCallback onOpenDownloads;
 
   @override
   State<PortraitHomeView> createState() => _PortraitHomeViewState();
@@ -86,7 +77,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
               AppSpace.xl,
               AppSpace.lg,
               AppSpace.xl,
-              140,
+              118,
             ),
             sliver: SliverList.list(
               children: <Widget>[
@@ -202,14 +193,6 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                         ),
                       ),
                     ),
-                const SizedBox(height: AppSpace.xl2),
-                PortraitMetricGrid(
-                  favoriteCount: widget.favoriteSongs.length,
-                  queueCount: widget.queueSongs.length,
-                  carLifeReady: widget.carLifeStatus.launchable,
-                  onOpenFavorites: widget.onOpenFavorites,
-                  onOpenDownloads: widget.onOpenDownloads,
-                ),
               ],
             ),
           ),
@@ -378,118 +361,6 @@ class _PortraitSearchHeroState extends State<PortraitSearchHero> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class PortraitMetricGrid extends StatelessWidget {
-  const PortraitMetricGrid({
-    super.key,
-    required this.favoriteCount,
-    required this.queueCount,
-    required this.carLifeReady,
-    required this.onOpenFavorites,
-    required this.onOpenDownloads,
-  });
-
-  final int favoriteCount;
-  final int queueCount;
-  final bool carLifeReady;
-  final VoidCallback onOpenFavorites;
-  final VoidCallback onOpenDownloads;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: AppSpace.md,
-      mainAxisSpacing: AppSpace.md,
-      childAspectRatio: 1.42,
-      children: <Widget>[
-        StaggeredAnimatedItem(
-          index: 0,
-          child: PortraitMetricCard(
-            icon: Icons.favorite_rounded,
-            title: '收藏',
-            value: '$favoriteCount 首',
-            onTap: onOpenFavorites,
-          ),
-        ),
-        StaggeredAnimatedItem(
-          index: 1,
-          child: PortraitMetricCard(
-            icon: Icons.offline_pin_rounded,
-            title: '离线',
-            value: '缓存管理',
-            onTap: onOpenDownloads,
-          ),
-        ),
-        StaggeredAnimatedItem(
-          index: 2,
-          child: PortraitMetricCard(
-            icon: Icons.queue_music_rounded,
-            title: '队列',
-            value: '$queueCount 首',
-            onTap: onOpenFavorites,
-          ),
-        ),
-        StaggeredAnimatedItem(
-          index: 3,
-          child: PortraitMetricCard(
-            icon: Icons.directions_car_filled_rounded,
-            title: 'CarLife',
-            value: carLifeReady ? '可启动' : '待连接',
-            onTap: onOpenDownloads,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class PortraitMetricCard extends StatelessWidget {
-  const PortraitMetricCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return PortraitSurface(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: <Widget>[
-          Icon(icon, color: colors.primary),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(title, style: theme.textTheme.titleMedium),
-              const SizedBox(height: AppSpace.xs),
-              Text(
-                value,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

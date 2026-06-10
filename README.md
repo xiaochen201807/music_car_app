@@ -55,18 +55,58 @@ The ABI-split APKs are uploaded as the `car-music-release-apk` workflow
 artifact. The in-app updater chooses the best APK for the device ABI before
 downloading.
 
-On `v*` tag builds, the workflow also creates or updates the GitHub Release and
-attaches both the APK and `update.json`. The app's online update checker can
-read GitHub's latest release directly, or read a custom manifest URL provided at
-build time with:
+On `v*` tag builds, the workflow also publishes the APKs and `update.json` to
+Cloudflare R2, then creates or updates the GitHub Release with the same assets.
+The app's online update checker reads the Cloudflare R2 manifest first when it
+is embedded at build time, and still falls back to GitHub's latest release API
+if no custom manifest is configured.
+
+The default R2 manifest path is:
+
+```text
+{CLOUDFLARE_R2_PUBLIC_BASE_URL}/music_car_app/update.json
+```
+
+Published APKs are stored under the release tag:
+
+```text
+{CLOUDFLARE_R2_PUBLIC_BASE_URL}/music_car_app/v1.0.8/app-arm64-v8a-release.apk
+```
+
+Each tag release keeps `music_car_app/update.json` as the latest manifest and
+prunes old R2 release directories, keeping only the newest 3 `v*` versions.
+
+Configure the GitHub repository with the same Cloudflare account credentials as
+the sibling `bbtotal` project.
+
+Secrets:
+
+```text
+CLOUDFLARE_R2_ACCESS_KEY_ID
+CLOUDFLARE_R2_SECRET_ACCESS_KEY
+CLOUDFLARE_R2_BUCKET
+CLOUDFLARE_R2_PUBLIC_BASE_URL
+```
+
+Variables:
+
+```text
+CLOUDFLARE_R2_ACCOUNT_ID
+CLOUDFLARE_R2_PREFIX=music_car_app
+```
+
+`CLOUDFLARE_R2_PUBLIC_BASE_URL` must be a public bucket URL without the
+`CLOUDFLARE_R2_PREFIX`, for example an R2 public `r2.dev` domain or a custom
+download domain.
+
+If you need to override the embedded manifest URL, provide either the repository
+variable `MUSIC_CAR_UPDATE_MANIFEST_URL` or the secret
+`CLOUDFLARE_R2_UPDATE_MANIFEST_URL`. Otherwise the workflow derives it from the
+public R2 base URL and prefix:
 
 ```sh
 --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=https://example.com/update.json
 ```
-
-For GitHub Actions, set the repository variable
-`MUSIC_CAR_UPDATE_MANIFEST_URL` if you want the app to check a CDN/R2-hosted
-manifest before falling back to the GitHub latest release API.
 
 ### iOS Unsigned IPA
 

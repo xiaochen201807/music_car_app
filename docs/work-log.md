@@ -3,6 +3,35 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-10 - Cloudflare R2 Android Release Publishing
+
+Implemented in this increment:
+
+- Updated the Android APK GitHub Actions workflow to publish tag-release APKs
+  and `update.json` to Cloudflare R2 under the project prefix.
+- Embedded the R2 latest manifest URL into release APKs when an explicit
+  `MUSIC_CAR_UPDATE_MANIFEST_URL` is not provided.
+- Changed generated update manifests so APK URLs prefer Cloudflare R2 and keep
+  GitHub Release download URLs as fallbacks.
+- Added R2 upload, latest-manifest upload, public URL verification, and release
+  directory pruning that keeps only the newest 3 `v*` versions.
+- Documented the required R2 secrets and variables in `README.md`, matching the
+  sibling `bbtotal` release pattern with `CLOUDFLARE_R2_PREFIX=music_car_app`.
+
+Verification in this increment:
+
+- Parsed `.github/workflows/android-apk.yml` with Python/YAML and verified the
+  Cloudflare R2 publish/prune/verify steps run before GitHub Release
+  publication.
+- `flutter test test/update_check_service_test.dart`
+- `flutter analyze`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-10 - High-End UI Rebuild, Canvas Cover-Palette & Sandboxed Offline Caching System
 
 Implemented in this increment:
@@ -297,6 +326,32 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
 
+## 2026-06-10 - Light Paper Theme Refinement
+
+Implemented in this increment:
+
+- Reworked the light theme around a premium white paper surface, with dedicated
+  paper background, ink, muted text, outline, and glass tint tokens.
+- Kept dynamic album-color gradients for dark mode only, so the light theme no
+  longer gets a dark or dirty top area from cover palette changes.
+- Added a static, low-cost paper texture painter under the UI content for the
+  light background.
+- Adjusted shared glass cards and common control borders to use light-theme
+  paper colors while preserving the existing dark glass recipe.
+
+Verification in this increment:
+
+- `dart format lib/theme/design_tokens.dart lib/widgets/sparkling_stars.dart lib/main.dart lib/features/shell/portrait_music_shell.dart lib/widgets/glass_card.dart lib/widgets/portrait_segmented_tab.dart lib/shared/portrait_surface.dart lib/shared/portrait_circle_button.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-10 - Blur Radius and Waveform Reduction
 
 Implemented in this increment:
@@ -332,6 +387,95 @@ Implemented in this increment:
 Verification in this increment:
 
 - `dart format lib/features/home/portrait_home_view.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Settings Update Button Width
+
+Implemented in this increment:
+
+- Changed the settings page "检查更新" action from a content-width pill to a
+  full-width glass button aligned with the surrounding settings cards.
+- Kept the same icon, disabled state, haptic feedback, and update action
+  behavior.
+
+Verification in this increment:
+
+- `dart format lib/features/settings/portrait_settings_view.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Settings CarLife Card Removal
+
+Implemented in this increment:
+
+- Removed the Baidu CarLife card from the portrait settings page.
+- Removed the now-unused CarLife display props and callbacks from
+  `PortraitSettingsView` and its shell call site.
+- Kept the underlying CarLife service and playback context sync code intact so
+  this is only a settings UI cleanup.
+
+Verification in this increment:
+
+- `dart format lib/features/settings/portrait_settings_view.dart lib/features/shell/portrait_music_shell.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Quality Sheet Labels and Default Selection
+
+Implemented in this increment:
+
+- Updated the playback quality sheet to display the same tier names as the
+  settings page: `标准`, `较高 128K`, `极高 320K`, and `无损 FLAC`.
+- Changed the selected mark from exact bitrate matching to the existing
+  preferred-quality matching logic, so the closest available quality is checked
+  automatically when the exact default bitrate is unavailable.
+- Kept the technical bitrate/format/size details in the subtitle for
+  traceability.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/features/settings/portrait_settings_view.dart lib/features/shell/portrait_music_shell.dart test/widget_test.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Home Metric Grid Removal
+
+Implemented in this increment:
+
+- Removed the four shortcut metric cards from the bottom of the home page:
+  favorites, offline cache, queue, and CarLife.
+- Removed the now-unused home view props and widget classes that only existed
+  for those metric cards.
+- Tightened the home page bottom padding after removing the grid so the home
+  content ends closer to the mini-player without a large empty gap.
+
+Verification in this increment:
+
+- `dart format lib/features/home/portrait_home_view.dart lib/features/shell/portrait_music_shell.dart`
 - `flutter analyze`
 - `flutter test test/widget_test.dart`
 - `flutter test`

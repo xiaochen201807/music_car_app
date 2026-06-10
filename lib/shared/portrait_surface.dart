@@ -25,7 +25,7 @@ class PortraitSurface extends StatelessWidget {
             : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: selected ? colors.primary : AppColor.strokeHairline,
+          color: selected ? colors.primary : colors.outline,
           width: selected ? 1.5 : 1.0,
         ),
       ),

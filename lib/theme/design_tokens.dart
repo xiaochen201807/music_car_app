@@ -10,6 +10,21 @@ class AppColor {
   static const glowCyan = Color(0xFF2E6F9E);
   static const glassTint = Color(0xFF0E1426);
 
+  // Light paper theme colors.
+  static const paperBase = Color(0xFFF7F5EF);
+  static const paperWarm = Color(0xFFFFFDF8);
+  static const paperCool = Color(0xFFEFF1EA);
+  static const paperFiber = Color(0x168A806F);
+  static const paperGlassTint = Color(0xFFFFFCF4);
+  static const paperStrokeHairline = Color(0x2E7C735F);
+  static const paperSheenTop = Color(0xD9FFFFFF);
+  static const paperShadow = Color(0x184C4639);
+  static const paperInk = Color(0xFF25231E);
+  static const paperMuted = Color(0xFF686154);
+  static const paperFaint = Color(0xFF8D8678);
+  static const paperAccentContainer = Color(0xFFEDE7D8);
+  static const paperOnAccentContainer = Color(0xFF3D382F);
+
   // Glass borders and highlights.
   static const strokeHairline = Color(0x1FFFFFFF);
   static const strokeStrong = Color(0x2EFFFFFF);

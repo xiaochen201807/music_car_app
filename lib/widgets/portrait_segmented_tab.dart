@@ -93,7 +93,7 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surfaceContainer.withValues(alpha: 0.15),
           borderRadius: radius,
-          border: Border.all(color: AppColor.strokeHairline),
+          border: Border.all(color: colors.outline),
         ),
         child: Row(
           mainAxisSize: expands ? MainAxisSize.max : MainAxisSize.min,

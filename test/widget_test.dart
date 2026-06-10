@@ -89,7 +89,9 @@ void main() {
       warnIfMissed: false,
     );
     await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text('百度 CarLife'), findsOneWidget);
+    expect(find.text('关于'), findsOneWidget);
+    expect(find.text('检查更新'), findsOneWidget);
+    expect(find.text('百度 CarLife'), findsNothing);
   });
 
   testWidgets('search history starts empty and records user queries', (

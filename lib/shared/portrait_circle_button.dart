@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 
 /// 具有物理阻尼回弹效果的交互包装组件
 class BounceTouchable extends StatefulWidget {
-  const BounceTouchable({
-    super.key,
-    required this.child,
-    required this.onTap,
-  });
+  const BounceTouchable({super.key, required this.child, required this.onTap});
 
   final Widget child;
   final VoidCallback? onTap;
@@ -29,9 +25,10 @@ class _BounceTouchableState extends State<BounceTouchable>
       lowerBound: 0.0,
       upperBound: 0.1,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.92,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -66,10 +63,7 @@ class _BounceTouchableState extends State<BounceTouchable>
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
       behavior: HitTestBehavior.opaque,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: widget.child,
-      ),
+      child: ScaleTransition(scale: _scaleAnimation, child: widget.child),
     );
   }
 }
@@ -107,7 +101,7 @@ class PortraitCircleButton extends StatelessWidget {
         border: Border.all(
           color: selected
               ? colors.primary.withValues(alpha: 0.3)
-              : Colors.white.withValues(alpha: 0.06),
+              : colors.outline.withValues(alpha: 0.7),
           width: 1.0,
         ),
       ),
@@ -120,10 +114,7 @@ class PortraitCircleButton extends StatelessWidget {
 
     return Tooltip(
       message: label,
-      child: BounceTouchable(
-        onTap: onTap,
-        child: button,
-      ),
+      child: BounceTouchable(onTap: onTap, child: button),
     );
   }
 }

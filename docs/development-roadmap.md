@@ -134,10 +134,11 @@ Exit criteria:
   recommendation grid.
 - `[~]` Add a portrait-first Material 3 shell with dynamic artwork color,
   recommendation grid, timeline, bottom mini-player/navigation, and immersive
-  full-screen player with waveform seekbar. The portrait shell now pauses
-  visual animation work while backgrounded and disables the heaviest glass
-  effects during page motion; download/cache UI, further blur tuning, and full
-  real-device visual validation remain pending.
+  full-screen player. The portrait shell now pauses visual animation work while
+  backgrounded, disables the heaviest glass effects during page motion, removes
+  the waveform seekbar, and uses a paper-style light theme while preserving
+  dynamic album-color atmosphere in dark mode; full real-device visual
+  validation remains pending.
 - `[~]` Use audited API data in the prototype UI: source labels, hot search
   chips, recommendation playlists, queue songs, quality chips, and lyric
   preview are wired to FreeMusic responses where client coverage exists.
@@ -224,6 +225,11 @@ Exit criteria:
 - `[x]` Android GitHub Actions builds release APKs with `--split-per-abi`.
 - `[x]` `v*` tag builds generate `update.json` and attach it to the GitHub
   Release with the APK assets.
+- `[x]` `v*` tag builds publish Android APKs and the latest `update.json` to
+  Cloudflare R2, with APK asset URLs preferring R2 and GitHub Release URLs kept
+  as fallbacks.
+- `[x]` Cloudflare R2 release directories are pruned after upload, keeping only
+  the newest 3 `v*` versions under the project prefix.
 - `[x]` The app checks `MUSIC_CAR_UPDATE_MANIFEST_URL` first when configured.
 - `[x]` The app falls back to the GitHub latest release API when no custom
   manifest is configured.
