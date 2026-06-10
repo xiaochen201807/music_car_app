@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:audio_service/audio_service.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,7 +13,6 @@ import 'free_music_api.dart';
 import 'music_audio_handler.dart';
 import 'models/app_update_info.dart';
 import 'models/cached_track.dart';
-import 'models/demo_track.dart';
 import 'models/playback_ui_state.dart';
 import 'native_audio_controller.dart';
 import 'services/app_installer_service.dart';
@@ -24,13 +20,12 @@ import 'services/download_service.dart';
 import 'services/carlife_service.dart';
 import 'services/update_check_service.dart';
 import 'theme/design_tokens.dart';
-import 'features/home/portrait_home_view.dart';
-import 'features/home/playlist_details_page.dart';
-import 'features/search/portrait_search_view.dart';
-import 'features/library/portrait_library_view.dart';
-import 'features/player/portrait_player_view.dart';
-import 'features/settings/portrait_settings_view.dart';
+import 'widgets/luxury_loading_indicator.dart';
 import 'features/settings/cache_manager_page.dart';
+import 'features/home/playlist_details_page.dart';
+import 'app/music_app_state_scope.dart';
+import 'features/shell/portrait_music_shell.dart';
+import 'utils/cover_palette_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -183,10 +178,10 @@ class NativeMusicHomePage extends StatefulWidget {
   final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
-  State<NativeMusicHomePage> createState() => _NativeMusicHomePageState();
+  State<NativeMusicHomePage> createState() => NativeMusicHomePageState();
 }
 
-class _NativeMusicHomePageState extends State<NativeMusicHomePage>
+class NativeMusicHomePageState extends State<NativeMusicHomePage>
     with WidgetsBindingObserver {
   late final NativeAudioController _nativeAudioController;
   late final DownloadService _downloadService;
@@ -481,7 +476,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     _coverSeedUrl = cover;
     try {
-      final Color color = await _extractCoverSeedColor(cover);
+      final Color color = await CoverPaletteManager.instance.getColor(cover);
       if (!mounted) {
         return;
       }
@@ -495,63 +490,6 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       setState(() {
         _coverSeedColor = AppColor.accentVioletStart;
       });
-    }
-  }
-
-  Future<Color> _extractCoverSeedColor(String imageUrl) async {
-    try {
-      final ImageProvider provider = CachedNetworkImageProvider(imageUrl);
-      final ImageStream stream = provider.resolve(ImageConfiguration.empty);
-      final Completer<ui.Image> completer = Completer<ui.Image>();
-      ImageStreamListener? listener;
-      listener = ImageStreamListener(
-        (ImageInfo info, bool synchronousCall) {
-          completer.complete(info.image);
-          if (listener != null) {
-            stream.removeListener(listener);
-          }
-        },
-        onError: (Object exception, StackTrace? stackTrace) {
-          completer.completeError(exception);
-          if (listener != null) {
-            stream.removeListener(listener);
-          }
-        },
-      );
-      stream.addListener(listener);
-
-      final ui.Image image = await completer.future.timeout(
-        const Duration(milliseconds: 3500),
-      );
-
-      final ui.PictureRecorder recorder = ui.PictureRecorder();
-      final Canvas canvas = Canvas(recorder);
-      canvas.drawImageRect(
-        image,
-        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-        const Rect.fromLTWH(0, 0, 1, 1),
-        Paint()..filterQuality = FilterQuality.medium,
-      );
-      final ui.Picture picture = recorder.endRecording();
-      final ui.Image smallImage = await picture.toImage(1, 1);
-      final ByteData? byteData = await smallImage.toByteData(
-        format: ui.ImageByteFormat.rawRgba,
-      );
-
-      if (byteData == null || byteData.lengthInBytes < 4) {
-        return AppColor.accentVioletStart;
-      }
-
-      final int r = byteData.getUint8(0);
-      final int g = byteData.getUint8(1);
-      final int b = byteData.getUint8(2);
-
-      final HSLColor hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
-      final double s = hsl.saturation.clamp(0.24, 0.48);
-      final double l = hsl.lightness.clamp(0.32, 0.62);
-      return hsl.withSaturation(s).withLightness(l).toColor();
-    } catch (_) {
-      return AppColor.accentVioletStart;
     }
   }
 
@@ -1104,9 +1042,9 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
 
         Widget content;
         if (busy) {
-          content = const Padding(
-            padding: EdgeInsets.all(AppSpace.xl3),
-            child: Center(child: CircularProgressIndicator()),
+          content = Padding(
+            padding: const EdgeInsets.all(AppSpace.xl3),
+            child: Center(child: LuxuryLoadingIndicator()),
           );
         } else if (error.isNotEmpty) {
           content = Padding(
@@ -1593,837 +1531,105 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      child: Scaffold(
-        body: _PlaybackStateBuilder(
-          audioHandler: widget.audioHandler,
-          builder: (BuildContext context, PlaybackUiState playbackState) {
-            final DemoTrack currentTrack =
-                demoQueue[_selectedQueueIndex % demoQueue.length];
-            final Set<String> favoriteSongKeys = _favoriteSongKeys;
-            return _NativeMusicScaffold(
-              selectedTab: _selectedTab,
-              selectedQueueIndex: _selectedQueueIndex,
-              queueSongs: _playbackQueue,
-              favoriteSongs: _favoriteSongs,
-              favoriteSongKeys: favoriteSongKeys,
-              favoritesBusy: _isLoadingFavorites,
-              currentSong: _currentSong,
-              coverSeedColor: _coverSeedColor,
-              themeMode: widget.themeMode,
-              searchController: _searchController,
-              searchResults: _searchResults,
-              searchBusy: _isSearchingMusic,
-              searchMoreBusy: _isLoadingMoreSearchResults,
-              searchCanLoadMore: _searchHasMore,
-              searchError: _searchError,
-              searchLoadMoreError: _searchLoadMoreError,
-              lastSearchQuery: _lastSearchQuery,
-              musicSources: _musicSources,
-              sourceBusy: _isLoadingApiBootstrap,
-              sourceError: _apiBootstrapError,
-              hotSearchKeywords: _hotSearchKeywords,
-              recommendedPlaylists: _recommendedPlaylists,
-              recommendationsBusy: _isLoadingRecommendations,
-              recommendationError: _recommendationError,
-              playlistSongsBusy: false,
-              playbackState: playbackState,
-              playbackMode: _playbackMode,
-              lyrics: _currentLyrics,
-              lyricsAvailable: _currentLyrics?.lines.isNotEmpty ?? false,
-              lyricsBusy: _isLoadingLyrics,
-              lyricsError: _lyricsError,
-              qualities: _currentQualities,
-              qualitiesBusy: _isLoadingQualities,
-              qualityError: _qualityError,
-              currentTrack: currentTrack,
-              carLifeStatus: _carLifeStatus,
-              updateBusy: _isCheckingUpdate || _isInstallingUpdate,
-              carLifeBusy: _isCheckingCarLife || _isSyncingCarLife,
-              onSelectTab: (int index) {
-                setState(() {
-                  _selectedTab = index;
-                });
-              },
-              onSelectQueueIndex: (int index) {
-                unawaited(_skipToQueueItem(index));
-              },
-              onSearch: _searchSongs,
-              onLoadMoreSearchResults: _loadMoreSearchResults,
-              onPlaySearchResult: (int index) {
-                unawaited(_playSearchResult(index));
-              },
-              onAddToQueue: (int index) {
-                unawaited(_addSearchResultToQueue(index));
-              },
-              onToggleFavorite: (FreeMusicSong song) {
-                unawaited(_toggleFavoriteSong(song));
-              },
-              onPlayFavorite: (int index) {
-                unawaited(_playFavoriteSong(index));
-              },
-              onPlayAllFavorites: () {
-                unawaited(_playAllFavorites());
-              },
-              onThemeModeChanged:
-                  widget.onThemeModeChanged ?? (ThemeMode mode) {},
+  // ==========================================
+  // Public Getters for MusicAppStateScope
+  // ==========================================
+  int get selectedTab => _selectedTab;
+  int get selectedQueueIndex => _selectedQueueIndex;
+  List<FreeMusicSong> get playbackQueue => _playbackQueue;
+  List<FreeMusicSong> get favoriteSongs => _favoriteSongs;
+  Set<String> get favoriteSongKeys => _favoriteSongKeys;
+  bool get isLoadingFavorites => _isLoadingFavorites;
+  FreeMusicSong? get currentSong => _currentSong;
+  Color get coverSeedColor => _coverSeedColor;
+  TextEditingController get searchController => _searchController;
+  List<FreeMusicSong> get searchResults => _searchResults;
+  bool get isSearchingMusic => _isSearchingMusic;
+  bool get isLoadingMoreSearchResults => _isLoadingMoreSearchResults;
+  bool get searchHasMore => _searchHasMore;
+  String get searchError => _searchError;
+  String get searchLoadMoreError => _searchLoadMoreError;
+  String get lastSearchQuery => _lastSearchQuery;
+  FreeMusicSources? get musicSources => _musicSources;
+  bool get isLoadingApiBootstrap => _isLoadingApiBootstrap;
+  String get apiBootstrapError => _apiBootstrapError;
+  List<String> get hotSearchKeywords => _hotSearchKeywords;
+  List<FreeMusicPlaylist> get recommendedPlaylists => _recommendedPlaylists;
+  bool get isLoadingRecommendations => _isLoadingRecommendations;
+  String get recommendationError => _recommendationError;
+  NativePlaybackMode get playbackMode => _playbackMode;
+  FreeMusicLyrics? get currentLyrics => _currentLyrics;
+  bool get isLoadingLyrics => _isLoadingLyrics;
+  String get lyricsError => _lyricsError;
+  List<FreeMusicQuality> get currentQualities => _currentQualities;
+  bool get isLoadingQualities => _isLoadingQualities;
+  String get qualityError => _qualityError;
+  CarLifeStatus get carLifeStatus => _carLifeStatus;
+  bool get isCheckingUpdate => _isCheckingUpdate;
+  bool get isInstallingUpdate => _isInstallingUpdate;
+  bool get isCheckingCarLife => _isCheckingCarLife;
+  bool get isSyncingCarLife => _isSyncingCarLife;
+  Set<String> get downloadedSongKeys => _downloadedSongKeys;
+  List<FreeMusicSong> get downloadedSongs => _downloadedSongs;
 
-              onSelectPlaylist: _openPlaylistDetails,
-              onPlayPause: () => _togglePlayback(playbackState.playing),
-              onPlaybackMode: () {
-                unawaited(_cyclePlaybackMode());
-              },
-              onQuality: _showQualitySheet,
-              onSeek: (Duration position) {
-                unawaited(_seekPlayback(position));
-              },
-              onPrevious: _skipToPreviousTrack,
-              onNext: _skipToNextTrack,
-              onOpenCarLife: _openCarLife,
-              onSyncCarLife: () {
-                unawaited(_syncCarLifePlaybackContext(showResult: true));
-              },
-              onRefreshCarLife: _refreshCarLifeStatus,
-              onCheckUpdate: _checkForUpdate,
-              onOpenDownloads: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (BuildContext context) => CacheManagerPage(
-                      downloadService: _downloadService,
-                    ),
-                  ),
-                );
-              },
-              downloadedSongKeys: _downloadedSongKeys,
-              downloadedSongs: _downloadedSongs,
-              onPlayDownloaded: _playDownloadedSong,
-              onPlayAllDownloaded: _playAllDownloadedSongs,
-              onDownload: _downloadSong,
-              onDeleteCache: _deleteSongCache,
-            );
-          },
+  // ==========================================
+  // Public Actions for MusicAppStateScope
+  // ==========================================
+  void selectTab(int index) {
+    setState(() {
+      _selectedTab = index;
+    });
+  }
+
+  Future<void> skipToQueueIndex(int index) => _skipToQueueItem(index);
+  Future<void> skipToQueueItem(int index) => _skipToQueueItem(index);
+  Future<void> searchSongs() => _searchSongs();
+  Future<void> loadMoreSearchResults() => _loadMoreSearchResults();
+  Future<void> playSearchResult(int index) => _playSearchResult(index);
+  Future<void> addSearchResultToQueue(int index) => _addSearchResultToQueue(index);
+  Future<void> toggleFavoriteSong(FreeMusicSong song) => _toggleFavoriteSong(song);
+  Future<void> playFavoriteSong(int index) => _playFavoriteSong(index);
+  Future<void> playAllFavorites() => _playAllFavorites();
+  void openPlaylistDetails(FreeMusicPlaylist playlist) => _openPlaylistDetails(playlist);
+  Future<void> togglePlayback(bool playing) => _togglePlayback(playing);
+  Future<void> cyclePlaybackMode() => _cyclePlaybackMode();
+  void showQualitySheet() => _showQualitySheet();
+  Future<void> seekPlayback(Duration position) => _seekPlayback(position);
+  Future<bool> skipToPreviousTrack() => _skipToPreviousTrack();
+  Future<bool> skipToNextTrack() => _skipToNextTrack();
+  Future<void> openCarLife() => _openCarLife();
+  Future<void> syncCarLifePlaybackContext({required bool showResult}) =>
+      _syncCarLifePlaybackContext(showResult: showResult);
+  Future<void> refreshCarLifeStatus() => _refreshCarLifeStatus();
+  Future<void> checkForUpdate() => _checkForUpdate();
+
+  void openDownloads() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => CacheManagerPage(
+          downloadService: _downloadService,
         ),
       ),
     );
   }
-}
 
-class _PlaybackStateBuilder extends StatelessWidget {
-  const _PlaybackStateBuilder({
-    required this.audioHandler,
-    required this.builder,
-  });
-
-  final MusicAudioHandler? audioHandler;
-  final Widget Function(BuildContext context, PlaybackUiState state) builder;
+  Future<void> playDownloadedSong(int index) => _playDownloadedSong(index);
+  Future<void> playAllDownloadedSongs() => _playAllDownloadedSongs();
+  Future<void> downloadSong(FreeMusicSong song) => _downloadSong(song);
+  Future<void> deleteSongCache(FreeMusicSong song) => _deleteSongCache(song);
 
   @override
   Widget build(BuildContext context) {
-    final MusicAudioHandler? handler = audioHandler;
-    if (handler == null) {
-      return builder(context, const PlaybackUiState());
-    }
-    return StreamBuilder<PlaybackState>(
-      stream: handler.playbackState,
-      initialData: handler.playbackState.valueOrNull,
-      builder: (BuildContext context, AsyncSnapshot<PlaybackState> snapshot) {
-        return StreamBuilder<MediaItem?>(
-          stream: handler.mediaItem,
-          initialData: handler.mediaItem.valueOrNull,
-          builder:
-              (BuildContext context, AsyncSnapshot<MediaItem?> itemSnapshot) {
-                return builder(
-                  context,
-                  PlaybackUiState.fromAudioService(
-                    snapshot.data,
-                    itemSnapshot.data,
-                  ),
-                );
-              },
-        );
-      },
+    return MusicAppStateScope(
+      state: this,
+      child: const PortraitMusicScaffold(),
     );
   }
 }
 
-
-
-class _NativeMusicScaffold extends StatelessWidget {
-  const _NativeMusicScaffold({
-    required this.selectedTab,
-    required this.selectedQueueIndex,
-    required this.queueSongs,
-    required this.favoriteSongs,
-    required this.favoriteSongKeys,
-    required this.favoritesBusy,
-    required this.currentSong,
-    required this.coverSeedColor,
-    required this.themeMode,
-    required this.searchController,
-    required this.searchResults,
-    required this.searchBusy,
-    required this.searchMoreBusy,
-    required this.searchCanLoadMore,
-    required this.searchError,
-    required this.searchLoadMoreError,
-    required this.lastSearchQuery,
-    required this.musicSources,
-    required this.sourceBusy,
-    required this.sourceError,
-    required this.hotSearchKeywords,
-    required this.recommendedPlaylists,
-    required this.recommendationsBusy,
-    required this.recommendationError,
-    required this.playlistSongsBusy,
-    required this.playbackState,
-    required this.playbackMode,
-    required this.lyrics,
-    required this.lyricsAvailable,
-    required this.lyricsBusy,
-    required this.lyricsError,
-    required this.qualities,
-    required this.qualitiesBusy,
-    required this.qualityError,
-    required this.currentTrack,
-    required this.carLifeStatus,
-    required this.updateBusy,
-    required this.carLifeBusy,
-    required this.onSelectTab,
-    required this.onSelectQueueIndex,
-    required this.onSearch,
-    required this.onLoadMoreSearchResults,
-    required this.onPlaySearchResult,
-    required this.onAddToQueue,
-    required this.onToggleFavorite,
-    required this.onPlayFavorite,
-    required this.onPlayAllFavorites,
-    required this.onThemeModeChanged,
-    required this.onSelectPlaylist,
-    required this.onPlayPause,
-    required this.onPlaybackMode,
-    required this.onQuality,
-    required this.onSeek,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onOpenCarLife,
-    required this.onSyncCarLife,
-    required this.onRefreshCarLife,
-    required this.onCheckUpdate,
-    required this.onOpenDownloads,
-    required this.downloadedSongKeys,
-    required this.downloadedSongs,
-    required this.onPlayDownloaded,
-    required this.onPlayAllDownloaded,
-    required this.onDownload,
-    required this.onDeleteCache,
-  });
-
-  final int selectedTab;
-  final int selectedQueueIndex;
-  final List<FreeMusicSong> queueSongs;
-  final List<FreeMusicSong> favoriteSongs;
-  final Set<String> favoriteSongKeys;
-  final bool favoritesBusy;
-  final FreeMusicSong? currentSong;
-  final Color coverSeedColor;
-  final ThemeMode themeMode;
-  final TextEditingController searchController;
-  final List<FreeMusicSong> searchResults;
-  final bool searchBusy;
-  final bool searchMoreBusy;
-  final bool searchCanLoadMore;
-  final String searchError;
-  final String searchLoadMoreError;
-  final String lastSearchQuery;
-  final FreeMusicSources? musicSources;
-  final bool sourceBusy;
-  final String sourceError;
-  final List<String> hotSearchKeywords;
-  final List<FreeMusicPlaylist> recommendedPlaylists;
-  final bool recommendationsBusy;
-  final String recommendationError;
-  final bool playlistSongsBusy;
-  final PlaybackUiState playbackState;
-  final NativePlaybackMode playbackMode;
-  final FreeMusicLyrics? lyrics;
-  final bool lyricsAvailable;
-  final bool lyricsBusy;
-  final String lyricsError;
-  final List<FreeMusicQuality> qualities;
-  final bool qualitiesBusy;
-  final String qualityError;
-  final DemoTrack currentTrack;
-  final CarLifeStatus carLifeStatus;
-  final bool updateBusy;
-  final bool carLifeBusy;
-  final ValueChanged<int> onSelectTab;
-  final ValueChanged<int> onSelectQueueIndex;
-  final VoidCallback onSearch;
-  final VoidCallback onLoadMoreSearchResults;
-  final ValueChanged<int> onPlaySearchResult;
-  final ValueChanged<int> onAddToQueue;
-  final ValueChanged<FreeMusicSong> onToggleFavorite;
-  final ValueChanged<int> onPlayFavorite;
-  final VoidCallback onPlayAllFavorites;
-  final ValueChanged<ThemeMode> onThemeModeChanged;
-  final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
-  final VoidCallback onPlayPause;
-  final VoidCallback onPlaybackMode;
-  final VoidCallback onQuality;
-  final ValueChanged<Duration> onSeek;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onOpenCarLife;
-  final VoidCallback onSyncCarLife;
-  final VoidCallback onRefreshCarLife;
-  final VoidCallback onCheckUpdate;
-  final VoidCallback onOpenDownloads;
-  final Set<String> downloadedSongKeys;
-  final List<FreeMusicSong> downloadedSongs;
-  final ValueChanged<int> onPlayDownloaded;
-  final VoidCallback onPlayAllDownloaded;
-  final ValueChanged<FreeMusicSong> onDownload;
-  final ValueChanged<FreeMusicSong> onDeleteCache;
-
-  @override
-  Widget build(BuildContext context) {
-    return _PortraitMusicScaffold(
-      selectedTab: selectedTab,
-      selectedQueueIndex: selectedQueueIndex,
-      queueSongs: queueSongs,
-      favoriteSongs: favoriteSongs,
-      favoriteSongKeys: favoriteSongKeys,
-      favoritesBusy: favoritesBusy,
-      currentSong: currentSong,
-      coverSeedColor: coverSeedColor,
-      themeMode: themeMode,
-      searchController: searchController,
-      searchResults: searchResults,
-      searchBusy: searchBusy,
-      searchMoreBusy: searchMoreBusy,
-      searchCanLoadMore: searchCanLoadMore,
-      searchError: searchError,
-      searchLoadMoreError: searchLoadMoreError,
-      lastSearchQuery: lastSearchQuery,
-      musicSources: musicSources,
-      sourceBusy: sourceBusy,
-      sourceError: sourceError,
-      hotSearchKeywords: hotSearchKeywords,
-      recommendedPlaylists: recommendedPlaylists,
-      recommendationsBusy: recommendationsBusy,
-      recommendationError: recommendationError,
-      playlistSongsBusy: playlistSongsBusy,
-      playbackState: playbackState,
-      playbackMode: playbackMode,
-      lyrics: lyrics,
-      lyricsAvailable: lyricsAvailable,
-      lyricsBusy: lyricsBusy,
-      lyricsError: lyricsError,
-      qualities: qualities,
-      qualitiesBusy: qualitiesBusy,
-      qualityError: qualityError,
-      currentTrack: currentTrack,
-      carLifeStatus: carLifeStatus,
-      updateBusy: updateBusy,
-      carLifeBusy: carLifeBusy,
-      onSelectTab: onSelectTab,
-      onSelectQueueIndex: onSelectQueueIndex,
-      onSearch: onSearch,
-      onLoadMoreSearchResults: onLoadMoreSearchResults,
-      onPlaySearchResult: onPlaySearchResult,
-      onAddToQueue: onAddToQueue,
-      onToggleFavorite: onToggleFavorite,
-      onPlayFavorite: onPlayFavorite,
-      onPlayAllFavorites: onPlayAllFavorites,
-      onThemeModeChanged: onThemeModeChanged,
-      onSelectPlaylist: onSelectPlaylist,
-      onPlayPause: onPlayPause,
-      onPlaybackMode: onPlaybackMode,
-      onQuality: onQuality,
-      onSeek: onSeek,
-      onPrevious: onPrevious,
-      onNext: onNext,
-      onOpenCarLife: onOpenCarLife,
-      onSyncCarLife: onSyncCarLife,
-      onRefreshCarLife: onRefreshCarLife,
-      onCheckUpdate: onCheckUpdate,
-      onOpenDownloads: onOpenDownloads,
-      downloadedSongKeys: downloadedSongKeys,
-      downloadedSongs: downloadedSongs,
-      onPlayDownloaded: onPlayDownloaded,
-      onPlayAllDownloaded: onPlayAllDownloaded,
-      onDownload: onDownload,
-      onDeleteCache: onDeleteCache,
-    );
-  }
-}
-
-class _PortraitMusicScaffold extends StatelessWidget {
-  const _PortraitMusicScaffold({
-    required this.selectedTab,
-    required this.selectedQueueIndex,
-    required this.queueSongs,
-    required this.favoriteSongs,
-    required this.favoriteSongKeys,
-    required this.favoritesBusy,
-    required this.currentSong,
-    required this.coverSeedColor,
-    required this.themeMode,
-    required this.searchController,
-    required this.searchResults,
-    required this.searchBusy,
-    required this.searchMoreBusy,
-    required this.searchCanLoadMore,
-    required this.searchError,
-    required this.searchLoadMoreError,
-    required this.lastSearchQuery,
-    required this.musicSources,
-    required this.sourceBusy,
-    required this.sourceError,
-    required this.hotSearchKeywords,
-    required this.recommendedPlaylists,
-    required this.recommendationsBusy,
-    required this.recommendationError,
-    required this.playlistSongsBusy,
-    required this.playbackState,
-    required this.playbackMode,
-    required this.lyrics,
-    required this.lyricsAvailable,
-    required this.lyricsBusy,
-    required this.lyricsError,
-    required this.qualities,
-    required this.qualitiesBusy,
-    required this.qualityError,
-    required this.currentTrack,
-    required this.carLifeStatus,
-    required this.updateBusy,
-    required this.carLifeBusy,
-    required this.onSelectTab,
-    required this.onSelectQueueIndex,
-    required this.onSearch,
-    required this.onLoadMoreSearchResults,
-    required this.onPlaySearchResult,
-    required this.onAddToQueue,
-    required this.onToggleFavorite,
-    required this.onPlayFavorite,
-    required this.onPlayAllFavorites,
-    required this.onThemeModeChanged,
-    required this.onSelectPlaylist,
-    required this.onPlayPause,
-    required this.onPlaybackMode,
-    required this.onQuality,
-    required this.onSeek,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onOpenCarLife,
-    required this.onSyncCarLife,
-    required this.onRefreshCarLife,
-    required this.onCheckUpdate,
-    required this.onOpenDownloads,
-    required this.downloadedSongKeys,
-    required this.downloadedSongs,
-    required this.onPlayDownloaded,
-    required this.onPlayAllDownloaded,
-    required this.onDownload,
-    required this.onDeleteCache,
-  });
-
-  final int selectedTab;
-  final int selectedQueueIndex;
-  final List<FreeMusicSong> queueSongs;
-  final List<FreeMusicSong> favoriteSongs;
-  final Set<String> favoriteSongKeys;
-  final bool favoritesBusy;
-  final FreeMusicSong? currentSong;
-  final Color coverSeedColor;
-  final ThemeMode themeMode;
-  final TextEditingController searchController;
-  final List<FreeMusicSong> searchResults;
-  final bool searchBusy;
-  final bool searchMoreBusy;
-  final bool searchCanLoadMore;
-  final String searchError;
-  final String searchLoadMoreError;
-  final String lastSearchQuery;
-  final FreeMusicSources? musicSources;
-  final bool sourceBusy;
-  final String sourceError;
-  final List<String> hotSearchKeywords;
-  final List<FreeMusicPlaylist> recommendedPlaylists;
-  final bool recommendationsBusy;
-  final String recommendationError;
-  final bool playlistSongsBusy;
-  final PlaybackUiState playbackState;
-  final NativePlaybackMode playbackMode;
-  final FreeMusicLyrics? lyrics;
-  final bool lyricsAvailable;
-  final bool lyricsBusy;
-  final String lyricsError;
-  final List<FreeMusicQuality> qualities;
-  final bool qualitiesBusy;
-  final String qualityError;
-  final DemoTrack currentTrack;
-  final CarLifeStatus carLifeStatus;
-  final bool updateBusy;
-  final bool carLifeBusy;
-  final ValueChanged<int> onSelectTab;
-  final ValueChanged<int> onSelectQueueIndex;
-  final VoidCallback onSearch;
-  final VoidCallback onLoadMoreSearchResults;
-  final ValueChanged<int> onPlaySearchResult;
-  final ValueChanged<int> onAddToQueue;
-  final ValueChanged<FreeMusicSong> onToggleFavorite;
-  final ValueChanged<int> onPlayFavorite;
-  final VoidCallback onPlayAllFavorites;
-  final ValueChanged<ThemeMode> onThemeModeChanged;
-  final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
-  final VoidCallback onPlayPause;
-  final VoidCallback onPlaybackMode;
-  final VoidCallback onQuality;
-  final ValueChanged<Duration> onSeek;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onOpenCarLife;
-  final VoidCallback onSyncCarLife;
-  final VoidCallback onRefreshCarLife;
-  final VoidCallback onCheckUpdate;
-  final VoidCallback onOpenDownloads;
-  final Set<String> downloadedSongKeys;
-  final List<FreeMusicSong> downloadedSongs;
-  final ValueChanged<int> onPlayDownloaded;
-  final VoidCallback onPlayAllDownloaded;
-  final ValueChanged<FreeMusicSong> onDownload;
-  final ValueChanged<FreeMusicSong> onDeleteCache;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData baseTheme = Theme.of(context);
-    final ColorScheme dynamicScheme = ColorScheme.fromSeed(
-      seedColor: coverSeedColor,
-      brightness: baseTheme.brightness,
-    );
-    final ThemeData theme = baseTheme.copyWith(colorScheme: dynamicScheme);
-
-    void runSearchFromHome() {
-      if (selectedTab != 1) {
-        onSelectTab(1);
-      }
-      onSearch();
-    }
-
-    final Widget page = switch (selectedTab) {
-      1 => PortraitSearchView(
-        controller: searchController,
-        songs: searchResults,
-        busy: searchBusy,
-        loadMoreBusy: searchMoreBusy,
-        canLoadMore: searchCanLoadMore,
-        error: searchError,
-        loadMoreError: searchLoadMoreError,
-        query: lastSearchQuery,
-        hotSearchKeywords: hotSearchKeywords,
-        favoriteSongKeys: favoriteSongKeys,
-        downloadedSongKeys: downloadedSongKeys,
-        onSearch: onSearch,
-        onHotKeyword: (String keyword) {
-          searchController.text = keyword;
-          onSearch();
-        },
-        onLoadMore: onLoadMoreSearchResults,
-        onPlay: onPlaySearchResult,
-        onAddToQueue: onAddToQueue,
-        onToggleFavorite: onToggleFavorite,
-        onDownload: onDownload,
-      ),
-      2 => PortraitLibraryView(
-        favoriteSongs: favoriteSongs,
-        favoriteSongKeys: favoriteSongKeys,
-        favoritesBusy: favoritesBusy,
-        queueSongs: queueSongs,
-        selectedQueueIndex: selectedQueueIndex,
-        onPlayFavorite: onPlayFavorite,
-        onPlayAllFavorites: onPlayAllFavorites,
-        onToggleFavorite: onToggleFavorite,
-        onSelectQueueIndex: onSelectQueueIndex,
-        downloadedSongs: downloadedSongs,
-        downloadedSongKeys: downloadedSongKeys,
-        onPlayDownloaded: onPlayDownloaded,
-        onPlayAllDownloaded: onPlayAllDownloaded,
-        onDownload: onDownload,
-        onDeleteCache: onDeleteCache,
-      ),
-      4 => PortraitPlayerView(
-        currentSong: currentSong,
-        fallbackTrack: currentTrack,
-        playbackState: playbackState,
-        playbackMode: playbackMode,
-        coverSeedColor: coverSeedColor,
-        lyrics: lyrics,
-        lyricsBusy: lyricsBusy,
-        lyricsError: lyricsError,
-        qualities: qualities,
-        qualitiesBusy: qualitiesBusy,
-        qualityError: qualityError,
-        favorite:
-            currentSong != null &&
-            favoriteSongKeys.contains(favoriteSongKey(currentSong!)),
-        onClose: () => onSelectTab(0),
-        onToggleFavorite: currentSong == null
-            ? null
-            : () => onToggleFavorite(currentSong!),
-        onPlayPause: onPlayPause,
-        onPlaybackMode: onPlaybackMode,
-        onQuality: onQuality,
-        onSeek: onSeek,
-        onPrevious: onPrevious,
-        onNext: onNext,
-      ),
-      5 => PortraitSettingsView(
-        themeMode: themeMode,
-        carLifeStatus: carLifeStatus,
-        carLifeBusy: carLifeBusy,
-        updateBusy: updateBusy,
-        onThemeModeChanged: onThemeModeChanged,
-        onOpenCarLife: onOpenCarLife,
-        onSyncCarLife: onSyncCarLife,
-        onRefreshCarLife: onRefreshCarLife,
-        onCheckUpdate: onCheckUpdate,
-        onOpenDownloads: onOpenDownloads,
-      ),
-      _ => PortraitHomeView(
-        controller: searchController,
-        recommendedPlaylists: recommendedPlaylists,
-        recommendationsBusy: recommendationsBusy,
-        recommendationError: recommendationError,
-        playlistSongsBusy: playlistSongsBusy,
-        queueSongs: queueSongs,
-        searchResults: searchResults,
-        favoriteSongs: favoriteSongs,
-        hotSearchKeywords: hotSearchKeywords,
-        musicSources: musicSources,
-        sourceBusy: sourceBusy,
-        sourceError: sourceError,
-        carLifeStatus: carLifeStatus,
-        onSearch: runSearchFromHome,
-        onHotKeyword: (String keyword) {
-          searchController.text = keyword;
-          runSearchFromHome();
-        },
-        onSelectPlaylist: onSelectPlaylist,
-        onOpenFavorites: () => onSelectTab(2),
-        onOpenDownloads: () => onSelectTab(5),
-      ),
-    };
-
-    return Theme(
-      data: theme,
-      child: _PortraitDynamicBackground(
-        seedColor: coverSeedColor,
-        child: Scaffold(
-          extendBody: true,
-          backgroundColor: Colors.transparent,
-          body: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: KeyedSubtree(key: ValueKey<int>(selectedTab), child: page),
-          ),
-          bottomNavigationBar: selectedTab == 4
-              ? null
-              : PortraitBottomChrome(
-                  selectedTab: selectedTab,
-                  currentSong: currentSong,
-                  fallbackTrack: currentTrack,
-                  playbackState: playbackState,
-                  playbackMode: playbackMode,
-                  coverSeedColor: coverSeedColor,
-                  onSelectTab: onSelectTab,
-                  onPlayPause: onPlayPause,
-                  onPlaybackMode: onPlaybackMode,
-                  onQuality: onQuality,
-                  onPrevious: onPrevious,
-                  onNext: onNext,
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PortraitDynamicBackground extends StatelessWidget {
-  const _PortraitDynamicBackground({
-    required this.seedColor,
-    required this.child,
-  });
-
-  final Color seedColor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    return TweenAnimationBuilder<Color?>(
-      duration: const Duration(milliseconds: 1500),
-      curve: Curves.easeInOut,
-      tween: ColorTween(end: seedColor),
-      builder:
-          (BuildContext context, Color? animatedColor, Widget? childWidget) {
-        final Color currentSeed = animatedColor ?? seedColor;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[
-                currentSeed.withValues(alpha: 0.32),
-                colors.surface,
-                colors.surface,
-              ],
-              stops: const <double>[0, 0.38, 1],
-            ),
-          ),
-          child: Stack(
-            children: <Widget>[
-              const Positioned.fill(
-                child: _SparklingStars(),
-              ),
-              childWidget ?? const SizedBox.shrink(),
-            ],
-          ),
-        );
-      },
-      child: child,
-    );
-  }
-}
-
-class _SparklingStars extends StatefulWidget {
-  const _SparklingStars();
-
-  @override
-  State<_SparklingStars> createState() => _SparklingStarsState();
-}
-
-class _SparklingStarsState extends State<_SparklingStars>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  final List<_Star> _stars = <_Star>[];
-  final math.Random _random = math.Random();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    );
-
-    final String bindingType = WidgetsBinding.instance.runtimeType.toString();
-    if (!bindingType.contains('Test')) {
-      _controller.repeat();
-    }
-
-    // 随机初始化 35 颗微光星星
-    for (int i = 0; i < 35; i++) {
-      _stars.add(
-        _Star(
-          x: _random.nextDouble(),
-          y: _random.nextDouble(),
-          size: 0.6 + _random.nextDouble() * 1.8,
-          phaseOffset: _random.nextDouble() * math.pi * 2,
-          speed: 0.8 + _random.nextDouble() * 1.2,
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (BuildContext context, Widget? child) {
-        return CustomPaint(
-          painter: _StarPainter(
-            stars: _stars,
-            progress: _controller.value,
-          ),
-          size: Size.infinite,
-        );
-      },
-    );
-  }
-}
-
-class _Star {
-  const _Star({
-    required this.x,
-    required this.y,
-    required this.size,
-    required this.phaseOffset,
-    required this.speed,
-  });
-
-  final double x;
-  final double y;
-  final double size;
-  final double phaseOffset;
-  final double speed;
-}
-
-class _StarPainter extends CustomPainter {
-  const _StarPainter({
-    required this.stars,
-    required this.progress,
-  });
-
-  final List<_Star> stars;
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()..color = Colors.white;
-
-    for (final _Star star in stars) {
-      final double radians =
-          (progress * math.pi * 2 * star.speed) + star.phaseOffset;
-      // 极其低调的亮度，在 0.04 到 0.28 之间，呈现若隐若现的空灵感
-      final double alpha = 0.04 + (0.12 * (math.sin(radians) + 1.0));
-
-      paint.color = Colors.white.withValues(alpha: alpha);
-
-      final double px = star.x * size.width;
-      final double py = star.y * size.height;
-
-      canvas.drawCircle(Offset(px, py), star.size, paint);
-
-      // 十字微光效果：微调稍大的光点，在大亮度下产生十字向外发散的微光（游丝感）
-      if (star.size > 1.8 && alpha > 0.12) {
-        final Paint glowPaint = Paint()
-          ..color = Colors.white.withValues(alpha: alpha * 0.4)
-          ..strokeWidth = 0.5;
-        final double glowLength = star.size * 2.5;
-
-        canvas.drawLine(
-            Offset(px - glowLength, py), Offset(px + glowLength, py), glowPaint);
-        canvas.drawLine(
-            Offset(px, py - glowLength), Offset(px, py + glowLength), glowPaint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _StarPainter oldDelegate) => true;
-}
-
+// ==========================================
+// Global Conversion Helpers
+// ==========================================
 AudioServiceRepeatMode _repeatModeForNativeMode(NativePlaybackMode mode) {
   switch (mode) {
     case NativePlaybackMode.repeatOne:

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
 import '../../models/playback_ui_state.dart';
@@ -13,6 +14,7 @@ import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/luxury_loading_indicator.dart';
 import 'waveform_seekbar.dart';
 
 IconData iconForPlaybackMode(NativePlaybackMode mode) {
@@ -406,7 +408,8 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
     final int navigationIndex = switch (widget.selectedTab) {
       1 => 1,
       2 || 3 => 2,
@@ -492,7 +495,25 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                           Theme(
                             data: Theme.of(context).copyWith(
                               navigationBarTheme: NavigationBarThemeData(
-                                indicatorColor: colors.primaryContainer.withValues(alpha: 0.35),
+                                indicatorColor: Colors.transparent,
+                                labelTextStyle: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return theme.textTheme.labelMedium?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: colors.primary,
+                                    );
+                                  }
+                                  return theme.textTheme.labelMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.onSurfaceVariant,
+                                  );
+                                }),
+                                iconTheme: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return IconThemeData(color: colors.primary, size: 24);
+                                  }
+                                  return IconThemeData(color: colors.onSurfaceVariant, size: 24);
+                                }),
                               ),
                             ),
                             child: NavigationBar(
@@ -642,13 +663,22 @@ class PortraitMiniPlayerBar extends StatelessWidget {
               onPressed: onQuality,
               icon: const Icon(Icons.equalizer_rounded),
             ),
-            IconButton.filled(
-              style: IconButton.styleFrom(backgroundColor: coverSeedColor),
-              onPressed: onPlayPause,
-              icon: Icon(
-                playbackState.playing
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
+            GlassPill(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onPlayPause();
+              },
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+              child: Center(
+                widthFactor: 1.0,
+                heightFactor: 1.0,
+                child: Icon(
+                  playbackState.playing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: playbackState.playing ? colors.primary : colors.onSurface,
+                ),
               ),
             ),
           ],
@@ -857,7 +887,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     if (widget.lyricsBusy) {
       return const SizedBox(
         height: 120,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: LuxuryLoadingIndicator()),
       );
     }
     if (widget.lyricsError.isNotEmpty) {

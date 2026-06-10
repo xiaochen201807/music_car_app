@@ -5,6 +5,7 @@ import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/luxury_loading_indicator.dart';
 import '../../shared/portrait_chip.dart';
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_song_tile.dart';
@@ -93,7 +94,7 @@ class PortraitSearchView extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpace.xl),
                 if (busy && songs.isEmpty)
-                  const Center(child: CircularProgressIndicator())
+                  Center(child: LuxuryLoadingIndicator())
                 else if (error.isNotEmpty)
                   PortraitMessageCard(
                     icon: Icons.cloud_off_rounded,
@@ -157,13 +158,7 @@ class PortraitSearchView extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
                               if (loadMoreBusy)
-                                SizedBox.square(
-                                  dimension: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                )
+                                LuxuryLoadingIndicator(size: 14)
                               else
                                 Icon(
                                   Icons.expand_more_rounded,

@@ -27,10 +27,33 @@ class PortraitArtwork extends StatelessWidget {
         (uri.isScheme('http') || uri.isScheme('https'));
     final Widget placeholder = DecoratedBox(
       decoration: BoxDecoration(
-        color: visual.color.withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(AppRadius.card),
+        gradient: SweepGradient(
+          center: Alignment.center,
+          colors: <Color>[
+            Colors.grey.shade900,
+            Colors.grey.shade800,
+            Colors.grey.shade700,
+            Colors.grey.shade800,
+            Colors.grey.shade900,
+          ],
+          stops: const <double>[0.0, 0.25, 0.5, 0.75, 1.0],
+        ),
+        border: Border.all(
+          color: colors.onSurface.withValues(alpha: 0.08),
+          width: 0.5,
+        ),
       ),
-      child: Center(child: Icon(icon, color: colors.onSurfaceVariant)),
+      child: Center(
+        child: Opacity(
+          opacity: 0.15,
+          child: Icon(
+            icon,
+            size: size != null ? size! * 0.45 : 24.0,
+            color: Colors.white,
+          ),
+        ),
+      ),
     );
     final Widget image = canLoad
         ? CachedNetworkImage(
