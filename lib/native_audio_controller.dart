@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'free_music_api.dart';
+import 'models/cached_track.dart';
+import 'services/download_service.dart';
 
 enum NativePlaybackMode {
   sequential,
@@ -194,8 +197,10 @@ class NativeAudioController {
     NativeAudioPlayer? player,
     FreeMusicApi? api,
     SharedPreferences? preferences,
+    DownloadService? downloadService,
   }) : _player = player ?? JustAudioNativePlayer(),
        _api = api ?? FreeMusicApi(),
+       _downloadService = downloadService,
        _preferences = preferences {
     _restoreFuture = _restoreState();
   }
@@ -204,6 +209,7 @@ class NativeAudioController {
 
   final NativeAudioPlayer _player;
   final FreeMusicApi _api;
+  final DownloadService? _downloadService;
   final SharedPreferences? _preferences;
   late final Future<void> _restoreFuture;
   String _loadedUrl = '';
@@ -350,10 +356,28 @@ class NativeAudioController {
   }
 
   Future<String> _resolveAudioUrl(PlayerProbeSnapshot snapshot) async {
+    final FreeMusicSong? song = snapshot.song;
+    if (song != null && song.canResolve) {
+      final DownloadService? ds = _downloadService;
+      if (ds != null && ds.isDownloaded(song.source, song.id)) {
+        final CachedTrack? cached = ds.getCachedTrack(song.source, song.id);
+        if (cached != null) {
+          final String physicalPath = await ds.getPhysicalPath(cached);
+          if (await File(physicalPath).exists()) {
+            debugPrint(
+              '[native-audio] cache hit for ${snapshot.debugTitle}, playing local file',
+            );
+            return physicalPath;
+          } else {
+            unawaited(ds.deleteTrack(song.source, song.id));
+          }
+        }
+      }
+    }
+
     if (snapshot.hasAudioUrl) {
       return snapshot.audioUrl;
     }
-    final FreeMusicSong? song = snapshot.song;
     if (song == null || !song.canResolve) {
       return '';
     }

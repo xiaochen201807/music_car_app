@@ -208,4 +208,21 @@ void main() {
     expect(commands.single.source, 'kuwo');
     expect(commands.single.songId, 'song-3');
   });
+
+  test('CarLifePlaybackContext.toMap filters out physical file paths for audioUrl', () {
+    const CarLifePlaybackContext context = CarLifePlaybackContext(
+      title: 'Local Cached Song',
+      artist: 'Artist',
+      playing: true,
+      audioUrl:
+          '/var/mobile/Containers/Data/Application/12345/Documents/music_downloads/kuwo_song-2.mp3',
+      source: 'kuwo',
+      songId: 'song-2',
+    );
+
+    final Map<String, Object?> map = context.toMap();
+    expect(map['audioUrl'], ''); // 物理文件路径应被过滤为空字符串
+    expect(map['source'], 'kuwo');
+    expect(map['songId'], 'song-2');
+  });
 }

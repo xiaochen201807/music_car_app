@@ -211,12 +211,14 @@ class CarLifePlaybackContext {
   final int queueIndex;
 
   Map<String, Object?> toMap() {
+    final bool isHttp =
+        audioUrl.startsWith('http://') || audioUrl.startsWith('https://');
     return <String, Object?>{
       'title': title,
       'artist': artist,
       'album': album,
       'coverUrl': coverUrl,
-      'audioUrl': audioUrl,
+      'audioUrl': isHttp ? audioUrl : '',
       'source': source,
       'songId': songId,
       'playing': playing,

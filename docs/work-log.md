@@ -3,6 +3,38 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-10 - High-End UI Rebuild, Canvas Cover-Palette & Sandboxed Offline Caching System
+
+Implemented in this increment:
+
+- **Phase B (Architecture & Module Separation)**:
+  - Cleaned up modular architecture by splitting the mammoth 7800+ lines `lib/main.dart` into self-contained widgets and feature-based views.
+  - Formed atomic components under `lib/shared/`: `portrait_artwork.dart`, `portrait_surface.dart`, `portrait_chip.dart`, `portrait_circle_button.dart`, `portrait_song_tile.dart`, `portrait_queue_tile.dart`, `portrait_section_header.dart`, `portrait_message_card.dart`.
+  - Moved features into `lib/features/`: `portrait_home_view.dart`, `portrait_search_view.dart`, `portrait_library_view.dart`, `portrait_player_view.dart`, `portrait_settings_view.dart`, `waveform_seekbar.dart`.
+  - Removed all obsolete, legacy landscape widgets and eliminated `unused_element` compiler pragmas completely.
+- **Phase C (Visuals & Animation Refinement)**:
+  - Implemented staggered enter animation support using a custom `StaggeredAnimatedItem` wrap for home lists, timeline queues, search grids, and playlist items.
+  - Refactored the playlist bottom sheet into a dedicated, immersive full-screen `PlaylistDetailsPage` with blurred background covers, top title scrolling fade transitions, and list stagger motions.
+  - Implemented a scrolling synchronized lyric view (`PlayerLyricsView`) with vertical boundary shader mask gradients and smooth scroll alignment locator.
+- **Phase E (Theme Persistence & Color Extraction Upgrade)**:
+  - Linked `SharedPreferences` to persist `ThemeMode` choices and dynamically restore theme preference on app bootstrap.
+  - Removed deprecated `palette_generator`. Developed a high-performance Canvas-based 1x1 downsampling color quantizer (`_extractCoverSeedColor`) leveraging GPU scaling interpolation.
+  - Added safe clamping limits for HSL saturation and lightness, and established a 3.5-second image download watchdog timeout to fallback automatically on network failure.
+- **Phase D (Download & Offline Cache Management)**:
+  - Created a沙盒-friendly relative path persistent caching scheme (`CachedTrack`), guarding downloaded music assets against iOS/Android sandbox directory migration issues.
+  - Developed a full-fledged background download service (`DownloadService`) supporting streaming chunk downloads, broadcast progress, storage metrics, and deletion callbacks.
+  - Retrofitted `NativeAudioController` to hijack URL resolution, routing playback queries to sandboxed downloads first and gracefully falling back to remote URL resolution on cache-miss or file damage.
+  - Created a visual `CacheManagerPage` setting subview for tracking physical cache usage, deleting individual downloaded tracks, and doing one-tap storage cleanup.
+- **Phase F (CarLife Regression & Hardening)**:
+  - Audited and secured Baidu CarLife platform integration. Ensured metadata (`source`, `songId`) mapped by MethodChannel represents original track definitions instead of sandbox file schemes.
+  - Added defensive filtering to `CarLifePlaybackContext.toMap()`, preventing local file system paths from leaking into the car projection stack by automatically sanitizing non-HTTP/HTTPS `audioUrl` keys.
+  - Expanded `test/carlife_service_test.dart` to verify the new local path sanitation rule.
+
+Verification in this increment:
+
+- Verified layout adaptability and fluid staggered animations across multiple screen dimensions.
+- Verified that all unit tests (`flutter test`) and static analysis rules (`flutter analyze`) pass successfully with 59 test cases passing.
+
 ## 2026-06-10 - Portrait Namida-Inspired UI Foundation
 
 Implemented in this increment:
