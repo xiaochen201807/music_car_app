@@ -7,6 +7,12 @@ not dependent on chat context.
 
 Implemented in this increment:
 
+- Repaired the portrait mini-player entry regression found by CI:
+  - Split the mini-player metadata area from the transport controls so tapping
+    the song/artwork area reliably opens the full-screen `正在播放` page.
+  - Updated `test/widget_test.dart` to target the stable open area instead of
+    relying on the full mini-player widget center, which can land on transport
+    controls after layout changes.
 - **Phase B (Architecture & Module Separation)**:
   - Cleaned up modular architecture by splitting the mammoth 7800+ lines `lib/main.dart` into self-contained widgets and feature-based views.
   - Formed atomic components under `lib/shared/`: `portrait_artwork.dart`, `portrait_surface.dart`, `portrait_chip.dart`, `portrait_circle_button.dart`, `portrait_song_tile.dart`, `portrait_queue_tile.dart`, `portrait_section_header.dart`, `portrait_message_card.dart`.
@@ -652,4 +658,3 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
-

@@ -123,202 +123,202 @@ class PortraitPlayerView extends StatelessWidget {
         tween: ColorTween(end: coverSeedColor),
         builder:
             (BuildContext context, Color? animatedColor, Widget? childWidget) {
-          final Color seed = animatedColor ?? coverSeedColor;
-          return Stack(
-            children: <Widget>[
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[
-                        seed.withValues(alpha: 0.40),
-                        colors.surface.withValues(alpha: 0.8),
-                        colors.surface,
-                      ],
-                      stops: const <double>[0, 0.5, 1],
+              final Color seed = animatedColor ?? coverSeedColor;
+              return Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: colors.surface),
                     ),
                   ),
-                ),
-              ),
-              Positioned.fill(
-                child: _BlurredBackgroundArtwork(
-                  imageUrl: playbackState.coverUrl.isEmpty
-                      ? currentSong?.cover ?? ''
-                      : playbackState.coverUrl,
-                  fallbackColor: seed,
-                ),
-              ),
-              Positioned.fill(
-                child: childWidget!,
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  height: 3.0,
-                  color: colors.surfaceContainerHighest.withValues(alpha: 0.2),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: progress.clamp(0.0, 1.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: AppColor.accentGradient,
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(2.0),
-                            bottomRight: Radius.circular(2.0),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            seed.withValues(alpha: 0.40),
+                            colors.surface.withValues(alpha: 0.8),
+                            colors.surface,
+                          ],
+                          stops: const <double>[0, 0.5, 1],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: _BlurredBackgroundArtwork(
+                      imageUrl: playbackState.coverUrl.isEmpty
+                          ? currentSong?.cover ?? ''
+                          : playbackState.coverUrl,
+                      fallbackColor: seed,
+                    ),
+                  ),
+                  Positioned.fill(child: childWidget!),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      height: 3.0,
+                      color: colors.surfaceContainerHighest.withValues(
+                        alpha: 0.2,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: progress.clamp(0.0, 1.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: AppColor.accentGradient,
+                              borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(2.0),
+                                bottomRight: Radius.circular(2.0),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                ],
+              );
+            },
         child: SafeArea(
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.xl,
-                AppSpace.md,
-                AppSpace.xl,
-                AppSpace.xl3,
-              ),
-              sliver: SliverList.list(
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      PortraitCircleButton(
-                        icon: Icons.keyboard_arrow_down_rounded,
-                        label: '收起',
-                        onTap: onClose,
-                      ),
-                      const SizedBox(width: AppSpace.sm),
-                      Text(
-                        '正在播放',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const Spacer(),
-                      PortraitCircleButton(
-                        icon: favorite
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        label: favorite ? '取消收藏' : '收藏',
-                        selected: favorite,
-                        onTap: onToggleFavorite,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpace.lg),
-                  GestureDetector(
-                    onVerticalDragEnd: (DragEndDetails details) {
-                      if (details.primaryVelocity != null &&
-                          details.primaryVelocity! > 200) {
-                        onClose();
-                      }
-                    },
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      onPlayPause();
-                    },
-                    onHorizontalDragEnd: (DragEndDetails details) {
-                      if (details.primaryVelocity != null) {
-                        if (details.primaryVelocity! < 0) {
-                          // 向左滑动 -> 上一首
-                          HapticFeedback.mediumImpact();
-                          onPrevious();
-                        } else if (details.primaryVelocity! > 0) {
-                          // 向右滑动 -> 下一首
-                          HapticFeedback.mediumImpact();
-                          onNext();
-                        }
-                      }
-                    },
-                    child: Hero(
-                      tag: 'now-playing-artwork',
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: _SpinningVinylDisc(
-                          spinning: playbackState.playing,
-                          imageUrl: playbackState.coverUrl.isEmpty
-                              ? currentSong?.cover ?? ''
-                              : playbackState.coverUrl,
-                          fallbackTrack: fallbackTrack,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpace.lg),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpace.xs),
-                  Text(
-                    artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpace.xl),
-                  PlayerLyricsView(
-                    lyrics: lyrics,
-                    position: playbackState.position,
-                    lyricsBusy: lyricsBusy,
-                    lyricsError: lyricsError,
-                    onSeek: onSeek,
-                  ),
-                  const SizedBox(height: AppSpace.xl2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.xl,
+                  AppSpace.md,
+                  AppSpace.xl,
+                  AppSpace.xl3,
+                ),
+                sliver: SliverList.list(
+                  children: <Widget>[
+                    Row(
                       children: <Widget>[
                         PortraitCircleButton(
-                          icon: iconForPlaybackMode(playbackMode),
-                          label: labelForPlaybackMode(playbackMode),
-                          onTap: onPlaybackMode,
+                          icon: Icons.keyboard_arrow_down_rounded,
+                          label: '收起',
+                          onTap: onClose,
                         ),
+                        const SizedBox(width: AppSpace.sm),
+                        Text(
+                          '正在播放',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
                         PortraitCircleButton(
-                          icon: Icons.equalizer_rounded,
-                          label: '音质',
-                          onTap: onQuality,
+                          icon: favorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          label: favorite ? '取消收藏' : '收藏',
+                          selected: favorite,
+                          onTap: onToggleFavorite,
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: AppSpace.lg),
+                    GestureDetector(
+                      onVerticalDragEnd: (DragEndDetails details) {
+                        if (details.primaryVelocity != null &&
+                            details.primaryVelocity! > 200) {
+                          onClose();
+                        }
+                      },
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        onPlayPause();
+                      },
+                      onHorizontalDragEnd: (DragEndDetails details) {
+                        if (details.primaryVelocity != null) {
+                          if (details.primaryVelocity! < 0) {
+                            // 向左滑动 -> 上一首
+                            HapticFeedback.mediumImpact();
+                            onPrevious();
+                          } else if (details.primaryVelocity! > 0) {
+                            // 向右滑动 -> 下一首
+                            HapticFeedback.mediumImpact();
+                            onNext();
+                          }
+                        }
+                      },
+                      child: Hero(
+                        tag: 'now-playing-artwork',
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: _SpinningVinylDisc(
+                            spinning: playbackState.playing,
+                            imageUrl: playbackState.coverUrl.isEmpty
+                                ? currentSong?.cover ?? ''
+                                : playbackState.coverUrl,
+                            fallbackTrack: fallbackTrack,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.xl),
+                    PlayerLyricsView(
+                      lyrics: lyrics,
+                      position: playbackState.position,
+                      lyricsBusy: lyricsBusy,
+                      lyricsError: lyricsError,
+                      onSeek: onSeek,
+                    ),
+                    const SizedBox(height: AppSpace.xl2),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.xl,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          PortraitCircleButton(
+                            icon: iconForPlaybackMode(playbackMode),
+                            label: labelForPlaybackMode(playbackMode),
+                            onTap: onPlaybackMode,
+                          ),
+                          PortraitCircleButton(
+                            icon: Icons.equalizer_rounded,
+                            label: '音质',
+                            onTap: onQuality,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }
@@ -352,8 +352,9 @@ class QualityChips extends StatelessWidget {
       spacing: AppSpace.xs,
       runSpacing: AppSpace.xs,
       children: qualities.take(4).map((FreeMusicQuality quality) {
-        final String text =
-            quality.name.isNotEmpty ? quality.name : quality.bitrate;
+        final String text = quality.name.isNotEmpty
+            ? quality.name
+            : quality.bitrate;
         return GlassCard(
           radius: AppRadius.control,
           shadows: const <BoxShadow>[],
@@ -498,30 +499,44 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                         children: <Widget>[
                           Container(
                             height: 1,
-                            margin: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.md,
+                            ),
                             color: colors.onSurface.withValues(alpha: 0.08),
                           ),
                           Theme(
                             data: Theme.of(context).copyWith(
                               navigationBarTheme: NavigationBarThemeData(
                                 indicatorColor: Colors.transparent,
-                                labelTextStyle: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
+                                labelTextStyle: WidgetStateProperty.resolveWith(
+                                  (Set<WidgetState> states) {
+                                    if (states.contains(WidgetState.selected)) {
+                                      return theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w900,
+                                            color: colors.primary,
+                                          );
+                                    }
+                                    return theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: colors.onSurfaceVariant,
+                                        );
+                                  },
+                                ),
+                                iconTheme: WidgetStateProperty.resolveWith((
+                                  Set<WidgetState> states,
+                                ) {
                                   if (states.contains(WidgetState.selected)) {
-                                    return theme.textTheme.labelMedium?.copyWith(
-                                      fontWeight: FontWeight.w900,
+                                    return IconThemeData(
                                       color: colors.primary,
+                                      size: 24,
                                     );
                                   }
-                                  return theme.textTheme.labelMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
+                                  return IconThemeData(
                                     color: colors.onSurfaceVariant,
+                                    size: 24,
                                   );
-                                }),
-                                iconTheme: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return IconThemeData(color: colors.primary, size: 24);
-                                  }
-                                  return IconThemeData(color: colors.onSurfaceVariant, size: 24);
                                 }),
                               ),
                             ),
@@ -772,8 +787,10 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     final double offset = _scrollController.offset;
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
     if (lines.isEmpty) return;
-    final int calculatedIndex =
-        (offset / _lyricLineHeight).round().clamp(0, lines.length - 1);
+    final int calculatedIndex = (offset / _lyricLineHeight).round().clamp(
+      0,
+      lines.length - 1,
+    );
     if (calculatedIndex != _centerIndex) {
       setState(() {
         _centerIndex = calculatedIndex;
@@ -820,7 +837,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     return Positioned(
       left: 0,
       right: 0,
-      top: 76.0, // Vertically center on the line height 48 inside a 200 height container
+      top:
+          76.0, // Vertically center on the line height 48 inside a 200 height container
       height: 48.0,
       child: IgnorePointer(
         ignoring: false,
@@ -858,26 +876,26 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                     ),
                   ),
                   child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      Icons.play_arrow_rounded,
-                      size: 14,
-                      color: colors.onPrimaryContainer,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      formatDuration(line.time),
-                      style: theme.textTheme.labelSmall?.copyWith(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.play_arrow_rounded,
+                        size: 14,
                         color: colors.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        formatDuration(line.time),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colors.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
             const SizedBox(width: AppSpace.sm),
             Expanded(
               child: Container(
@@ -999,7 +1017,9 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                                   letterSpacing: -0.3,
                                   shadows: <Shadow>[
                                     Shadow(
-                                      color: AppColor.accentRoseEnd.withValues(alpha: 0.35),
+                                      color: AppColor.accentRoseEnd.withValues(
+                                        alpha: 0.35,
+                                      ),
                                       offset: Offset.zero,
                                       blurRadius: 14,
                                     ),
@@ -1007,14 +1027,21 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                                 )
                               : theme.textTheme.titleMedium!.copyWith(
                                   fontWeight: FontWeight.w500,
-                                  color: colors.onSurface.withValues(alpha: 0.20),
+                                  color: colors.onSurface.withValues(
+                                    alpha: 0.20,
+                                  ),
                                   fontSize: 15,
                                 ),
                           child: active
                               ? ShaderMask(
                                   shaderCallback: (Rect bounds) {
                                     return AppColor.accentGradient.createShader(
-                                      Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                                      Rect.fromLTWH(
+                                        0,
+                                        0,
+                                        bounds.width,
+                                        bounds.height,
+                                      ),
                                     );
                                   },
                                   blendMode: BlendMode.srcIn,
@@ -1087,12 +1114,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
     _armAngleAnimation = Tween<double>(
       begin: -0.35,
       end: 0.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _armCtrl,
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _armCtrl, curve: Curves.easeOutCubic));
 
     if (widget.spinning) {
       _armCtrl.value = 1.0;
@@ -1148,9 +1170,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
               ),
               // 音轨细纹
               const Positioned.fill(
-                child: CustomPaint(
-                  painter: _VinylTracksPainter(),
-                ),
+                child: CustomPaint(painter: _VinylTracksPainter()),
               ),
               // 封面图片 (占唱片直径的 68%)
               FractionallySizedBox(
@@ -1170,9 +1190,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
         // 静态扫过的高光反射层 (固定光照反射，不随唱片转动而旋转)
         Positioned.fill(
           child: IgnorePointer(
-            child: CustomPaint(
-              painter: _VinylRefractionPainter(),
-            ),
+            child: CustomPaint(painter: _VinylRefractionPainter()),
           ),
         ),
         // 轴心银金属装饰圈
@@ -1230,9 +1248,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
                 child: child,
               );
             },
-            child: const CustomPaint(
-              painter: _ToneArmPainter(),
-            ),
+            child: const CustomPaint(painter: _ToneArmPainter()),
           ),
         ),
       ],
@@ -1368,7 +1384,9 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
       switchInCurve: Curves.easeInOut,
       switchOutCurve: Curves.easeInOut,
       child: KeyedSubtree(
-        key: ValueKey<String>(imageUrl.isEmpty ? fallbackColor.toString() : imageUrl),
+        key: ValueKey<String>(
+          imageUrl.isEmpty ? fallbackColor.toString() : imageUrl,
+        ),
         child: SizedBox.expand(
           child: ImageFiltered(
             imageFilter: ImageFilter.blur(sigmaX: 64, sigmaY: 64),
@@ -1381,9 +1399,7 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
                       placeholder: (_, _) => Container(color: fallbackColor),
                       errorWidget: (_, _, _) => Container(color: fallbackColor),
                     )
-                  : Container(
-                      color: fallbackColor.withValues(alpha: 0.8),
-                    ),
+                  : Container(color: fallbackColor.withValues(alpha: 0.8)),
             ),
           ),
         ),

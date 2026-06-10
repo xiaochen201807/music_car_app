@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_car_app/main.dart';
-import 'package:music_car_app/features/player/portrait_player_view.dart';
 
 void main() {
   testWidgets('renders the portrait native music shell', (
@@ -34,8 +33,10 @@ void main() {
     expect(find.text('收藏'), findsWidgets);
     expect(find.text('当前队列'), findsOneWidget);
 
-    // Enter player by tapping the mini player bar
-    await tester.tap(find.byType(PortraitMiniPlayerBar));
+    // Enter player by tapping the mini player metadata area.
+    await tester.tap(
+      find.byKey(const ValueKey<String>('portrait-mini-player-open-area')),
+    );
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.text('正在播放'), findsOneWidget);
@@ -54,6 +55,12 @@ void main() {
 
     expect(find.text('设置'), findsWidgets);
     expect(find.text('主题模式'), findsOneWidget);
+    await tester.drag(
+      find.text('默认音质'),
+      const Offset(0, -520),
+      warnIfMissed: false,
+    );
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('百度 CarLife'), findsOneWidget);
   });
 }
