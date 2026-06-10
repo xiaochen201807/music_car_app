@@ -619,51 +619,53 @@ class PortraitMiniPlayerBar extends StatelessWidget {
         ? currentSong?.artist ?? fallbackTrack.artist
         : playbackState.artist;
 
-    final Widget innerContent = InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.panel),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
       onTap: onOpenPlayer,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpace.sm),
-        child: Row(
-          children: <Widget>[
-            Hero(
-              tag: 'now-playing-artwork',
-              child: PortraitArtwork(
-                visual: fallbackTrack,
-                imageUrl: playbackState.coverUrl.isEmpty
-                    ? currentSong?.cover ?? ''
-                    : playbackState.coverUrl,
-                size: 52,
-                icon: Icons.album_rounded,
+      child: GlassCard(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.sm),
+          child: Row(
+            children: <Widget>[
+              Hero(
+                tag: 'now-playing-artwork',
+                child: PortraitArtwork(
+                  visual: fallbackTrack,
+                  imageUrl: playbackState.coverUrl.isEmpty
+                      ? currentSong?.cover ?? ''
+                      : playbackState.coverUrl,
+                  size: 52,
+                  icon: Icons.album_rounded,
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpace.xs),
-                  Text(
-                    artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            IconButton(
+              const SizedBox(width: AppSpace.sm),
+              IconButton(
               tooltip: '上一首',
               onPressed: onPrevious,
               icon: const Icon(Icons.skip_previous_rounded),
@@ -701,19 +703,10 @@ class PortraitMiniPlayerBar extends StatelessWidget {
               onPressed: onNext,
               icon: const Icon(Icons.skip_next_rounded),
             ),
-          ],
+            ],
+          ),
         ),
       ),
-    );
-
-    if (transparent) {
-      return innerContent;
-    }
-
-    return GlassCard(
-      radius: AppRadius.panel,
-      shadows: const <BoxShadow>[],
-      child: innerContent,
     );
   }
 }
