@@ -14,7 +14,7 @@ import '../../shared/portrait_surface.dart';
 import '../../shared/staggered_animated_item.dart';
 import '../../widgets/glass_card.dart';
 
-class PortraitHomeView extends StatelessWidget {
+class PortraitHomeView extends StatefulWidget {
   const PortraitHomeView({
     super.key,
     required this.controller,
@@ -57,12 +57,28 @@ class PortraitHomeView extends StatelessWidget {
   final VoidCallback onOpenDownloads;
 
   @override
+  State<PortraitHomeView> createState() => _PortraitHomeViewState();
+}
+
+class _PortraitHomeViewState extends State<PortraitHomeView> {
+  List<String>? _history;
+
+  @override
+  void didUpdateWidget(covariant PortraitHomeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.hotSearchKeywords != oldWidget.hotSearchKeywords) {
+      _history = List<String>.from(widget.hotSearchKeywords);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<FreeMusicSong> timelineSongs = queueSongs.isNotEmpty
-        ? queueSongs.take(5).toList(growable: false)
-        : searchResults.take(5).toList(growable: false);
+    final List<FreeMusicSong> timelineSongs = widget.queueSongs.isNotEmpty
+        ? widget.queueSongs.take(5).toList(growable: false)
+        : widget.searchResults.take(5).toList(growable: false);
 
+    _history ??= List<String>.from(widget.hotSearchKeywords);
 
     return SafeArea(
       child: CustomScrollView(
@@ -86,50 +102,83 @@ class PortraitHomeView extends StatelessWidget {
                         letterSpacing: -0.8,
                       ),
                     ),
-                    const SizedBox(height: AppSpace.xs),
-                    Text(
-                      'Portrait streaming deck',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
                   ],
                 ),
-                const SizedBox(height: AppSpace.xl2),
-                PortraitSearchHero(controller: controller, onSearch: onSearch),
                 const SizedBox(height: AppSpace.xl),
-                Wrap(
-                  spacing: AppSpace.sm,
-                  runSpacing: AppSpace.sm,
-                  children: <Widget>[
-                    for (final String keyword in hotSearchKeywords.take(4))
-                      PortraitChip(
-                        label: keyword,
-                        onTap: () => onHotKeyword(keyword),
-                      ),
-                  ],
+                PortraitSearchHero(
+                  controller: widget.controller,
+                  onSearch: widget.onSearch,
                 ),
+                if (_history != null && _history!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.md),
+                  SizedBox(
+                    height: 38,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _history!.length + 1,
+                      itemBuilder: (BuildContext context, int index) {
+                        if (index == _history!.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(left: AppSpace.xs),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _history!.clear();
+                                });
+                              },
+                              tooltip: '清空历史',
+                            ),
+                          );
+                        }
+                        final String keyword = _history![index];
+                        return Padding(
+                          padding: const EdgeInsets.only(right: AppSpace.sm),
+                          child: GestureDetector(
+                            onLongPress: () {
+                              setState(() {
+                                _history!.removeAt(index);
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('已删除历史: $keyword'),
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                            child: PortraitChip(
+                              label: keyword,
+                              onTap: () => widget.onHotKeyword(keyword),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
                   title: '推荐歌单',
-                  label: recommendationsBusy || playlistSongsBusy
+                  label: widget.recommendationsBusy || widget.playlistSongsBusy
                       ? '同步中'
-                      : '${recommendedPlaylists.length} 个',
+                      : '${widget.recommendedPlaylists.length} 个',
                 ),
                 const SizedBox(height: AppSpace.md),
-                if (recommendationError.isNotEmpty &&
-                    recommendedPlaylists.isEmpty)
+                if (widget.recommendationError.isNotEmpty &&
+                    widget.recommendedPlaylists.isEmpty)
                   PortraitMessageCard(
                     icon: Icons.cloud_off_rounded,
                     title: '推荐加载失败',
-                    message: recommendationError,
+                    message: widget.recommendationError,
                   )
                 else
                   PortraitPlaylistGrid(
-                    playlists: recommendedPlaylists,
-                    busy: playlistSongsBusy,
-                    onSelect: onSelectPlaylist,
+                    playlists: widget.recommendedPlaylists,
+                    busy: widget.playlistSongsBusy,
+                    onSelect: widget.onSelectPlaylist,
                   ),
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
@@ -159,11 +208,11 @@ class PortraitHomeView extends StatelessWidget {
                     ),
                 const SizedBox(height: AppSpace.xl2),
                 PortraitMetricGrid(
-                  favoriteCount: favoriteSongs.length,
-                  queueCount: queueSongs.length,
-                  carLifeReady: carLifeStatus.launchable,
-                  onOpenFavorites: onOpenFavorites,
-                  onOpenDownloads: onOpenDownloads,
+                  favoriteCount: widget.favoriteSongs.length,
+                  queueCount: widget.queueSongs.length,
+                  carLifeReady: widget.carLifeStatus.launchable,
+                  onOpenFavorites: widget.onOpenFavorites,
+                  onOpenDownloads: widget.onOpenDownloads,
                 ),
               ],
             ),

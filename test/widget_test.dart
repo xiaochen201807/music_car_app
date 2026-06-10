@@ -16,18 +16,15 @@ void main() {
 
     expect(find.byType(NativeMusicHomePage), findsOneWidget);
     expect(find.text('Music Car'), findsOneWidget);
-    expect(find.text('Portrait streaming deck'), findsOneWidget);
+    expect(find.text('Portrait streaming deck'), findsNothing);
     expect(find.text('推荐歌单'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsNothing);
     // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
     expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
 
-    await tester.drag(
-      find.byType(CustomScrollView).first,
-      const Offset(0, -420),
-    );
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.ensureVisible(find.text('播放时间线'));
+    await tester.pumpAndSettle();
     expect(find.text('播放时间线'), findsOneWidget);
 
     await tester.tap(find.text('音乐库'));

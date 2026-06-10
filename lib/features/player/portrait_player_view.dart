@@ -374,7 +374,7 @@ class QualityChips extends StatelessWidget {
   }
 }
 
-class PortraitBottomChrome extends StatelessWidget {
+class PortraitBottomChrome extends StatefulWidget {
   const PortraitBottomChrome({
     super.key,
     required this.selectedTab,
@@ -405,9 +405,16 @@ class PortraitBottomChrome extends StatelessWidget {
   final VoidCallback onNext;
 
   @override
+  State<PortraitBottomChrome> createState() => _PortraitBottomChromeState();
+}
+
+class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
+  bool _isMinimized = false;
+
+  @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final int navigationIndex = switch (selectedTab) {
+    final int navigationIndex = switch (widget.selectedTab) {
       1 => 1,
       2 || 3 => 2,
       5 => 3,
@@ -420,74 +427,126 @@ class PortraitBottomChrome extends StatelessWidget {
         AppSpace.md,
         AppSpace.md,
       ),
-      child: GlassCard(
-        radius: AppRadius.panel,
-        shadows: const <BoxShadow>[],
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              PortraitMiniPlayerBar(
-                currentSong: currentSong,
-                fallbackTrack: fallbackTrack,
-                playbackState: playbackState,
-                playbackMode: playbackMode,
-                coverSeedColor: coverSeedColor,
-                onOpenPlayer: () => onSelectTab(4),
-                onPlayPause: onPlayPause,
-                onPlaybackMode: onPlaybackMode,
-                onQuality: onQuality,
-                onPrevious: onPrevious,
-                onNext: onNext,
-                transparent: true,
-              ),
-              Container(
-                height: 1,
-                margin: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                color: colors.onSurface.withValues(alpha: 0.08),
-              ),
-              Theme(
-                data: Theme.of(context).copyWith(
-                  navigationBarTheme: NavigationBarThemeData(
-                    indicatorColor: colors.primaryContainer.withValues(alpha: 0.35),
-                  ),
-                ),
-                child: NavigationBar(
-                  height: 60,
-                  selectedIndex: navigationIndex,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  onDestinationSelected: (int index) {
-                    final int target = switch (index) {
-                      1 => 1,
-                      2 => 2,
-                      3 => 5,
-                      _ => 0,
-                    };
-                    onSelectTab(target);
-                  },
-                  destinations: const <NavigationDestination>[
-                    NavigationDestination(
-                      icon: Icon(Icons.home_rounded),
-                      label: '首页',
+      child: GestureDetector(
+        onVerticalDragEnd: (DragEndDetails details) {
+          if (details.primaryVelocity != null) {
+            if (details.primaryVelocity! > 200 && !_isMinimized) {
+              setState(() {
+                _isMinimized = true;
+              });
+            } else if (details.primaryVelocity! < -200 && _isMinimized) {
+              setState(() {
+                _isMinimized = false;
+              });
+            }
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.fastOutSlowIn,
+          child: GlassCard(
+            radius: AppRadius.panel,
+            shadows: const <BoxShadow>[],
+            child: InkWell(
+              onTap: _isMinimized
+                  ? () {
+                      setState(() {
+                        _isMinimized = false;
+                      });
+                    }
+                  : null,
+              borderRadius: BorderRadius.circular(AppRadius.panel),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Center(
+                      child: Container(
+                        width: 32,
+                        height: 3,
+                        margin: const EdgeInsets.only(top: 2, bottom: 2),
+                        decoration: BoxDecoration(
+                          color: colors.onSurface.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                      ),
                     ),
-                    NavigationDestination(
-                      icon: Icon(Icons.search_rounded),
-                      label: '搜索',
+                    PortraitMiniPlayerBar(
+                      currentSong: widget.currentSong,
+                      fallbackTrack: widget.fallbackTrack,
+                      playbackState: widget.playbackState,
+                      playbackMode: widget.playbackMode,
+                      coverSeedColor: widget.coverSeedColor,
+                      onOpenPlayer: () => widget.onSelectTab(4),
+                      onPlayPause: widget.onPlayPause,
+                      onPlaybackMode: widget.onPlaybackMode,
+                      onQuality: widget.onQuality,
+                      onPrevious: widget.onPrevious,
+                      onNext: widget.onNext,
+                      transparent: true,
                     ),
-                    NavigationDestination(
-                      icon: Icon(Icons.library_music_rounded),
-                      label: '音乐库',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.settings_rounded),
-                      label: '设置',
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Container(
+                            height: 1,
+                            margin: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                            color: colors.onSurface.withValues(alpha: 0.08),
+                          ),
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              navigationBarTheme: NavigationBarThemeData(
+                                indicatorColor: colors.primaryContainer.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: NavigationBar(
+                              height: 60,
+                              selectedIndex: navigationIndex,
+                              backgroundColor: Colors.transparent,
+                              elevation: 0,
+                              onDestinationSelected: (int index) {
+                                final int target = switch (index) {
+                                  1 => 1,
+                                  2 => 2,
+                                  3 => 5,
+                                  _ => 0,
+                                };
+                                widget.onSelectTab(target);
+                              },
+                              destinations: const <NavigationDestination>[
+                                NavigationDestination(
+                                  icon: Icon(Icons.home_rounded),
+                                  label: '首页',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.search_rounded),
+                                  label: '搜索',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.library_music_rounded),
+                                  label: '音乐库',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.settings_rounded),
+                                  label: '设置',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      crossFadeState: _isMinimized
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
+                      duration: const Duration(milliseconds: 240),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
