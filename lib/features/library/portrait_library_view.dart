@@ -77,13 +77,17 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
         heightFactor: 1.0,
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
-            Icon(
-              Icons.play_arrow_rounded,
-              size: 18,
-              color: disabled
-                  ? colors.onSurface.withValues(alpha: 0.38)
-                  : colors.primary,
+            Padding(
+              padding: const EdgeInsets.only(top: 1.0),
+              child: Icon(
+                Icons.play_arrow_rounded,
+                size: 18,
+                color: disabled
+                    ? colors.onSurface.withValues(alpha: 0.38)
+                    : colors.primary,
+              ),
             ),
             const SizedBox(width: AppSpace.xs),
             Text(
@@ -162,11 +166,8 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                 ),
                 const SizedBox(height: AppSpace.xl),
                 if (_selectedSubTab == 0) ...<Widget>[
-                  PortraitSectionHeader(
+                  const PortraitSectionHeader(
                     title: '收藏',
-                    label: widget.favoritesBusy
-                        ? '加载中'
-                        : '${widget.favoriteSongs.length} 首',
                   ),
                   const SizedBox(height: AppSpace.md),
                   if (widget.favoriteSongs.isEmpty)
@@ -206,7 +207,6 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                 ] else ...<Widget>[
                   PortraitSectionHeader(
                     title: '离线下载',
-                    label: '${widget.downloadedSongs.length} 首',
                   ),
                   const SizedBox(height: AppSpace.md),
                   if (widget.downloadedSongs.isEmpty)
@@ -245,7 +245,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                   title: '当前队列',
                   label: widget.queueSongs.isEmpty
                       ? '空'
-                      : '${widget.queueSongs.length} 首',
+                      : null,
                 ),
                 const SizedBox(height: AppSpace.md),
                 if (widget.queueSongs.isEmpty)

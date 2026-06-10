@@ -164,7 +164,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                   title: '推荐歌单',
                   label: widget.recommendationsBusy || widget.playlistSongsBusy
                       ? '同步中'
-                      : '${widget.recommendedPlaylists.length} 个',
+                      : null,
                 ),
                 const SizedBox(height: AppSpace.md),
                 if (widget.recommendationError.isNotEmpty &&
@@ -185,7 +185,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                   title: '播放时间线',
                   label: timelineSongs.isEmpty
                       ? '待生成'
-                      : '${timelineSongs.length} 首',
+                      : null,
                 ),
                 const SizedBox(height: AppSpace.md),
                 if (timelineSongs.isEmpty)

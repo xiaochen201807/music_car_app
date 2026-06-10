@@ -5,11 +5,11 @@ class PortraitSectionHeader extends StatelessWidget {
   const PortraitSectionHeader({
     super.key,
     required this.title,
-    required this.label,
+    this.label,
   });
 
   final String title;
-  final String label;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +24,7 @@ class PortraitSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        PortraitChip(label: label),
+        if (label != null) PortraitChip(label: label!),
       ],
     );
   }
