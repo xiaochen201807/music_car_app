@@ -320,6 +320,27 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
 
+## 2026-06-10 - Recommendation Playlist Card Cleanup
+
+Implemented in this increment:
+
+- Removed the source/creator subtitle from home recommendation playlist cards,
+  so cards show only artwork and playlist title.
+- Tightened the recommendation grid item aspect ratio after removing the
+  subtitle line.
+
+Verification in this increment:
+
+- `dart format lib/features/home/portrait_home_view.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 Implemented in this increment:
 
 - Added `FreeMusicPlaylistPage` and `FreeMusicApi.fetchPlaylistSongs`, calling

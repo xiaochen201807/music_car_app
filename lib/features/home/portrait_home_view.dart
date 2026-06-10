@@ -521,7 +521,7 @@ class PortraitPlaylistGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: AppSpace.md,
         mainAxisSpacing: AppSpace.md,
-        childAspectRatio: 0.82,
+        childAspectRatio: 0.88,
       ),
       itemBuilder: (BuildContext context, int index) {
         return StaggeredAnimatedItem(
@@ -575,15 +575,6 @@ class PortraitPlaylistCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: AppSpace.xs),
-          Text(
-            playlist.creator.isEmpty ? playlist.source : playlist.creator,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
