@@ -10,6 +10,8 @@ class PortraitChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
     return GlassPill(
       onTap: onTap,
       height: 32,
@@ -22,7 +24,12 @@ class PortraitChip extends StatelessWidget {
         heightFactor: 1.0,
         child: Text(
           label,
-          style: AppType.caption,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: colors.onSurface,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ),
     );

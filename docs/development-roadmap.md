@@ -134,7 +134,9 @@ Exit criteria:
   recommendation grid.
 - `[~]` Add a portrait-first Material 3 shell with dynamic artwork color,
   recommendation grid, timeline, bottom mini-player/navigation, and immersive
-  full-screen player with waveform seekbar. Download/cache UI and full
+  full-screen player with waveform seekbar. The portrait shell now pauses
+  visual animation work while backgrounded and disables the heaviest glass
+  effects during page motion; download/cache UI, further blur tuning, and full
   real-device visual validation remain pending.
 - `[~]` Use audited API data in the prototype UI: source labels, hot search
   chips, recommendation playlists, queue songs, quality chips, and lyric

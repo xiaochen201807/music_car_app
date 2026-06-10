@@ -66,9 +66,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
   @override
   void didUpdateWidget(covariant PortraitHomeView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.hotSearchKeywords != oldWidget.hotSearchKeywords) {
-      _history = List<String>.from(widget.hotSearchKeywords);
-    }
+    _history ??= <String>[];
   }
 
   @override
@@ -78,7 +76,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
         ? widget.queueSongs.take(5).toList(growable: false)
         : widget.searchResults.take(5).toList(growable: false);
 
-    _history ??= List<String>.from(widget.hotSearchKeywords);
+    _history ??= <String>[];
 
     return SafeArea(
       child: CustomScrollView(
@@ -107,7 +105,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                 const SizedBox(height: AppSpace.xl),
                 PortraitSearchHero(
                   controller: widget.controller,
-                  onSearch: widget.onSearch,
+                  onSearch: _runSearch,
                 ),
                 if (_history != null && _history!.isNotEmpty) ...[
                   const SizedBox(height: AppSpace.md),
@@ -151,7 +149,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                             },
                             child: PortraitChip(
                               label: keyword,
-                              onTap: () => widget.onHotKeyword(keyword),
+                              onTap: () => _useHistory(keyword),
                             ),
                           ),
                         );
@@ -183,9 +181,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
                   title: '播放时间线',
-                  label: timelineSongs.isEmpty
-                      ? '待生成'
-                      : null,
+                  label: timelineSongs.isEmpty ? '待生成' : null,
                 ),
                 const SizedBox(height: AppSpace.md),
                 if (timelineSongs.isEmpty)
@@ -220,6 +216,34 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
         ],
       ),
     );
+  }
+
+  void _runSearch() {
+    final String keyword = widget.controller.text.trim();
+    if (keyword.isNotEmpty) {
+      _addHistory(keyword);
+    }
+    widget.onSearch();
+  }
+
+  void _useHistory(String keyword) {
+    widget.controller.text = keyword;
+    widget.controller.selection = TextSelection.collapsed(
+      offset: widget.controller.text.length,
+    );
+    widget.onHotKeyword(keyword);
+  }
+
+  void _addHistory(String keyword) {
+    setState(() {
+      _history ??= <String>[];
+      _history!
+        ..removeWhere((String item) => item == keyword)
+        ..insert(0, keyword);
+      if (_history!.length > 8) {
+        _history!.removeRange(8, _history!.length);
+      }
+    });
   }
 }
 
@@ -311,7 +335,9 @@ class _PortraitSearchHeroState extends State<PortraitSearchHero> {
                     border: InputBorder.none,
                     prefixIcon: Icon(
                       Icons.search_rounded,
-                      color: _isFocused ? colors.primary : colors.onSurfaceVariant,
+                      color: _isFocused
+                          ? colors.primary
+                          : colors.onSurfaceVariant,
                     ),
                     hintText: '搜索歌曲、歌手或专辑',
                     hintStyle: TextStyle(

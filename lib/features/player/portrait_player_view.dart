@@ -56,6 +56,7 @@ class PortraitPlayerView extends StatelessWidget {
     required this.qualities,
     required this.qualitiesBusy,
     required this.qualityError,
+    required this.animationsEnabled,
     required this.favorite,
     required this.onClose,
     required this.onToggleFavorite,
@@ -78,6 +79,7 @@ class PortraitPlayerView extends StatelessWidget {
   final List<FreeMusicQuality> qualities;
   final bool qualitiesBusy;
   final String qualityError;
+  final bool animationsEnabled;
   final bool favorite;
   final VoidCallback onClose;
   final VoidCallback? onToggleFavorite;
@@ -252,11 +254,14 @@ class PortraitPlayerView extends StatelessWidget {
                         child: AspectRatio(
                           aspectRatio: 1,
                           child: _SpinningVinylDisc(
-                            spinning: playbackState.playing,
+                            spinning:
+                                playbackState.playing && animationsEnabled,
                             imageUrl: playbackState.coverUrl.isEmpty
                                 ? currentSong?.cover ?? ''
                                 : playbackState.coverUrl,
                             fallbackTrack: fallbackTrack,
+                            transitionKey:
+                                '${currentSong?.source ?? ''}:${currentSong?.id ?? ''}:${playbackState.coverUrl}',
                           ),
                         ),
                       ),
@@ -1095,11 +1100,13 @@ class _SpinningVinylDisc extends StatefulWidget {
     required this.spinning,
     required this.imageUrl,
     required this.fallbackTrack,
+    required this.transitionKey,
   });
 
   final bool spinning;
   final String imageUrl;
   final DemoTrack fallbackTrack;
+  final String transitionKey;
 
   @override
   State<_SpinningVinylDisc> createState() => _SpinningVinylDiscState();
@@ -1161,43 +1168,62 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: <Widget>[
-        // 旋转的黑胶盘和封面
-        RotationTransition(
-          turns: _ctrl,
-          child: Stack(
-            alignment: Alignment.center,
-            children: <Widget>[
-              // 黑胶唱片主体
-              Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF090A0E),
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: Colors.black54,
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 460),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            final Animation<double> scale = Tween<double>(
+              begin: 0.92,
+              end: 1.0,
+            ).animate(animation);
+            final Animation<double> turn = Tween<double>(
+              begin: -0.035,
+              end: 0.0,
+            ).animate(animation);
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: scale,
+                child: RotationTransition(turns: turn, child: child),
               ),
-              // 音轨细纹
-              const Positioned.fill(
-                child: CustomPaint(painter: _VinylTracksPainter()),
-              ),
-              // 封面图片 (占唱片直径的 68%)
-              FractionallySizedBox(
-                widthFactor: 0.68,
-                heightFactor: 0.68,
-                child: ClipOval(
-                  child: PortraitArtwork(
-                    visual: widget.fallbackTrack,
-                    imageUrl: widget.imageUrl,
-                    icon: Icons.album_rounded,
+            );
+          },
+          child: RotationTransition(
+            key: ValueKey<String>(widget.transitionKey),
+            turns: _ctrl,
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF090A0E),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black54,
+                        blurRadius: 18,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const Positioned.fill(
+                  child: CustomPaint(painter: _VinylTracksPainter()),
+                ),
+                FractionallySizedBox(
+                  widthFactor: 0.68,
+                  heightFactor: 0.68,
+                  child: ClipOval(
+                    child: PortraitArtwork(
+                      visual: widget.fallbackTrack,
+                      imageUrl: widget.imageUrl,
+                      icon: Icons.album_rounded,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         // 静态扫过的高光反射层 (固定光照反射，不随唱片转动而旋转)
@@ -1402,7 +1428,7 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
         ),
         child: SizedBox.expand(
           child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 64, sigmaY: 64),
+            imageFilter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
             child: Opacity(
               opacity: 0.16,
               child: canLoad

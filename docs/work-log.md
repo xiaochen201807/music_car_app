@@ -22,6 +22,17 @@ Implemented in this increment:
   - Expanded `test/widget_test.dart` to cover left/right page navigation,
     bottom navigation sync, and returning from the player overlay to the
     previous regular page.
+- Tuned PageView swipe performance:
+  - Removed forced keep-alive wrappers from regular pages while retaining
+    `PageStorageKey` state restoration.
+  - Added a swipe-time visual performance mode that pauses the starfield and
+    disables expensive glass blur during horizontal page motion, then restores
+    full effects once scrolling settles.
+- Fixed the search history surface:
+  - The search page no longer treats server hot-search keywords as default
+    history, so first launch/search tab entry starts with an empty history row.
+  - Search history now appears only after a real user query and uses higher
+    contrast chip text for readability on bright glass backgrounds.
 - **Phase B (Architecture & Module Separation)**:
   - Cleaned up modular architecture by splitting the mammoth 7800+ lines `lib/main.dart` into self-contained widgets and feature-based views.
   - Formed atomic components under `lib/shared/`: `portrait_artwork.dart`, `portrait_surface.dart`, `portrait_chip.dart`, `portrait_circle_button.dart`, `portrait_song_tile.dart`, `portrait_queue_tile.dart`, `portrait_section_header.dart`, `portrait_message_card.dart`.
@@ -212,6 +223,96 @@ Verification in this increment:
 
 - `dart format lib/free_music_api.dart lib/main.dart test/free_music_api_test.dart`
 - `flutter analyze`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Portrait Visual Performance Pass
+
+Implemented in this increment:
+
+- Removed the low-value animated starfield from the portrait dynamic
+  background. The background now keeps the album-color gradient without a
+  continuous `AnimationController` and full-screen `CustomPaint` repaint loop.
+- Added an app lifecycle visual-animation switch. When the app is not resumed,
+  the portrait shell disables tickers, skips page/player transition duration,
+  and puts glass cards into performance mode while audio playback can continue.
+- Kept the premium player treatment but added a scoped record-change transition:
+  switching tracks now cross-fades, scales, and lightly rotates the vinyl disc
+  instead of only swapping artwork under the same spin.
+- Hardened lyric loading against song mismatch. Each lyric request now has a
+  request id, stale responses are ignored, and non-resolvable songs clear the
+  visible lyric state instead of leaving the previous song's lyric on screen.
+- Fixed the settings theme segmented control artifact by letting that control
+  fill the card width and removing the nested selected-item border that visually
+  doubled the right edge.
+
+Performance audit notes:
+
+- Highest-cost/lowest-value effect removed now: the animated starfield.
+- Next expensive effect to tune after approval: stacked `BackdropFilter` glass
+  blur during dense pages and transitions. The current mitigation disables blur
+  during horizontal page motion and while backgrounded.
+- Another expensive effect to tune after approval: the full-screen player
+  artwork blur at sigma 64. Keep the premium look by replacing it with a cached
+  low-resolution/tinted backdrop or a lower blur radius instead of deleting the
+  player atmosphere outright.
+
+Verification in this increment:
+
+- `dart format lib/widgets/sparkling_stars.dart lib/main.dart lib/features/shell/portrait_music_shell.dart lib/features/player/portrait_player_view.dart lib/widgets/portrait_segmented_tab.dart lib/features/settings/portrait_settings_view.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Non-overlapping Glass Blur Optimization
+
+Implemented in this increment:
+
+- Updated shared `GlassCard` so only the first glass layer in a subtree applies
+  a real `BackdropFilter` blur.
+- Nested `GlassCard` and `GlassPill` controls now inherit the active glass
+  scope and render as glass-tinted surfaces without starting another blur pass.
+- Existing `GlassPerformanceMode` still disables blur globally during page
+  motion/background state, so this optimization combines with the earlier
+  transition performance work.
+
+Verification in this increment:
+
+- `dart format lib/widgets/glass_card.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Blur Radius and Waveform Reduction
+
+Implemented in this increment:
+
+- Reduced the full-screen player artwork backdrop blur from sigma 64 to sigma
+  32, preserving the album-color atmosphere with less GPU work.
+- Reduced the playlist detail cover backdrop blur from sigma 48 to sigma 24.
+- Removed the unused animated waveform seekbar implementation so its repeating
+  animation and custom painter cannot be reintroduced accidentally from the
+  current player surface.
+
+Verification in this increment:
+
+- `dart format lib/features/player/portrait_player_view.dart lib/features/home/playlist_details_page.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
 - `flutter test`
 
 Packaging note:

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:music_car_app/features/search/portrait_search_view.dart';
+import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/main.dart';
 
 void main() {
@@ -88,5 +90,52 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('百度 CarLife'), findsOneWidget);
+  });
+
+  testWidgets('search history starts empty and records user queries', (
+    WidgetTester tester,
+  ) async {
+    final TextEditingController controller = TextEditingController();
+    int searchCount = 0;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(useMaterial3: true),
+        home: Scaffold(
+          body: PortraitSearchView(
+            controller: controller,
+            songs: const <FreeMusicSong>[],
+            busy: false,
+            loadMoreBusy: false,
+            canLoadMore: false,
+            error: '',
+            loadMoreError: '',
+            query: '',
+            favoriteSongKeys: const <String>{},
+            downloadedSongKeys: const <String>{},
+            onSearch: () {
+              searchCount += 1;
+            },
+            onLoadMore: () {},
+            onPlay: (_) {},
+            onAddToQueue: (_) {},
+            onToggleFavorite: (_) {},
+            onDownload: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('NIGHT DANCER'), findsNothing);
+    expect(find.byTooltip('清空历史'), findsNothing);
+
+    await tester.enterText(find.byType(TextField), '晴天');
+    await tester.tap(find.text('搜索').last);
+    await tester.pump();
+
+    expect(searchCount, 1);
+    expect(find.text('晴天'), findsWidgets);
+    expect(find.byTooltip('清空历史'), findsOneWidget);
   });
 }

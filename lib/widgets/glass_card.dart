@@ -26,42 +26,101 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          width: width,
-          height: height,
-          padding: padding,
-          decoration: BoxDecoration(
-            color: AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: AppColor.strokeHairline),
-            boxShadow: shadows,
-          ),
-          child: Stack(
-            children: <Widget>[
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(radius),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[AppColor.sheenTop, Colors.transparent],
-                      ),
-                    ),
+    final BorderRadiusGeometry borderRadius = BorderRadius.circular(radius);
+    final bool ancestorHasBlur = GlassBackdropScope.hasBlur(context);
+    final bool blurDisabled =
+        GlassPerformanceMode.of(context) || ancestorHasBlur;
+    final double effectiveBlur = blurDisabled ? 0 : blur;
+    final Widget content = Container(
+      width: width,
+      height: height,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
+        borderRadius: borderRadius,
+        border: Border.all(color: AppColor.strokeHairline),
+        boxShadow: shadows,
+      ),
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: borderRadius,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[AppColor.sheenTop, Colors.transparent],
                   ),
                 ),
               ),
-              child,
-            ],
+            ),
           ),
-        ),
+          child,
+        ],
       ),
     );
+
+    return GlassBackdropScope(
+      hasActiveBlur: ancestorHasBlur || effectiveBlur > 0,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: effectiveBlur <= 0
+            ? content
+            : BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: effectiveBlur,
+                  sigmaY: effectiveBlur,
+                ),
+                child: content,
+              ),
+      ),
+    );
+  }
+}
+
+class GlassBackdropScope extends InheritedWidget {
+  const GlassBackdropScope({
+    super.key,
+    required this.hasActiveBlur,
+    required super.child,
+  });
+
+  final bool hasActiveBlur;
+
+  static bool hasBlur(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<GlassBackdropScope>()
+            ?.hasActiveBlur ??
+        false;
+  }
+
+  @override
+  bool updateShouldNotify(GlassBackdropScope oldWidget) {
+    return hasActiveBlur != oldWidget.hasActiveBlur;
+  }
+}
+
+class GlassPerformanceMode extends InheritedWidget {
+  const GlassPerformanceMode({
+    super.key,
+    required this.enabled,
+    required super.child,
+  });
+
+  final bool enabled;
+
+  static bool of(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<GlassPerformanceMode>()
+            ?.enabled ??
+        false;
+  }
+
+  @override
+  bool updateShouldNotify(GlassPerformanceMode oldWidget) {
+    return enabled != oldWidget.enabled;
   }
 }
 

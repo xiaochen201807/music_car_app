@@ -96,7 +96,7 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
           if (widget.playlist.cover.isNotEmpty)
             Positioned.fill(
               child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
+                imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                 child: Container(
                   decoration: BoxDecoration(
                     image: DecorationImage(
@@ -148,8 +148,9 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                   ],
                   background: SafeArea(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.xl,
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
@@ -157,8 +158,9 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                           Hero(
                             tag: 'playlist_cover_${widget.playlist.id}',
                             child: ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.card),
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.card,
+                              ),
                               child: PortraitArtwork(
                                 visual: demoQueue.first,
                                 imageUrl: widget.playlist.cover,
@@ -200,8 +202,9 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
               if (_songs.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.xl,
+                    ),
                     child: Row(
                       children: <Widget>[
                         Expanded(
@@ -250,67 +253,67 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                     120,
                   ),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (BuildContext context, int index) {
-                        if (index == _songs.length) {
-                          final bool canLoadMore =
-                              _total == 0 || _songs.length < _total;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: AppSpace.md,
-                            ),
-                            child: Center(
-                              child: TextButton.icon(
-                                onPressed: canLoadMore && !_busy
-                                    ? () => _loadSongs(reset: false)
-                                    : null,
-                                icon: _busy
-                                    ? const SizedBox.square(
-                                        dimension: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.expand_more_rounded),
-                                label: Text(
-                                  _busy
-                                      ? '加载中'
-                                      : canLoadMore
-                                      ? '加载更多'
-                                      : '已加载全部',
-                                ),
+                    delegate: SliverChildBuilderDelegate((
+                      BuildContext context,
+                      int index,
+                    ) {
+                      if (index == _songs.length) {
+                        final bool canLoadMore =
+                            _total == 0 || _songs.length < _total;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppSpace.md,
+                          ),
+                          child: Center(
+                            child: TextButton.icon(
+                              onPressed: canLoadMore && !_busy
+                                  ? () => _loadSongs(reset: false)
+                                  : null,
+                              icon: _busy
+                                  ? const SizedBox.square(
+                                      dimension: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.expand_more_rounded),
+                              label: Text(
+                                _busy
+                                    ? '加载中'
+                                    : canLoadMore
+                                    ? '加载更多'
+                                    : '已加载全部',
                               ),
-                            ),
-                          );
-                        }
-                        final FreeMusicSong song = _songs[index];
-                        return StaggeredAnimatedItem(
-                          index: index,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                            child: PlaylistSongRow(
-                              song: song,
-                              visual: demoQueue[index % demoQueue.length],
-                              index: index,
-                              favorite: widget.favoriteSongKeys.contains(
-                                favoriteSongKey(song),
-                              ),
-                              downloaded: widget.downloadedSongKeys.contains(
-                                '${song.source}_${song.id}',
-                              ),
-                              onTap: () => widget.onPlay(_songs, index),
-                              onToggleFavorite: () {
-                                widget.onToggleFavorite(song);
-                                setState(() {});
-                              },
-                              onDownload: () => widget.onDownload(song),
-                              onDeleteCache: () => widget.onDeleteCache(song),
                             ),
                           ),
                         );
-                      },
-                      childCount: _songs.length + 1,
-                    ),
+                      }
+                      final FreeMusicSong song = _songs[index];
+                      return StaggeredAnimatedItem(
+                        index: index,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                          child: PlaylistSongRow(
+                            song: song,
+                            visual: demoQueue[index % demoQueue.length],
+                            index: index,
+                            favorite: widget.favoriteSongKeys.contains(
+                              favoriteSongKey(song),
+                            ),
+                            downloaded: widget.downloadedSongKeys.contains(
+                              '${song.source}_${song.id}',
+                            ),
+                            onTap: () => widget.onPlay(_songs, index),
+                            onToggleFavorite: () {
+                              widget.onToggleFavorite(song);
+                              setState(() {});
+                            },
+                            onDownload: () => widget.onDownload(song),
+                            onDeleteCache: () => widget.onDeleteCache(song),
+                          ),
+                        ),
+                      );
+                    }, childCount: _songs.length + 1),
                   ),
                 ),
             ],

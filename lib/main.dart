@@ -211,7 +211,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isLoadingQualities = false;
   bool _isLoadingFavorites = false;
   bool _syncingSessionPlaybackMode = false;
+  bool _visualAnimationsEnabled = true;
   int _searchRequestId = 0;
+  int _lyricsRequestId = 0;
   String _searchError = '';
   String _searchLoadMoreError = '';
   String _recommendationError = '';
@@ -303,6 +305,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final bool animationsEnabled = state == AppLifecycleState.resumed;
+    if (_visualAnimationsEnabled != animationsEnabled && mounted) {
+      setState(() {
+        _visualAnimationsEnabled = animationsEnabled;
+      });
+    }
     if (state == AppLifecycleState.resumed) {
       unawaited(WakelockPlus.enable());
       unawaited(
@@ -698,13 +706,16 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Set<String> get _downloadedSongKeys {
-    return _downloadService.getAllCachedTracks()
+    return _downloadService
+        .getAllCachedTracks()
         .map<String>((CachedTrack t) => '${t.source}_${t.id}')
         .toSet();
   }
 
   List<FreeMusicSong> get _downloadedSongs {
-    return _downloadService.getAllCachedTracks().map<FreeMusicSong>((CachedTrack track) {
+    return _downloadService.getAllCachedTracks().map<FreeMusicSong>((
+      CachedTrack track,
+    ) {
       return FreeMusicSong(
         id: track.id,
         source: track.source,
@@ -721,16 +732,21 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _showSnack('正在解析 "${song.name}" 的品质...');
       List<FreeMusicQuality> qualities = const <FreeMusicQuality>[];
       try {
-        final FreeMusicQualityResult res =
-            await _freeMusicApi.fetchQualities(song);
+        final FreeMusicQualityResult res = await _freeMusicApi.fetchQualities(
+          song,
+        );
         qualities = res.qualities;
       } catch (_) {}
-      final FreeMusicQuality targetQuality =
-          findBestQuality(qualities, _preferredBitrate);
+      final FreeMusicQuality targetQuality = findBestQuality(
+        qualities,
+        _preferredBitrate,
+      );
 
       _showSnack('开始下载: ${song.name}');
-      final Stream<double> progressStream =
-          _downloadService.downloadTrack(song, targetQuality);
+      final Stream<double> progressStream = _downloadService.downloadTrack(
+        song,
+        targetQuality,
+      );
 
       progressStream.listen(
         (double progress) {
@@ -969,7 +985,15 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _loadLyricsForSong(FreeMusicSong song) async {
+    final int requestId = ++_lyricsRequestId;
     if (!song.canResolve) {
+      if (mounted) {
+        setState(() {
+          _isLoadingLyrics = false;
+          _lyricsError = '';
+          _currentLyrics = null;
+        });
+      }
       widget.audioHandler?.updateLyrics(const []);
       return;
     }
@@ -984,6 +1008,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         song,
       );
       if (!mounted ||
+          requestId != _lyricsRequestId ||
           _currentSong?.id != song.id ||
           _currentSong?.source != song.source) {
         return;
@@ -994,7 +1019,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       widget.audioHandler?.updateLyrics(lyrics.lines);
     } on FreeMusicApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || requestId != _lyricsRequestId) {
         return;
       }
       setState(() {
@@ -1003,7 +1028,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       widget.audioHandler?.updateLyrics(const []);
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || requestId != _lyricsRequestId) {
         return;
       }
       setState(() {
@@ -1095,8 +1120,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     final int targetValue = _parseBitrateValue(preferredBitrate);
     FreeMusicQuality bestQuality = qualities.first;
-    int minDifference =
-        (targetValue - _parseBitrateValue(bestQuality.bitrate)).abs();
+    int minDifference = (targetValue - _parseBitrateValue(bestQuality.bitrate))
+        .abs();
 
     for (final FreeMusicQuality q in qualities) {
       final int value = _parseBitrateValue(q.bitrate);
@@ -1157,8 +1182,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             separatorBuilder: (_, _) => const SizedBox(height: AppSpace.xs),
             itemBuilder: (BuildContext context, int index) {
               final FreeMusicQuality q = qualities[index];
-              final String label =
-                  q.name.isNotEmpty ? q.name : q.bitrate;
+              final String label = q.name.isNotEmpty ? q.name : q.bitrate;
               final String subtitle = <String>[
                 if (q.format.isNotEmpty) q.format,
                 if (q.size.isNotEmpty) q.size,
@@ -1654,6 +1678,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool get isSyncingCarLife => _isSyncingCarLife;
   Set<String> get downloadedSongKeys => _downloadedSongKeys;
   List<FreeMusicSong> get downloadedSongs => _downloadedSongs;
+  bool get visualAnimationsEnabled => _visualAnimationsEnabled;
 
   // ==========================================
   // Public Actions for MusicAppStateScope
@@ -1669,11 +1694,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> searchSongs() => _searchSongs();
   Future<void> loadMoreSearchResults() => _loadMoreSearchResults();
   Future<void> playSearchResult(int index) => _playSearchResult(index);
-  Future<void> addSearchResultToQueue(int index) => _addSearchResultToQueue(index);
-  Future<void> toggleFavoriteSong(FreeMusicSong song) => _toggleFavoriteSong(song);
+  Future<void> addSearchResultToQueue(int index) =>
+      _addSearchResultToQueue(index);
+  Future<void> toggleFavoriteSong(FreeMusicSong song) =>
+      _toggleFavoriteSong(song);
   Future<void> playFavoriteSong(int index) => _playFavoriteSong(index);
   Future<void> playAllFavorites() => _playAllFavorites();
-  void openPlaylistDetails(FreeMusicPlaylist playlist) => _openPlaylistDetails(playlist);
+  void openPlaylistDetails(FreeMusicPlaylist playlist) =>
+      _openPlaylistDetails(playlist);
   Future<void> togglePlayback(bool playing) => _togglePlayback(playing);
   Future<void> cyclePlaybackMode() => _cyclePlaybackMode();
   void showQualitySheet() => _showQualitySheet();
@@ -1689,9 +1717,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void openDownloads() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => CacheManagerPage(
-          downloadService: _downloadService,
-        ),
+        builder: (BuildContext context) =>
+            CacheManagerPage(downloadService: _downloadService),
       ),
     );
   }
@@ -1730,5 +1757,3 @@ AudioServiceShuffleMode _shuffleModeForNativeMode(NativePlaybackMode mode) {
       ? AudioServiceShuffleMode.all
       : AudioServiceShuffleMode.none;
 }
-
-

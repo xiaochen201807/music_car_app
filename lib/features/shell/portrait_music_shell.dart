@@ -5,6 +5,7 @@ import '../../app/music_app_state_scope.dart';
 import '../../favorite_song_store.dart';
 import '../../models/demo_track.dart';
 import '../../models/playback_ui_state.dart';
+import '../../widgets/glass_card.dart';
 import '../../widgets/sparkling_stars.dart';
 import '../home/portrait_home_view.dart';
 import '../search/portrait_search_view.dart';
@@ -28,6 +29,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
 
   PageController? _pageController;
   bool _isAnimatingToPage = false;
+  bool _reducePageMotionEffects = false;
   int _lastRegularTab = 0;
 
   @override
@@ -120,6 +122,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
         return;
       }
       _isAnimatingToPage = true;
+      _setPageMotionEffectsReduced(true);
       try {
         await _pageController!.animateToPage(
           targetPage,
@@ -128,7 +131,17 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
         );
       } finally {
         _isAnimatingToPage = false;
+        _setPageMotionEffectsReduced(false);
       }
+    });
+  }
+
+  void _setPageMotionEffectsReduced(bool reduced) {
+    if (!mounted || _reducePageMotionEffects == reduced) {
+      return;
+    }
+    setState(() {
+      _reducePageMotionEffects = reduced;
     });
   }
 
@@ -152,6 +165,8 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       brightness: baseTheme.brightness,
     );
     final ThemeData theme = baseTheme.copyWith(colorScheme: dynamicScheme);
+    final bool visualEffectsPaused =
+        _reducePageMotionEffects || !appState.visualAnimationsEnabled;
 
     _syncPageController(appState.selectedTab);
 
@@ -170,97 +185,125 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       data: theme,
       child: PortraitDynamicBackground(
         seedColor: appState.coverSeedColor,
-        child: Scaffold(
-          extendBody: true,
-          backgroundColor: Colors.transparent,
-          body: Stack(
-            children: <Widget>[
-              IgnorePointer(
-                ignoring: playerOpen,
-                child: PageView(
-                  controller: _pageController,
-                  onPageChanged: (int index) => _onPageChanged(appState, index),
-                  children: <Widget>[
-                    _KeepAlivePage(
-                      key: const PageStorageKey<String>('portrait-home-page'),
-                      child: _buildHomeView(appState, runSearchFromHome),
-                    ),
-                    _KeepAlivePage(
-                      key: const PageStorageKey<String>('portrait-search-page'),
-                      child: _buildSearchView(appState),
-                    ),
-                    _KeepAlivePage(
-                      key: const PageStorageKey<String>(
-                        'portrait-library-page',
-                      ),
-                      child: _buildLibraryView(appState),
-                    ),
-                    _KeepAlivePage(
-                      key: const PageStorageKey<String>(
-                        'portrait-settings-page',
-                      ),
-                      child: _buildSettingsView(appState),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned.fill(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 320),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder:
-                      (Widget child, Animation<double> animation) {
-                        final Animation<Offset> slide =
-                            Tween<Offset>(
-                              begin: const Offset(0.0, 1.0),
-                              end: Offset.zero,
-                            ).animate(
-                              CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeOutCubic,
-                              ),
-                            );
-                        return SlideTransition(
-                          position: slide,
-                          child: FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          ),
-                        );
+        effectsPaused: visualEffectsPaused,
+        child: TickerMode(
+          enabled: appState.visualAnimationsEnabled,
+          child: Scaffold(
+            extendBody: true,
+            backgroundColor: Colors.transparent,
+            body: Stack(
+              children: <Widget>[
+                IgnorePointer(
+                  ignoring: playerOpen,
+                  child: GlassPerformanceMode(
+                    enabled: visualEffectsPaused,
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (ScrollNotification notification) {
+                        if (notification.metrics.axis != Axis.horizontal) {
+                          return false;
+                        }
+                        if (notification is ScrollStartNotification) {
+                          _setPageMotionEffectsReduced(true);
+                        } else if (notification is ScrollEndNotification) {
+                          _setPageMotionEffectsReduced(false);
+                        }
+                        return false;
                       },
-                  child: playerOpen
-                      ? KeyedSubtree(
-                          key: const ValueKey<String>(
-                            'portrait-player-overlay',
+                      child: PageView(
+                        controller: _pageController,
+                        onPageChanged: (int index) =>
+                            _onPageChanged(appState, index),
+                        children: <Widget>[
+                          KeyedSubtree(
+                            key: const PageStorageKey<String>(
+                              'portrait-home-page',
+                            ),
+                            child: _buildHomeView(appState, runSearchFromHome),
                           ),
-                          child: playerOverlay,
-                        )
-                      : const SizedBox.shrink(
-                          key: ValueKey<String>('portrait-player-closed'),
-                        ),
+                          KeyedSubtree(
+                            key: const PageStorageKey<String>(
+                              'portrait-search-page',
+                            ),
+                            child: _buildSearchView(appState),
+                          ),
+                          KeyedSubtree(
+                            key: const PageStorageKey<String>(
+                              'portrait-library-page',
+                            ),
+                            child: _buildLibraryView(appState),
+                          ),
+                          KeyedSubtree(
+                            key: const PageStorageKey<String>(
+                              'portrait-settings-page',
+                            ),
+                            child: _buildSettingsView(appState),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                Positioned.fill(
+                  child: AnimatedSwitcher(
+                    duration: visualEffectsPaused
+                        ? Duration.zero
+                        : const Duration(milliseconds: 320),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          final Animation<Offset> slide =
+                              Tween<Offset>(
+                                begin: const Offset(0.0, 1.0),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                              );
+                          return SlideTransition(
+                            position: slide,
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                          );
+                        },
+                    child: playerOpen
+                        ? KeyedSubtree(
+                            key: const ValueKey<String>(
+                              'portrait-player-overlay',
+                            ),
+                            child: playerOverlay,
+                          )
+                        : const SizedBox.shrink(
+                            key: ValueKey<String>('portrait-player-closed'),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+            bottomNavigationBar: appState.selectedTab == 4
+                ? null
+                : PortraitBottomChrome(
+                    selectedTab: appState.selectedTab,
+                    currentSong: appState.currentSong,
+                    fallbackTrack:
+                        demoQueue[appState.selectedQueueIndex %
+                            demoQueue.length],
+                    playbackState: playbackState,
+                    playbackMode: appState.playbackMode,
+                    coverSeedColor: appState.coverSeedColor,
+                    onSelectTab: (int index) => appState.selectTab(index),
+                    onPlayPause: () =>
+                        appState.togglePlayback(playbackState.playing),
+                    onPlaybackMode: () => appState.cyclePlaybackMode(),
+                    onQuality: () => appState.showQualitySheet(),
+                    onPrevious: () => appState.skipToPreviousTrack(),
+                    onNext: () => appState.skipToNextTrack(),
+                  ),
           ),
-          bottomNavigationBar: appState.selectedTab == 4
-              ? null
-              : PortraitBottomChrome(
-                  selectedTab: appState.selectedTab,
-                  currentSong: appState.currentSong,
-                  fallbackTrack:
-                      demoQueue[appState.selectedQueueIndex % demoQueue.length],
-                  playbackState: playbackState,
-                  playbackMode: appState.playbackMode,
-                  coverSeedColor: appState.coverSeedColor,
-                  onSelectTab: (int index) => appState.selectTab(index),
-                  onPlayPause: () =>
-                      appState.togglePlayback(playbackState.playing),
-                  onPlaybackMode: () => appState.cyclePlaybackMode(),
-                  onQuality: () => appState.showQualitySheet(),
-                  onPrevious: () => appState.skipToPreviousTrack(),
-                  onNext: () => appState.skipToNextTrack(),
-                ),
         ),
       ),
     );
@@ -305,14 +348,9 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       error: appState.searchError,
       loadMoreError: appState.searchLoadMoreError,
       query: appState.lastSearchQuery,
-      hotSearchKeywords: appState.hotSearchKeywords,
       favoriteSongKeys: appState.favoriteSongKeys,
       downloadedSongKeys: appState.downloadedSongKeys,
       onSearch: appState.searchSongs,
-      onHotKeyword: (String keyword) {
-        appState.searchController.text = keyword;
-        appState.searchSongs();
-      },
       onLoadMore: appState.loadMoreSearchResults,
       onPlay: appState.playSearchResult,
       onAddToQueue: appState.addSearchResultToQueue,
@@ -377,6 +415,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       qualities: appState.currentQualities,
       qualitiesBusy: appState.isLoadingQualities,
       qualityError: appState.qualityError,
+      animationsEnabled: appState.visualAnimationsEnabled,
       favorite:
           appState.currentSong != null &&
           appState.favoriteSongKeys.contains(
@@ -393,26 +432,5 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onPrevious: () => appState.skipToPreviousTrack(),
       onNext: () => appState.skipToNextTrack(),
     );
-  }
-}
-
-class _KeepAlivePage extends StatefulWidget {
-  const _KeepAlivePage({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  State<_KeepAlivePage> createState() => _KeepAlivePageState();
-}
-
-class _KeepAlivePageState extends State<_KeepAlivePage>
-    with AutomaticKeepAliveClientMixin<_KeepAlivePage> {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return widget.child;
   }
 }

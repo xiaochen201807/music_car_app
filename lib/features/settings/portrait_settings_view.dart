@@ -82,6 +82,7 @@ class PortraitSettingsView extends StatelessWidget {
                   ],
                   selected: themeMode,
                   onSelected: onThemeModeChanged,
+                  expands: true,
                 ),
               ],
             ),
@@ -147,7 +148,9 @@ class PortraitSettingsView extends StatelessWidget {
                       onOpenDownloads();
                     },
                     height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.md,
+                    ),
                     child: Center(
                       widthFactor: 1.0,
                       heightFactor: 1.0,
@@ -157,7 +160,11 @@ class PortraitSettingsView extends StatelessWidget {
                         children: <Widget>[
                           Padding(
                             padding: const EdgeInsets.only(top: 1.0),
-                            child: Icon(Icons.download_rounded, size: 18, color: colors.primary),
+                            child: Icon(
+                              Icons.download_rounded,
+                              size: 18,
+                              color: colors.primary,
+                            ),
                           ),
                           const SizedBox(width: AppSpace.xs),
                           Text(
@@ -314,34 +321,66 @@ class PortraitSettingsView extends StatelessWidget {
         onPreferredBitrateChanged(value);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.md,
+          vertical: AppSpace.sm,
+        ),
         decoration: BoxDecoration(
-          color: isSelected ? colors.primaryContainer.withValues(alpha: 0.12) : Colors.transparent,
+          color: isSelected
+              ? colors.primaryContainer.withValues(alpha: 0.12)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(color: isSelected ? colors.primary.withValues(alpha: 0.3) : Colors.transparent, width: 1.0),
+          border: Border.all(
+            color: isSelected
+                ? colors.primary.withValues(alpha: 0.3)
+                : Colors.transparent,
+            width: 1.0,
+          ),
         ),
         child: Row(
           children: <Widget>[
             Container(
-              width: 38, height: 38,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(AppRadius.control),
-                color: isSelected ? colors.primary.withValues(alpha: 0.16) : colors.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: isSelected
+                    ? colors.primary.withValues(alpha: 0.16)
+                    : colors.surfaceContainerHighest.withValues(alpha: 0.3),
               ),
-              child: Icon(icon, size: 20, color: isSelected ? colors.primary : colors.onSurfaceVariant),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected ? colors.primary : colors.onSurfaceVariant,
+              ),
             ),
             const SizedBox(width: AppSpace.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700, color: isSelected ? colors.primary : colors.onSurface)),
+                  Text(
+                    title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: isSelected
+                          ? FontWeight.w900
+                          : FontWeight.w700,
+                      color: isSelected ? colors.primary : colors.onSurface,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, fontSize: 11)),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
                 ],
               ),
             ),
-            if (isSelected) Icon(Icons.check_circle_rounded, color: colors.primary, size: 20),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: colors.primary, size: 20),
           ],
         ),
       ),
