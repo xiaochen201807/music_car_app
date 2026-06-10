@@ -123,10 +123,10 @@ ThemeData _buildAppTheme({
     scaffoldBackgroundColor: colorScheme.surface,
     splashFactory: NoSplash.splashFactory,
     useMaterial3: true,
-    pageTransitionsTheme: const PageTransitionsTheme(
+    pageTransitionsTheme: PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.android: const PredictiveBackPageTransitionsBuilder(),
+        TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
       },
     ),
   );
