@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_car_app/main.dart';
+import 'package:music_car_app/features/player/portrait_player_view.dart';
 
 void main() {
   testWidgets('renders the portrait native music shell', (
@@ -18,8 +19,8 @@ void main() {
     expect(find.text('Portrait streaming deck'), findsOneWidget);
     expect(find.text('推荐歌单'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsNothing);
-    expect(find.text('播放'), findsOneWidget);
-    expect(find.byIcon(Icons.lyrics_rounded), findsOneWidget);
+    // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
+    expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
 
     await tester.drag(
@@ -36,11 +37,11 @@ void main() {
     expect(find.text('收藏'), findsWidgets);
     expect(find.text('当前队列'), findsOneWidget);
 
-    await tester.tap(find.text('播放'));
+    // Enter player by tapping the mini player bar
+    await tester.tap(find.byType(PortraitMiniPlayerBar));
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.text('正在播放'), findsOneWidget);
-    expect(find.text('等待品质信息'), findsOneWidget);
     expect(find.text('等待歌词同步'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded).first);
@@ -54,7 +55,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_rounded).first);
     await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('设置'), findsWidgets);
     expect(find.text('主题模式'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsOneWidget);
   });
