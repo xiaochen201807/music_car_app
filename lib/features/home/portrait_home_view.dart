@@ -6,6 +6,7 @@ import '../../theme/design_tokens.dart';
 import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_chip.dart';
+import '../../shared/portrait_circle_button.dart';
 
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_section_header.dart';
@@ -173,7 +174,7 @@ class PortraitHomeView extends StatelessWidget {
   }
 }
 
-class PortraitSearchHero extends StatelessWidget {
+class PortraitSearchHero extends StatefulWidget {
   const PortraitSearchHero({
     super.key,
     required this.controller,
@@ -184,28 +185,123 @@ class PortraitSearchHero extends StatelessWidget {
   final VoidCallback onSearch;
 
   @override
+  State<PortraitSearchHero> createState() => _PortraitSearchHeroState();
+}
+
+class _PortraitSearchHeroState extends State<PortraitSearchHero> {
+  final FocusNode _focusNode = FocusNode();
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    setState(() {
+      _isFocused = _focusNode.hasFocus;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      radius: AppRadius.panel,
-      shadows: const <BoxShadow>[],
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpace.md),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: TextField(
-                controller: controller,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => onSearch(),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  prefixIcon: Icon(Icons.search_rounded),
-                  hintText: '搜索歌曲、歌手或专辑',
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.panel),
+        boxShadow: _isFocused
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: colors.primary.withValues(alpha: 0.08),
+                  blurRadius: 16,
+                  spreadRadius: 1,
+                ),
+              ]
+            : const <BoxShadow>[],
+      ),
+      child: GlassCard(
+        radius: AppRadius.panel,
+        shadows: const <BoxShadow>[],
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.panel),
+            border: Border.all(
+              color: _isFocused
+                  ? colors.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.md,
+            vertical: AppSpace.xs,
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => widget.onSearch(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: _isFocused ? colors.primary : colors.onSurfaceVariant,
+                    ),
+                    hintText: '搜索歌曲、歌手或专辑',
+                    hintStyle: TextStyle(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
+                  ),
                 ),
               ),
-            ),
-            FilledButton(onPressed: onSearch, child: const Text('搜索')),
-          ],
+              const SizedBox(width: AppSpace.sm),
+              BounceTouchable(
+                onTap: widget.onSearch,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: AppSpace.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isFocused
+                        ? colors.primary.withValues(alpha: 0.15)
+                        : colors.onSurface.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    border: Border.all(
+                      color: _isFocused
+                          ? colors.primary.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.05),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    '搜索',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: _isFocused ? colors.primary : colors.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

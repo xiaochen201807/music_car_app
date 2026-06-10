@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
@@ -122,20 +124,43 @@ class PortraitPlayerView extends StatelessWidget {
         builder:
             (BuildContext context, Color? animatedColor, Widget? childWidget) {
           final Color seed = animatedColor ?? coverSeedColor;
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  seed.withValues(alpha: 0.45),
-                  colors.surface,
-                  colors.surface,
-                ],
-                stops: const <double>[0, 0.44, 1],
+          return Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                  ),
+                ),
               ),
-            ),
-            child: childWidget,
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[
+                        seed.withValues(alpha: 0.40),
+                        colors.surface.withValues(alpha: 0.8),
+                        colors.surface,
+                      ],
+                      stops: const <double>[0, 0.5, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: _BlurredBackgroundArtwork(
+                  imageUrl: playbackState.coverUrl.isEmpty
+                      ? currentSong?.cover ?? ''
+                      : playbackState.coverUrl,
+                  fallbackColor: seed,
+                ),
+              ),
+              Positioned.fill(
+                child: childWidget!,
+              ),
+            ],
           );
         },
         child: SafeArea(
@@ -187,38 +212,12 @@ class PortraitPlayerView extends StatelessWidget {
                       tag: 'now-playing-artwork',
                       child: AspectRatio(
                         aspectRatio: 1,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadius.panel),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: <Widget>[
-                              _SpinningArtwork(
-                                spinning: playbackState.playing,
-                                child: PortraitArtwork(
-                                  visual: fallbackTrack,
-                                  imageUrl: playbackState.coverUrl.isEmpty
-                                      ? currentSong?.cover ?? ''
-                                      : playbackState.coverUrl,
-                                  icon: Icons.album_rounded,
-                                ),
-                              ),
-                              Container(
-                                width: AppSpace.xl4 * 1.5,
-                                height: AppSpace.xl4 * 1.5,
-                                decoration: BoxDecoration(
-                                  color: colors.surfaceContainerHighest,
-                                  shape: BoxShape.circle,
-                                  boxShadow: <BoxShadow>[
-                                    BoxShadow(
-                                      color: AppColor.scrimStrong.withValues(alpha: 0.07),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: _SpinningVinylDisc(
+                          spinning: playbackState.playing,
+                          imageUrl: playbackState.coverUrl.isEmpty
+                              ? currentSong?.cover ?? ''
+                              : playbackState.coverUrl,
+                          fallbackTrack: fallbackTrack,
                         ),
                       ),
                     ),
@@ -423,58 +422,76 @@ class PortraitBottomChrome extends StatelessWidget {
         AppSpace.md,
         AppSpace.md,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          PortraitMiniPlayerBar(
-            currentSong: currentSong,
-            fallbackTrack: fallbackTrack,
-            playbackState: playbackState,
-            playbackMode: playbackMode,
-            coverSeedColor: coverSeedColor,
-            onOpenPlayer: () => onSelectTab(4),
-            onPlayPause: onPlayPause,
-            onPlaybackMode: onPlaybackMode,
-            onQuality: onQuality,
-            onPrevious: onPrevious,
-            onNext: onNext,
-          ),
-          const SizedBox(height: AppSpace.sm),
-          NavigationBar(
-            selectedIndex: navigationIndex,
-            backgroundColor: colors.surfaceContainerHighest.withValues(
-              alpha: 0.92,
-            ),
-            elevation: 0,
-            onDestinationSelected: (int index) {
-              final int target = switch (index) {
-                1 => 1,
-                2 => 2,
-                3 => 5,
-                _ => 0,
-              };
-              onSelectTab(target);
-            },
-            destinations: const <NavigationDestination>[
-              NavigationDestination(
-                icon: Icon(Icons.home_rounded),
-                label: '首页',
+      child: GlassCard(
+        radius: AppRadius.panel,
+        shadows: const <BoxShadow>[],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              PortraitMiniPlayerBar(
+                currentSong: currentSong,
+                fallbackTrack: fallbackTrack,
+                playbackState: playbackState,
+                playbackMode: playbackMode,
+                coverSeedColor: coverSeedColor,
+                onOpenPlayer: () => onSelectTab(4),
+                onPlayPause: onPlayPause,
+                onPlaybackMode: onPlaybackMode,
+                onQuality: onQuality,
+                onPrevious: onPrevious,
+                onNext: onNext,
+                transparent: true,
               ),
-              NavigationDestination(
-                icon: Icon(Icons.search_rounded),
-                label: '搜索',
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                color: colors.onSurface.withValues(alpha: 0.08),
               ),
-              NavigationDestination(
-                icon: Icon(Icons.library_music_rounded),
-                label: '音乐库',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.settings_rounded),
-                label: '设置',
+              Theme(
+                data: Theme.of(context).copyWith(
+                  navigationBarTheme: NavigationBarThemeData(
+                    indicatorColor: colors.primaryContainer.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: NavigationBar(
+                  height: 60,
+                  selectedIndex: navigationIndex,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  onDestinationSelected: (int index) {
+                    final int target = switch (index) {
+                      1 => 1,
+                      2 => 2,
+                      3 => 5,
+                      _ => 0,
+                    };
+                    onSelectTab(target);
+                  },
+                  destinations: const <NavigationDestination>[
+                    NavigationDestination(
+                      icon: Icon(Icons.home_rounded),
+                      label: '首页',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.search_rounded),
+                      label: '搜索',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.library_music_rounded),
+                      label: '音乐库',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.settings_rounded),
+                      label: '设置',
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -494,6 +511,7 @@ class PortraitMiniPlayerBar extends StatelessWidget {
     required this.onQuality,
     required this.onPrevious,
     required this.onNext,
+    this.transparent = false,
   });
 
   final FreeMusicSong? currentSong;
@@ -507,6 +525,7 @@ class PortraitMiniPlayerBar extends StatelessWidget {
   final VoidCallback onQuality;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final bool transparent;
 
   @override
   Widget build(BuildContext context) {
@@ -518,76 +537,83 @@ class PortraitMiniPlayerBar extends StatelessWidget {
     final String artist = playbackState.artist.isEmpty
         ? currentSong?.artist ?? fallbackTrack.artist
         : playbackState.artist;
+
+    final Widget innerContent = InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.panel),
+      onTap: onOpenPlayer,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.sm),
+        child: Row(
+          children: <Widget>[
+            Hero(
+              tag: 'now-playing-artwork',
+              child: PortraitArtwork(
+                visual: fallbackTrack,
+                imageUrl: playbackState.coverUrl.isEmpty
+                    ? currentSong?.cover ?? ''
+                    : playbackState.coverUrl,
+                size: 52,
+                icon: Icons.album_rounded,
+              ),
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: labelForPlaybackMode(playbackMode),
+              onPressed: onPlaybackMode,
+              icon: Icon(iconForPlaybackMode(playbackMode)),
+            ),
+            IconButton(
+              tooltip: '音质',
+              onPressed: onQuality,
+              icon: const Icon(Icons.equalizer_rounded),
+            ),
+            IconButton.filled(
+              style: IconButton.styleFrom(backgroundColor: coverSeedColor),
+              onPressed: onPlayPause,
+              icon: Icon(
+                playbackState.playing
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (transparent) {
+      return innerContent;
+    }
+
     return GlassCard(
       radius: AppRadius.panel,
       shadows: const <BoxShadow>[],
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.panel),
-        onTap: onOpenPlayer,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpace.sm),
-          child: Row(
-            children: <Widget>[
-              Hero(
-                tag: 'now-playing-artwork',
-                child: PortraitArtwork(
-                  visual: fallbackTrack,
-                  imageUrl: playbackState.coverUrl.isEmpty
-                      ? currentSong?.cover ?? ''
-                      : playbackState.coverUrl,
-                  size: 52,
-                  icon: Icons.album_rounded,
-                ),
-              ),
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpace.xs),
-                    Text(
-                      artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: labelForPlaybackMode(playbackMode),
-                onPressed: onPlaybackMode,
-                icon: Icon(iconForPlaybackMode(playbackMode)),
-              ),
-              IconButton(
-                tooltip: '音质',
-                onPressed: onQuality,
-                icon: const Icon(Icons.equalizer_rounded),
-              ),
-              IconButton.filled(
-                style: IconButton.styleFrom(backgroundColor: coverSeedColor),
-                onPressed: onPlayPause,
-                icon: Icon(
-                  playbackState.playing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: innerContent,
     );
   }
 }
@@ -928,17 +954,23 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
 }
 
 /// 封面持续旋转组件：播放时匀速转动，暂停时停止。
-class _SpinningArtwork extends StatefulWidget {
-  const _SpinningArtwork({required this.spinning, required this.child});
+/// 物理黑胶唱片旋转组件 (物理质感反射)
+class _SpinningVinylDisc extends StatefulWidget {
+  const _SpinningVinylDisc({
+    required this.spinning,
+    required this.imageUrl,
+    required this.fallbackTrack,
+  });
 
   final bool spinning;
-  final Widget child;
+  final String imageUrl;
+  final DemoTrack fallbackTrack;
 
   @override
-  State<_SpinningArtwork> createState() => _SpinningArtworkState();
+  State<_SpinningVinylDisc> createState() => _SpinningVinylDiscState();
 }
 
-class _SpinningArtworkState extends State<_SpinningArtwork>
+class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -947,13 +979,13 @@ class _SpinningArtworkState extends State<_SpinningArtwork>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 12),
     );
     if (widget.spinning) _ctrl.repeat();
   }
 
   @override
-  void didUpdateWidget(covariant _SpinningArtwork old) {
+  void didUpdateWidget(covariant _SpinningVinylDisc old) {
     super.didUpdateWidget(old);
     if (widget.spinning != old.spinning) {
       widget.spinning ? _ctrl.repeat() : _ctrl.stop();
@@ -968,6 +1000,199 @@ class _SpinningArtworkState extends State<_SpinningArtwork>
 
   @override
   Widget build(BuildContext context) {
-    return RotationTransition(turns: _ctrl, child: widget.child);
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        // 旋转的黑胶盘和封面
+        RotationTransition(
+          turns: _ctrl,
+          child: Stack(
+            alignment: Alignment.center,
+            children: <Widget>[
+              // 黑胶唱片主体
+              Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF090A0E),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+              // 音轨细纹
+              const Positioned.fill(
+                child: CustomPaint(
+                  painter: _VinylTracksPainter(),
+                ),
+              ),
+              // 封面图片 (占唱片直径的 68%)
+              FractionallySizedBox(
+                widthFactor: 0.68,
+                heightFactor: 0.68,
+                child: ClipOval(
+                  child: PortraitArtwork(
+                    visual: widget.fallbackTrack,
+                    imageUrl: widget.imageUrl,
+                    icon: Icons.album_rounded,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // 静态扫过的高光反射层 (固定光照反射，不随唱片转动而旋转)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _VinylRefractionPainter(),
+            ),
+          ),
+        ),
+        // 轴心银金属装饰圈
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const SweepGradient(
+              colors: <Color>[
+                Color(0xFF8E8E93),
+                Color(0xFFD1D1D6),
+                Color(0xFFE5E5EA),
+                Color(0xFF8E8E93),
+                Color(0xFF3A3A3C),
+                Color(0xFF8E8E93),
+              ],
+              stops: <double>[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.15),
+              width: 1.5,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 4,
+                offset: const Offset(0, 1.5),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF04060D),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VinylTracksPainter extends CustomPainter {
+  const _VinylTracksPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.04)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5;
+
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double maxRadius = size.width / 2;
+
+    // 绘制 5 圈唱片音轨线
+    for (double i = 0.72; i < 0.98; i += 0.05) {
+      canvas.drawCircle(center, maxRadius * i, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _VinylRefractionPainter extends CustomPainter {
+  const _VinylRefractionPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        colors: <Color>[
+          Colors.transparent,
+          Colors.white.withValues(alpha: 0.10),
+          Colors.transparent,
+          Colors.white.withValues(alpha: 0.10),
+          Colors.transparent,
+        ],
+        stops: const <double>[0.0, 0.25, 0.5, 0.75, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..blendMode = BlendMode.screen;
+
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      size.width / 2,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 高阶歌曲封面高斯模糊流体背景
+class _BlurredBackgroundArtwork extends StatelessWidget {
+  const _BlurredBackgroundArtwork({
+    required this.imageUrl,
+    required this.fallbackColor,
+  });
+
+  final String imageUrl;
+  final Color fallbackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final Uri? uri = Uri.tryParse(imageUrl);
+    final bool canLoad =
+        uri != null &&
+        uri.hasAbsolutePath &&
+        (uri.isScheme('http') || uri.isScheme('https'));
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 1500),
+      switchInCurve: Curves.easeInOut,
+      switchOutCurve: Curves.easeInOut,
+      child: KeyedSubtree(
+        key: ValueKey<String>(imageUrl.isEmpty ? fallbackColor.toString() : imageUrl),
+        child: SizedBox.expand(
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 64, sigmaY: 64),
+            child: Opacity(
+              opacity: 0.16,
+              child: canLoad
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => Container(color: fallbackColor),
+                      errorWidget: (_, _, _) => Container(color: fallbackColor),
+                    )
+                  : Container(
+                      color: fallbackColor.withValues(alpha: 0.8),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
