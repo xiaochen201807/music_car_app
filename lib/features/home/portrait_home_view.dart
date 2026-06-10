@@ -11,6 +11,7 @@ import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_section_header.dart';
 import '../../shared/portrait_surface.dart';
 import '../../shared/staggered_animated_item.dart';
+import '../../widgets/glass_card.dart';
 
 class PortraitHomeView extends StatelessWidget {
   const PortraitHomeView({
@@ -81,34 +82,23 @@ class PortraitHomeView extends StatelessWidget {
             ),
             sliver: SliverList.list(
               children: <Widget>[
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            'Music Car',
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.8,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpace.xs),
-                          Text(
-                            'Portrait streaming deck',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Music Car',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
                       ),
                     ),
-                    PortraitCircleButton(
-                      icon: Icons.settings_rounded,
-                      label: '设置',
-                      onTap: onOpenSettings,
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      'Portrait streaming deck',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -119,27 +109,12 @@ class PortraitHomeView extends StatelessWidget {
                   spacing: AppSpace.sm,
                   runSpacing: AppSpace.sm,
                   children: <Widget>[
-                    if (sourceBusy)
-                      const PortraitChip(label: '来源加载中')
-                    else if (sourceError.isNotEmpty)
-                      const PortraitChip(label: '来源可重试')
-                    else
-                      for (final String label in sourceLabels)
-                        PortraitChip(label: label),
                     for (final String keyword in hotSearchKeywords.take(4))
                       PortraitChip(
                         label: keyword,
                         onTap: () => onHotKeyword(keyword),
                       ),
                   ],
-                ),
-                const SizedBox(height: AppSpace.xl2),
-                PortraitMetricGrid(
-                  favoriteCount: favoriteSongs.length,
-                  queueCount: queueSongs.length,
-                  carLifeReady: carLifeStatus.launchable,
-                  onOpenFavorites: onOpenFavorites,
-                  onOpenDownloads: onOpenDownloads,
                 ),
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
@@ -162,6 +137,14 @@ class PortraitHomeView extends StatelessWidget {
                     busy: playlistSongsBusy,
                     onSelect: onSelectPlaylist,
                   ),
+                const SizedBox(height: AppSpace.xl2),
+                PortraitMetricGrid(
+                  favoriteCount: favoriteSongs.length,
+                  queueCount: queueSongs.length,
+                  carLifeReady: carLifeStatus.launchable,
+                  onOpenFavorites: onOpenFavorites,
+                  onOpenDownloads: onOpenDownloads,
+                ),
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
                   title: '播放时间线',
@@ -209,13 +192,9 @@ class PortraitSearchHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      color: colors.surfaceContainerHighest.withValues(alpha: 0.78),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.panel),
-      ),
+    return GlassCard(
+      radius: AppRadius.panel,
+      shadows: const <BoxShadow>[],
       child: Padding(
         padding: const EdgeInsets.all(AppSpace.md),
         child: Row(
@@ -313,37 +292,28 @@ class PortraitMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
+    return PortraitSurface(
       onTap: onTap,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerHighest.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          border: Border.all(color: colors.outlineVariant),
-        ),
-        padding: const EdgeInsets.all(AppSpace.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Icon(icon, color: colors.primary),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(title, style: theme.textTheme.titleMedium),
-                const SizedBox(height: AppSpace.xs),
-                Text(
-                  value,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          Icon(icon, color: colors.primary),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(title, style: theme.textTheme.titleMedium),
+              const SizedBox(height: AppSpace.xs),
+              Text(
+                value,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

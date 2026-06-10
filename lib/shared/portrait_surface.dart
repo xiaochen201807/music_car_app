@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/design_tokens.dart';
+import '../widgets/glass_card.dart';
 
 class PortraitSurface extends StatelessWidget {
   const PortraitSurface({
@@ -16,23 +17,31 @@ class PortraitSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final BorderRadius radius = BorderRadius.circular(AppRadius.card);
-    final Widget content = Ink(
+    final Widget innerContent = Container(
+      padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
         color: selected
-            ? colors.primaryContainer.withValues(alpha: 0.62)
-            : colors.surfaceContainerHighest.withValues(alpha: 0.72),
-        borderRadius: radius,
+            ? colors.primaryContainer.withValues(alpha: 0.24)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: selected ? colors.primary : colors.outlineVariant,
+          color: selected ? colors.primary : AppColor.strokeHairline,
+          width: selected ? 1.5 : 1.0,
         ),
       ),
-      padding: const EdgeInsets.all(AppSpace.md),
       child: child,
     );
-    if (onTap == null) {
-      return content;
-    }
-    return InkWell(borderRadius: radius, onTap: onTap, child: content);
+
+    return GlassCard(
+      radius: AppRadius.card,
+      shadows: const <BoxShadow>[],
+      child: onTap == null
+          ? innerContent
+          : InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              onTap: onTap,
+              child: innerContent,
+            ),
+    );
   }
 }

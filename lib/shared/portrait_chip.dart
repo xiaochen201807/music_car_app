@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/design_tokens.dart';
+import '../widgets/glass_card.dart';
 
 class PortraitChip extends StatelessWidget {
   const PortraitChip({super.key, required this.label, this.onTap});
@@ -8,12 +10,21 @@ class PortraitChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    return ActionChip(
-      label: Text(label),
-      onPressed: onTap,
-      backgroundColor: colors.surfaceContainerHighest.withValues(alpha: 0.7),
-      side: BorderSide(color: colors.outlineVariant),
+    return GlassPill(
+      onTap: onTap,
+      height: 32,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.md,
+        vertical: AppSpace.xs,
+      ),
+      child: Center(
+        widthFactor: 1.0,
+        heightFactor: 1.0,
+        child: Text(
+          label,
+          style: AppType.caption,
+        ),
+      ),
     );
   }
 }

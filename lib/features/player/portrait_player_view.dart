@@ -11,6 +11,7 @@ import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
 import '../../shared/portrait_play_button.dart';
 import '../../shared/portrait_surface.dart';
+import '../../widgets/glass_card.dart';
 import 'waveform_seekbar.dart';
 
 IconData iconForPlaybackMode(NativePlaybackMode mode) {
@@ -322,7 +323,6 @@ class QualityChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
 
     if (busy) {
       return Text('音质加载中', style: theme.textTheme.bodySmall);
@@ -339,12 +339,9 @@ class QualityChips extends StatelessWidget {
       children: qualities.take(4).map((FreeMusicQuality quality) {
         final String text =
             quality.name.isNotEmpty ? quality.name : quality.bitrate;
-        return Card(
-          margin: EdgeInsets.zero,
-          color: colors.surfaceContainerHighest.withValues(alpha: 0.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.control),
-          ),
+        return GlassCard(
+          radius: AppRadius.control,
+          shadows: const <BoxShadow>[],
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpace.sm,
@@ -403,7 +400,7 @@ class PortraitBottomChrome extends StatelessWidget {
     final int navigationIndex = switch (selectedTab) {
       1 => 1,
       2 || 3 => 2,
-      4 => 3,
+      5 => 3,
       _ => 0,
     };
     return SafeArea(
@@ -442,7 +439,7 @@ class PortraitBottomChrome extends StatelessWidget {
               final int target = switch (index) {
                 1 => 1,
                 2 => 2,
-                3 => 4,
+                3 => 5,
                 _ => 0,
               };
               onSelectTab(target);
@@ -461,8 +458,8 @@ class PortraitBottomChrome extends StatelessWidget {
                 label: '音乐库',
               ),
               NavigationDestination(
-                icon: Icon(Icons.graphic_eq_rounded),
-                label: '播放',
+                icon: Icon(Icons.settings_rounded),
+                label: '设置',
               ),
             ],
           ),
@@ -514,9 +511,9 @@ class PortraitMiniPlayerBar extends StatelessWidget {
     final String artist = playbackState.artist.isEmpty
         ? currentSong?.artist ?? fallbackTrack.artist
         : playbackState.artist;
-    return Material(
-      color: colors.surfaceContainerHighest.withValues(alpha: 0.94),
-      borderRadius: BorderRadius.circular(AppRadius.panel),
+    return GlassCard(
+      radius: AppRadius.panel,
+      shadows: const <BoxShadow>[],
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.panel),
         onTap: onOpenPlayer,
@@ -717,20 +714,23 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                   _isUserScrolling = false;
                 });
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpace.sm,
-                  vertical: AppSpace.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.primaryContainer.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(AppRadius.control),
-                  border: Border.all(
-                    color: colors.primary.withValues(alpha: 0.3),
-                    width: 1,
+              child: GlassCard(
+                radius: AppRadius.control,
+                shadows: const <BoxShadow>[],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.sm,
+                    vertical: AppSpace.xs,
                   ),
-                ),
-                child: Row(
+                  decoration: BoxDecoration(
+                    color: colors.primaryContainer.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: 0.4),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Icon(
@@ -750,6 +750,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                 ),
               ),
             ),
+          ),
             const SizedBox(width: AppSpace.sm),
             Expanded(
               child: Container(
