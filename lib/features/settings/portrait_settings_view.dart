@@ -108,8 +108,12 @@ class PortraitSettingsView extends StatelessWidget {
                       heightFactor: 1.0,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: <Widget>[
-                          Icon(Icons.download_rounded, size: 18, color: colors.primary),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1.0),
+                            child: Icon(Icons.download_rounded, size: 18, color: colors.primary),
+                          ),
                           const SizedBox(width: AppSpace.xs),
                           Text(
                             '存储与缓存管理',
@@ -135,6 +139,71 @@ class PortraitSettingsView extends StatelessWidget {
             onRefresh: onRefreshCarLife,
           ),
           const SizedBox(height: AppSpace.lg),
+          PortraitSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('关于', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpace.md),
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.tile),
+                        gradient: AppColor.accentGradient,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.music_note_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'Music Car 车载系统',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '版本 1.0.0 (Build 20260610)',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.md),
+                Text(
+                  '千万级智能车载座舱专属音频系统，为您带来极致物理触感交互与震撼纯净音质体验。',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  '© 2026 Music Car Team. 保留所有权利。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 10,
+                    color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
           Align(
             alignment: Alignment.center,
             child: GlassPill(
@@ -151,13 +220,17 @@ class PortraitSettingsView extends StatelessWidget {
                 heightFactor: 1.0,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
-                    Icon(
-                      Icons.system_update_rounded,
-                      size: 18,
-                      color: updateBusy
-                          ? colors.onSurface.withValues(alpha: 0.38)
-                          : colors.primary,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1.0),
+                      child: Icon(
+                        Icons.system_update_rounded,
+                        size: 18,
+                        color: updateBusy
+                            ? colors.onSurface.withValues(alpha: 0.38)
+                            : colors.primary,
+                      ),
                     ),
                     const SizedBox(width: AppSpace.xs),
                     Text(
