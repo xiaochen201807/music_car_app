@@ -28,7 +28,6 @@ import 'features/home/playlist_details_page.dart';
 import 'features/search/portrait_search_view.dart';
 import 'features/library/portrait_library_view.dart';
 import 'features/player/portrait_player_view.dart';
-import 'features/player/lyrics_sheet.dart';
 import 'features/settings/portrait_settings_view.dart';
 import 'features/settings/cache_manager_page.dart';
 
@@ -1091,37 +1090,138 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
-  void _showLyricsSheet() {
+  void _showQualitySheet() {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true,
       builder: (BuildContext context) {
-        final MusicAudioHandler? handler = widget.audioHandler;
-        if (handler == null) {
-          return LyricsSheet(
-            songTitle: _currentSong?.name ?? '',
-            artist: _currentSong?.artist ?? '',
-            lyrics: _currentLyrics,
-            loading: _isLoadingLyrics,
-            error: _lyricsError,
-            position: Duration.zero,
+        final ThemeData theme = Theme.of(context);
+        final ColorScheme colors = theme.colorScheme;
+        final List<FreeMusicQuality> qualities = _currentQualities;
+        final bool busy = _isLoadingQualities;
+        final String error = _qualityError;
+
+        Widget content;
+        if (busy) {
+          content = const Padding(
+            padding: EdgeInsets.all(AppSpace.xl3),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        } else if (error.isNotEmpty) {
+          content = Padding(
+            padding: const EdgeInsets.all(AppSpace.xl3),
+            child: Center(
+              child: Text(error, style: theme.textTheme.bodyMedium),
+            ),
+          );
+        } else if (qualities.isEmpty) {
+          content = Padding(
+            padding: const EdgeInsets.all(AppSpace.xl3),
+            child: Center(
+              child: Text(
+                '暂无可用音质',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          );
+        } else {
+          content = ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.xl,
+              vertical: AppSpace.md,
+            ),
+            itemCount: qualities.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpace.xs),
+            itemBuilder: (BuildContext context, int index) {
+              final FreeMusicQuality q = qualities[index];
+              final String label =
+                  q.name.isNotEmpty ? q.name : q.bitrate;
+              final String subtitle = <String>[
+                if (q.format.isNotEmpty) q.format,
+                if (q.size.isNotEmpty) q.size,
+                if (q.bitrate.isNotEmpty && q.name.isNotEmpty) q.bitrate,
+              ].join(' · ');
+              final bool isFirst = index == 0;
+              return ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                ),
+                tileColor: isFirst
+                    ? colors.primaryContainer.withValues(alpha: 0.25)
+                    : null,
+                leading: Icon(
+                  isFirst
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: isFirst ? colors.primary : colors.onSurfaceVariant,
+                ),
+                title: Text(
+                  label,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: isFirst ? FontWeight.w900 : FontWeight.w600,
+                  ),
+                ),
+                subtitle: subtitle.isNotEmpty
+                    ? Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      )
+                    : null,
+                onTap: () => Navigator.pop(context),
+              );
+            },
           );
         }
-        return StreamBuilder<PlaybackState>(
-          stream: handler.playbackState,
-          initialData: handler.playbackState.valueOrNull,
-          builder:
-              (BuildContext context, AsyncSnapshot<PlaybackState> snapshot) {
-                return LyricsSheet(
-                  songTitle: _currentSong?.name ?? '',
-                  artist: _currentSong?.artist ?? '',
-                  lyrics: _currentLyrics,
-                  loading: _isLoadingLyrics,
-                  error: _lyricsError,
-                  position: snapshot.data?.position ?? Duration.zero,
-                );
-              },
+
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadius.panel),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const SizedBox(height: AppSpace.md),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.xl,
+                  AppSpace.lg,
+                  AppSpace.xl,
+                  AppSpace.sm,
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Icon(Icons.equalizer_rounded, color: colors.primary),
+                    const SizedBox(width: AppSpace.sm),
+                    Text(
+                      '音质选择',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              content,
+              const SizedBox(height: AppSpace.lg),
+            ],
+          ),
         );
       },
     );
@@ -1575,7 +1675,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               onPlaybackMode: () {
                 unawaited(_cyclePlaybackMode());
               },
-              onLyrics: _showLyricsSheet,
+              onQuality: _showQualitySheet,
               onSeek: (Duration position) {
                 unawaited(_seekPlayback(position));
               },
@@ -1703,7 +1803,7 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onSelectPlaylist,
     required this.onPlayPause,
     required this.onPlaybackMode,
-    required this.onLyrics,
+    required this.onQuality,
     required this.onSeek,
     required this.onPrevious,
     required this.onNext,
@@ -1771,7 +1871,7 @@ class _NativeMusicScaffold extends StatelessWidget {
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
-  final VoidCallback onLyrics;
+  final VoidCallback onQuality;
   final ValueChanged<Duration> onSeek;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -1841,7 +1941,7 @@ class _NativeMusicScaffold extends StatelessWidget {
       onSelectPlaylist: onSelectPlaylist,
       onPlayPause: onPlayPause,
       onPlaybackMode: onPlaybackMode,
-      onLyrics: onLyrics,
+      onQuality: onQuality,
       onSeek: onSeek,
       onPrevious: onPrevious,
       onNext: onNext,
@@ -1913,7 +2013,7 @@ class _PortraitMusicScaffold extends StatelessWidget {
     required this.onSelectPlaylist,
     required this.onPlayPause,
     required this.onPlaybackMode,
-    required this.onLyrics,
+    required this.onQuality,
     required this.onSeek,
     required this.onPrevious,
     required this.onNext,
@@ -1981,7 +2081,7 @@ class _PortraitMusicScaffold extends StatelessWidget {
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
-  final VoidCallback onLyrics;
+  final VoidCallback onQuality;
   final ValueChanged<Duration> onSeek;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -2075,7 +2175,7 @@ class _PortraitMusicScaffold extends StatelessWidget {
             : () => onToggleFavorite(currentSong!),
         onPlayPause: onPlayPause,
         onPlaybackMode: onPlaybackMode,
-        onLyrics: onLyrics,
+        onQuality: onQuality,
         onSeek: onSeek,
         onPrevious: onPrevious,
         onNext: onNext,
@@ -2114,7 +2214,6 @@ class _PortraitMusicScaffold extends StatelessWidget {
         onSelectPlaylist: onSelectPlaylist,
         onOpenFavorites: () => onSelectTab(2),
         onOpenDownloads: () => onSelectTab(5),
-        onOpenSettings: () => onSelectTab(5),
       ),
     };
 
@@ -2140,12 +2239,10 @@ class _PortraitMusicScaffold extends StatelessWidget {
                   playbackState: playbackState,
                   playbackMode: playbackMode,
                   coverSeedColor: coverSeedColor,
-                  lyricsAvailable: lyricsAvailable,
-                  lyricsBusy: lyricsBusy,
                   onSelectTab: onSelectTab,
                   onPlayPause: onPlayPause,
                   onPlaybackMode: onPlaybackMode,
-                  onLyrics: onLyrics,
+                  onQuality: onQuality,
                   onPrevious: onPrevious,
                   onNext: onNext,
                 ),

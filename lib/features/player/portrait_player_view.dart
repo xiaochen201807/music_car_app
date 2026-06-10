@@ -59,7 +59,7 @@ class PortraitPlayerView extends StatelessWidget {
     required this.onToggleFavorite,
     required this.onPlayPause,
     required this.onPlaybackMode,
-    required this.onLyrics,
+    required this.onQuality,
     required this.onSeek,
     required this.onPrevious,
     required this.onNext,
@@ -81,7 +81,7 @@ class PortraitPlayerView extends StatelessWidget {
   final VoidCallback? onToggleFavorite;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
-  final VoidCallback onLyrics;
+  final VoidCallback onQuality;
   final ValueChanged<Duration> onSeek;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -192,12 +192,8 @@ class PortraitPlayerView extends StatelessWidget {
                           child: Stack(
                             alignment: Alignment.center,
                             children: <Widget>[
-                              AnimatedRotation(
-                                turns: playbackState.playing
-                                    ? double.infinity
-                                    : 0,
-                                duration: const Duration(seconds: 8),
-                                curve: Curves.linear,
+                              _SpinningArtwork(
+                                spinning: playbackState.playing,
                                 child: PortraitArtwork(
                                   visual: fallbackTrack,
                                   imageUrl: playbackState.coverUrl.isEmpty
@@ -207,16 +203,16 @@ class PortraitPlayerView extends StatelessWidget {
                                 ),
                               ),
                               Container(
-                                width: 60,
-                                height: 60,
+                                width: AppSpace.xl4 * 1.5,
+                                height: AppSpace.xl4 * 1.5,
                                 decoration: BoxDecoration(
                                   color: colors.surfaceContainerHighest,
                                   shape: BoxShape.circle,
-                                  boxShadow: const <BoxShadow>[
+                                  boxShadow: <BoxShadow>[
                                     BoxShadow(
-                                      color: Colors.black12,
+                                      color: AppColor.scrimStrong.withValues(alpha: 0.07),
                                       blurRadius: 4,
-                                      offset: Offset(0, 2),
+                                      offset: const Offset(0, 2),
                                     ),
                                   ],
                                 ),
@@ -299,7 +295,7 @@ class PortraitPlayerView extends StatelessWidget {
                       PortraitCircleButton(
                         icon: Icons.equalizer_rounded,
                         label: '音质',
-                        onTap: onLyrics,
+                        onTap: onQuality,
                       ),
                     ],
                   ),
@@ -390,12 +386,10 @@ class PortraitBottomChrome extends StatelessWidget {
     required this.playbackState,
     required this.playbackMode,
     required this.coverSeedColor,
-    required this.lyricsAvailable,
-    required this.lyricsBusy,
     required this.onSelectTab,
     required this.onPlayPause,
     required this.onPlaybackMode,
-    required this.onLyrics,
+    required this.onQuality,
     required this.onPrevious,
     required this.onNext,
   });
@@ -406,12 +400,10 @@ class PortraitBottomChrome extends StatelessWidget {
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
   final Color coverSeedColor;
-  final bool lyricsAvailable;
-  final bool lyricsBusy;
   final ValueChanged<int> onSelectTab;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
-  final VoidCallback onLyrics;
+  final VoidCallback onQuality;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -440,12 +432,10 @@ class PortraitBottomChrome extends StatelessWidget {
             playbackState: playbackState,
             playbackMode: playbackMode,
             coverSeedColor: coverSeedColor,
-            lyricsAvailable: lyricsAvailable,
-            lyricsBusy: lyricsBusy,
             onOpenPlayer: () => onSelectTab(4),
             onPlayPause: onPlayPause,
             onPlaybackMode: onPlaybackMode,
-            onLyrics: onLyrics,
+            onQuality: onQuality,
             onPrevious: onPrevious,
             onNext: onNext,
           ),
@@ -498,12 +488,10 @@ class PortraitMiniPlayerBar extends StatelessWidget {
     required this.playbackState,
     required this.playbackMode,
     required this.coverSeedColor,
-    required this.lyricsAvailable,
-    required this.lyricsBusy,
     required this.onOpenPlayer,
     required this.onPlayPause,
     required this.onPlaybackMode,
-    required this.onLyrics,
+    required this.onQuality,
     required this.onPrevious,
     required this.onNext,
   });
@@ -513,12 +501,10 @@ class PortraitMiniPlayerBar extends StatelessWidget {
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
   final Color coverSeedColor;
-  final bool lyricsAvailable;
-  final bool lyricsBusy;
   final VoidCallback onOpenPlayer;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
-  final VoidCallback onLyrics;
+  final VoidCallback onQuality;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -585,9 +571,9 @@ class PortraitMiniPlayerBar extends StatelessWidget {
                 icon: Icon(iconForPlaybackMode(playbackMode)),
               ),
               IconButton(
-                tooltip: lyricsAvailable || lyricsBusy ? '歌词' : '歌词',
-                onPressed: onLyrics,
-                icon: const Icon(Icons.lyrics_rounded),
+                tooltip: '音质',
+                onPressed: onQuality,
+                icon: const Icon(Icons.equalizer_rounded),
               ),
               IconButton.filled(
                 style: IconButton.styleFrom(backgroundColor: coverSeedColor),
@@ -914,8 +900,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
           Positioned(
             left: 0,
             right: 0,
-            top: 100 - 20,
-            height: 40,
+            top: 200 / 2 - AppSpace.xl,
+            height: AppSpace.xl4,
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -938,5 +924,50 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
         ],
       ),
     );
+  }
+}
+
+/// 封面持续旋转组件：播放时匀速转动，暂停时停止。
+class _SpinningArtwork extends StatefulWidget {
+  const _SpinningArtwork({required this.spinning, required this.child});
+
+  final bool spinning;
+  final Widget child;
+
+  @override
+  State<_SpinningArtwork> createState() => _SpinningArtworkState();
+}
+
+class _SpinningArtworkState extends State<_SpinningArtwork>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    );
+    if (widget.spinning) _ctrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SpinningArtwork old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning != old.spinning) {
+      widget.spinning ? _ctrl.repeat() : _ctrl.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(turns: _ctrl, child: widget.child);
   }
 }

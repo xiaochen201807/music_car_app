@@ -34,7 +34,6 @@ class PortraitHomeView extends StatelessWidget {
     required this.onSelectPlaylist,
     required this.onOpenFavorites,
     required this.onOpenDownloads,
-    required this.onOpenSettings,
   });
 
   final TextEditingController controller;
@@ -55,7 +54,6 @@ class PortraitHomeView extends StatelessWidget {
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onOpenFavorites;
   final VoidCallback onOpenDownloads;
-  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
