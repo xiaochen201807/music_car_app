@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:music_car_app/features/player/portrait_player_view.dart';
 import 'package:music_car_app/features/search/portrait_search_view.dart';
 import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/main.dart';
@@ -20,8 +21,14 @@ void main() {
     expect(find.text('Portrait streaming deck'), findsNothing);
     expect(find.text('推荐歌单'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsNothing);
-    // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
     expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('portrait-bottom-chrome-handle')),
+    );
+    await tester.pumpAndSettle();
+    // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
 
     await tester.drag(find.byType(PageView), const Offset(-390, 0));
@@ -73,6 +80,10 @@ void main() {
       warnIfMissed: false,
     );
     await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(
+      find.byKey(const ValueKey<String>('portrait-bottom-chrome-handle')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
         of: find.byType(NavigationBar),
@@ -139,5 +150,34 @@ void main() {
     expect(searchCount, 1);
     expect(find.text('晴天'), findsWidgets);
     expect(find.byTooltip('清空历史'), findsOneWidget);
+  });
+
+  testWidgets('quality chips use the four display tiers without duplicates', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(useMaterial3: true),
+        home: const Scaffold(
+          body: QualityChips(
+            busy: false,
+            error: '',
+            qualities: <FreeMusicQuality>[
+              FreeMusicQuality(name: '标准', bitrate: '48kaac'),
+              FreeMusicQuality(name: '标准', bitrate: '100kogg'),
+              FreeMusicQuality(name: '较高 128K', bitrate: '128kmp3'),
+              FreeMusicQuality(name: '较高 128K', bitrate: '192kogg'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('标准'), findsOneWidget);
+    expect(find.text('较高'), findsOneWidget);
+    expect(find.text('极高'), findsOneWidget);
+    expect(find.text('较高 128K'), findsNothing);
+    expect(find.text('192kogg'), findsNothing);
+    expect(find.text('无损'), findsNothing);
   });
 }

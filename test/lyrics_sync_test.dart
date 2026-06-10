@@ -28,13 +28,32 @@ void main() {
     expect(activeLyricLineIndex(lines, const Duration(seconds: 99)), 2);
   });
 
+  test(
+    'activeLyricLineIndex can select the next lyric before its timestamp',
+    () {
+      expect(
+        activeLyricLineIndex(
+          lines,
+          const Duration(milliseconds: 4300),
+          lead: lyricHighlightLead,
+        ),
+        1,
+      );
+      expect(
+        activeLyricLineIndex(
+          lines,
+          const Duration(milliseconds: 4299),
+          lead: lyricHighlightLead,
+        ),
+        0,
+      );
+    },
+  );
+
   testWidgets('PlayerLyricsView triggers onSeek when tapping a lyric line', (
     WidgetTester tester,
   ) async {
-    final FreeMusicLyrics lyrics = FreeMusicLyrics(
-      raw: 'raw',
-      lines: lines,
-    );
+    final FreeMusicLyrics lyrics = FreeMusicLyrics(raw: 'raw', lines: lines);
     Duration? seekedDuration;
 
     await tester.pumpWidget(

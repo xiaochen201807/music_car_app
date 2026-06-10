@@ -3,6 +3,57 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-10 - Lyric Highlight Lead Timing
+
+Implemented in this increment:
+
+- Added a shared 700ms lyric highlight lead so lyric rows become active slightly
+  before their timestamp instead of waiting until the timestamp has already
+  elapsed.
+- Applied the same lead timing to the portrait now-playing lyric view, the lyric
+  sheet, and the CarLife lyric broadcast path.
+- Reused the shared lyric index helper in `MusicAudioHandler` and removed its
+  duplicate binary-search lyric selection logic.
+- Added regression coverage for lead-based lyric selection while preserving the
+  default exact-position helper behavior.
+
+Verification in this increment:
+
+- `dart format lib/utils/lyrics_utils.dart lib/features/player/portrait_player_view.dart lib/features/player/lyrics_sheet.dart lib/music_audio_handler.dart test/lyrics_sync_test.dart`
+- `flutter analyze`
+- `flutter test test/lyrics_sync_test.dart test/widget_test.dart`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Four-Tier Playback Quality Labels
+
+Implemented in this increment:
+
+- Normalized playback-page quality chips and the quality selection sheet to the
+  four user-facing tiers: `标准`, `较高`, `极高`, and `无损`.
+- Grouped raw API quality rows such as `48kaac`, `100kogg`, `128kmp3`, and
+  `192kogg` into those display tiers so duplicate labels no longer appear.
+- Kept the actual playable bitrate from the selected API quality when changing
+  playback quality, so the resolver still requests the real stream value.
+- Updated the settings page labels to the same four names and kept default
+  selection mapped by tier when the saved bitrate is a concrete stream value.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/features/player/portrait_player_view.dart lib/features/settings/portrait_settings_view.dart test/widget_test.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-10 - Cloudflare R2 Android Release Publishing
 
 Implemented in this increment:
@@ -24,6 +75,29 @@ Verification in this increment:
   Cloudflare R2 publish/prune/verify steps run before GitHub Release
   publication.
 - `flutter test test/update_check_service_test.dart`
+- `flutter analyze`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-10 - Collapsed Bottom Chrome Default
+
+Implemented in this increment:
+
+- Changed the portrait bottom mini-player/navigation chrome to start collapsed
+  by default.
+- Kept the existing upward swipe and tap-to-expand behavior so users can still
+  reveal the full navigation controls when needed.
+- Added a stable widget key and updated the shell widget test to assert the
+  default collapsed state before expanding the bottom chrome for navigation.
+
+Verification in this increment:
+
+- `dart format lib/features/player/portrait_player_view.dart test/widget_test.dart`
+- `flutter test test/widget_test.dart`
 - `flutter analyze`
 - `git diff --check`
 
@@ -443,7 +517,7 @@ Packaging note:
 Implemented in this increment:
 
 - Updated the playback quality sheet to display the same tier names as the
-  settings page: `标准`, `较高 128K`, `极高 320K`, and `无损 FLAC`.
+  settings page: `标准`, `较高`, `极高`, and `无损`.
 - Changed the selected mark from exact bitrate matching to the existing
   preferred-quality matching logic, so the closest available quality is checked
   automatically when the exact default bitrate is unavailable.

@@ -94,7 +94,7 @@ class PortraitSettingsView extends StatelessWidget {
                 _buildQualityOption(
                   context: context,
                   value: '128kmp3',
-                  title: '较高 128K',
+                  title: '较高',
                   subtitle: '高清压缩，细节饱满的经典均衡听感',
                   icon: Icons.music_note_rounded,
                 ),
@@ -102,7 +102,7 @@ class PortraitSettingsView extends StatelessWidget {
                 _buildQualityOption(
                   context: context,
                   value: '320kmp3',
-                  title: '极高 320K',
+                  title: '极高',
                   subtitle: '极高品质，清晰呈现原声音轨的所有细节',
                   icon: Icons.high_quality_rounded,
                 ),
@@ -110,7 +110,7 @@ class PortraitSettingsView extends StatelessWidget {
                 _buildQualityOption(
                   context: context,
                   value: 'flac',
-                  title: '无损 FLAC',
+                  title: '无损',
                   subtitle: '母带级音质，智能座舱极致纯净震撼声场',
                   icon: Icons.spatial_audio_off_rounded,
                 ),
@@ -290,7 +290,7 @@ class PortraitSettingsView extends StatelessWidget {
   }) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
-    final bool isSelected = preferredBitrate == value;
+    final bool isSelected = _qualityTier(preferredBitrate) == value;
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: () {
@@ -362,5 +362,23 @@ class PortraitSettingsView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _qualityTier(String bitrate) {
+    final String value = bitrate.toLowerCase();
+    if (value.contains('flac') ||
+        value.contains('lossless') ||
+        value.contains('无损')) {
+      return 'flac';
+    }
+    final int bitrateValue =
+        int.tryParse(RegExp(r'\d+').firstMatch(value)?.group(0) ?? '') ?? 128;
+    if (bitrateValue >= 192) {
+      return '320kmp3';
+    }
+    if (bitrateValue >= 128) {
+      return '128kmp3';
+    }
+    return '48kaac';
   }
 }

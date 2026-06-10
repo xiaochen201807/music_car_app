@@ -340,6 +340,50 @@ class QualityChips extends StatelessWidget {
   final bool busy;
   final String error;
 
+  bool _isLosslessQuality(FreeMusicQuality quality) {
+    final String combined =
+        '${quality.bitrate} ${quality.name} ${quality.format}'.toLowerCase();
+    return combined.contains('flac') ||
+        combined.contains('lossless') ||
+        combined.contains('无损');
+  }
+
+  int _qualityBitrateValue(FreeMusicQuality quality) {
+    final String value = quality.bitrate.toLowerCase();
+    if (_isLosslessQuality(quality)) {
+      return 1000;
+    }
+    return int.tryParse(RegExp(r'\d+').firstMatch(value)?.group(0) ?? '') ??
+        128;
+  }
+
+  String _qualityTierLabel(FreeMusicQuality quality) {
+    if (_isLosslessQuality(quality)) {
+      return '无损';
+    }
+    final int bitrate = _qualityBitrateValue(quality);
+    if (bitrate >= 192) {
+      return '极高';
+    }
+    if (bitrate >= 128) {
+      return '较高';
+    }
+    return '标准';
+  }
+
+  List<String> _qualityTierLabels() {
+    final Set<String> labels = <String>{};
+    for (final FreeMusicQuality quality in qualities) {
+      labels.add(_qualityTierLabel(quality));
+    }
+    return <String>[
+      '标准',
+      '较高',
+      '极高',
+      '无损',
+    ].where(labels.contains).toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -353,13 +397,11 @@ class QualityChips extends StatelessWidget {
     if (qualities.isEmpty) {
       return Text('等待品质信息', style: theme.textTheme.bodySmall);
     }
+    final List<String> qualityLabels = _qualityTierLabels();
     return Wrap(
       spacing: AppSpace.xs,
       runSpacing: AppSpace.xs,
-      children: qualities.take(4).map((FreeMusicQuality quality) {
-        final String text = quality.name.isNotEmpty
-            ? quality.name
-            : quality.bitrate;
+      children: qualityLabels.map((String text) {
         return GlassCard(
           radius: AppRadius.control,
           shadows: const <BoxShadow>[],
@@ -416,7 +458,7 @@ class PortraitBottomChrome extends StatefulWidget {
 }
 
 class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
-  bool _isMinimized = false;
+  bool _isMinimized = true;
 
   @override
   Widget build(BuildContext context) {
@@ -436,6 +478,7 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
         AppSpace.md,
       ),
       child: GestureDetector(
+        key: const ValueKey<String>('portrait-bottom-chrome'),
         onVerticalDragEnd: (DragEndDetails details) {
           if (details.primaryVelocity != null) {
             if (details.primaryVelocity! > 200 && !_isMinimized) {
@@ -470,13 +513,33 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Center(
-                      child: Container(
-                        width: 32,
-                        height: 3,
-                        margin: const EdgeInsets.only(top: 2, bottom: 2),
-                        decoration: BoxDecoration(
-                          color: colors.onSurface.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                      child: GestureDetector(
+                        key: const ValueKey<String>(
+                          'portrait-bottom-chrome-handle',
+                        ),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _isMinimized
+                            ? () {
+                                setState(() {
+                                  _isMinimized = false;
+                                });
+                              }
+                            : null,
+                        child: SizedBox(
+                          width: 64,
+                          height: 18,
+                          child: Center(
+                            child: Container(
+                              width: 32,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: colors.onSurface.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.pill,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -497,95 +560,120 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                       onNext: widget.onNext,
                       transparent: true,
                     ),
-                    AnimatedCrossFade(
-                      firstChild: const SizedBox.shrink(),
-                      secondChild: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Container(
-                            height: 1,
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: AppSpace.md,
-                            ),
-                            color: colors.onSurface.withValues(alpha: 0.08),
-                          ),
-                          Theme(
-                            data: Theme.of(context).copyWith(
-                              navigationBarTheme: NavigationBarThemeData(
-                                indicatorColor: Colors.transparent,
-                                labelTextStyle: WidgetStateProperty.resolveWith(
-                                  (Set<WidgetState> states) {
-                                    if (states.contains(WidgetState.selected)) {
-                                      return theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w900,
-                                            color: colors.primary,
-                                          );
-                                    }
-                                    return theme.textTheme.labelMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          color: colors.onSurfaceVariant,
-                                        );
-                                  },
-                                ),
-                                iconTheme: WidgetStateProperty.resolveWith((
-                                  Set<WidgetState> states,
-                                ) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return IconThemeData(
-                                      color: colors.primary,
-                                      size: 24,
-                                    );
-                                  }
-                                  return IconThemeData(
-                                    color: colors.onSurfaceVariant,
-                                    size: 24,
-                                  );
-                                }),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                            return SizeTransition(
+                              sizeFactor: animation,
+                              axisAlignment: -1,
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: child,
                               ),
-                            ),
-                            child: NavigationBar(
-                              height: 60,
-                              selectedIndex: navigationIndex,
-                              backgroundColor: Colors.transparent,
-                              elevation: 0,
-                              onDestinationSelected: (int index) {
-                                final int target = switch (index) {
-                                  1 => 1,
-                                  2 => 2,
-                                  3 => 5,
-                                  _ => 0,
-                                };
-                                HapticFeedback.lightImpact();
-                                widget.onSelectTab(target);
-                              },
-                              destinations: const <NavigationDestination>[
-                                NavigationDestination(
-                                  icon: Icon(Icons.home_rounded),
-                                  label: '首页',
+                            );
+                          },
+                      child: _isMinimized
+                          ? const SizedBox.shrink(
+                              key: ValueKey<String>('bottom-chrome-collapsed'),
+                            )
+                          : Column(
+                              key: const ValueKey<String>(
+                                'bottom-chrome-expanded',
+                              ),
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Container(
+                                  height: 1,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: AppSpace.md,
+                                  ),
+                                  color: colors.onSurface.withValues(
+                                    alpha: 0.08,
+                                  ),
                                 ),
-                                NavigationDestination(
-                                  icon: Icon(Icons.search_rounded),
-                                  label: '搜索',
-                                ),
-                                NavigationDestination(
-                                  icon: Icon(Icons.library_music_rounded),
-                                  label: '音乐库',
-                                ),
-                                NavigationDestination(
-                                  icon: Icon(Icons.settings_rounded),
-                                  label: '设置',
+                                Theme(
+                                  data: Theme.of(context).copyWith(
+                                    navigationBarTheme: NavigationBarThemeData(
+                                      indicatorColor: Colors.transparent,
+                                      labelTextStyle:
+                                          WidgetStateProperty.resolveWith((
+                                            Set<WidgetState> states,
+                                          ) {
+                                            if (states.contains(
+                                              WidgetState.selected,
+                                            )) {
+                                              return theme.textTheme.labelMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w900,
+                                                    color: colors.primary,
+                                                  );
+                                            }
+                                            return theme.textTheme.labelMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      colors.onSurfaceVariant,
+                                                );
+                                          }),
+                                      iconTheme:
+                                          WidgetStateProperty.resolveWith((
+                                            Set<WidgetState> states,
+                                          ) {
+                                            if (states.contains(
+                                              WidgetState.selected,
+                                            )) {
+                                              return IconThemeData(
+                                                color: colors.primary,
+                                                size: 24,
+                                              );
+                                            }
+                                            return IconThemeData(
+                                              color: colors.onSurfaceVariant,
+                                              size: 24,
+                                            );
+                                          }),
+                                    ),
+                                  ),
+                                  child: NavigationBar(
+                                    height: 60,
+                                    selectedIndex: navigationIndex,
+                                    backgroundColor: Colors.transparent,
+                                    elevation: 0,
+                                    onDestinationSelected: (int index) {
+                                      final int target = switch (index) {
+                                        1 => 1,
+                                        2 => 2,
+                                        3 => 5,
+                                        _ => 0,
+                                      };
+                                      HapticFeedback.lightImpact();
+                                      widget.onSelectTab(target);
+                                    },
+                                    destinations: const <NavigationDestination>[
+                                      NavigationDestination(
+                                        icon: Icon(Icons.home_rounded),
+                                        label: '首页',
+                                      ),
+                                      NavigationDestination(
+                                        icon: Icon(Icons.search_rounded),
+                                        label: '搜索',
+                                      ),
+                                      NavigationDestination(
+                                        icon: Icon(Icons.library_music_rounded),
+                                        label: '音乐库',
+                                      ),
+                                      NavigationDestination(
+                                        icon: Icon(Icons.settings_rounded),
+                                        label: '设置',
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                      crossFadeState: _isMinimized
-                          ? CrossFadeState.showFirst
-                          : CrossFadeState.showSecond,
-                      duration: const Duration(milliseconds: 240),
                     ),
                   ],
                 ),
@@ -783,7 +871,11 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   void didUpdateWidget(PlayerLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-    final int activeIndex = activeLyricLineIndex(lines, widget.position);
+    final int activeIndex = activeLyricLineIndex(
+      lines,
+      widget.position,
+      lead: lyricHighlightLead,
+    );
     if (activeIndex != _lastIndex && activeIndex >= 0) {
       _lastIndex = activeIndex;
       if (!_isUserScrolling) {
@@ -841,7 +933,11 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
           _isUserScrolling = false;
         });
         final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-        final int activeIndex = activeLyricLineIndex(lines, widget.position);
+        final int activeIndex = activeLyricLineIndex(
+          lines,
+          widget.position,
+          lead: lyricHighlightLead,
+        );
         if (activeIndex >= 0) {
           _scrollToIndex(activeIndex);
         }
@@ -969,7 +1065,11 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
       );
     }
 
-    final int activeIndex = activeLyricLineIndex(lines, widget.position);
+    final int activeIndex = activeLyricLineIndex(
+      lines,
+      widget.position,
+      lead: lyricHighlightLead,
+    );
 
     return SizedBox(
       height: 200,

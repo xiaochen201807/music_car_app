@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -9,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 
 import 'free_music_api.dart';
 import 'native_audio_controller.dart';
+import 'utils/lyrics_utils.dart';
 
 Future<MusicAudioHandler> initMusicAudioHandler() async {
   final AudioSession session = await AudioSession.instance;
@@ -51,7 +51,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   static const Duration _seekStep = Duration(seconds: 15);
   static const Duration _continuousSeekInterval = Duration(milliseconds: 500);
 
-  static const MethodChannel _carLifeChannel = MethodChannel('music_car_app/carlife');
+  static const MethodChannel _carLifeChannel = MethodChannel(
+    'music_car_app/carlife',
+  );
   List<FreeMusicLyricLine> _currentLyricLines = const [];
   String _lastBroadcastLyric = '';
   late final Timer _lyricTimer;
@@ -294,7 +296,11 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       return;
     }
     final Duration currentPos = _player.position;
-    final int index = _findActiveLyricLineIndex(_currentLyricLines, currentPos);
+    final int index = activeLyricLineIndex(
+      _currentLyricLines,
+      currentPos,
+      lead: lyricHighlightLead,
+    );
     if (index >= 0 && index < _currentLyricLines.length) {
       final String lyric = _currentLyricLines[index].text;
       if (lyric != _lastBroadcastLyric) {
@@ -302,23 +308,6 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         _sendLyricBroadcast(lyric);
       }
     }
-  }
-
-  int _findActiveLyricLineIndex(List<FreeMusicLyricLine> lines, Duration position) {
-    if (lines.isEmpty || position < lines.first.time) {
-      return -1;
-    }
-    int low = 0;
-    int high = lines.length - 1;
-    while (low <= high) {
-      final int mid = low + ((high - low) >> 1);
-      if (lines[mid].time <= position) {
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-    return math.max(0, high);
   }
 
   void _sendLyricBroadcast(String lyric) {
@@ -331,15 +320,16 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     final bool playing = _player.playing;
 
     unawaited(
-      _carLifeChannel.invokeMethod<void>('sendLyricBroadcast', <String, Object?>{
-        'lyric': lyric,
-        'title': title,
-        'artist': artist,
-        'album': album,
-        'duration': durationMs,
-        'position': positionMs,
-        'playing': playing,
-      }),
+      _carLifeChannel
+          .invokeMethod<void>('sendLyricBroadcast', <String, Object?>{
+            'lyric': lyric,
+            'title': title,
+            'artist': artist,
+            'album': album,
+            'duration': durationMs,
+            'position': positionMs,
+            'playing': playing,
+          }),
     );
   }
 

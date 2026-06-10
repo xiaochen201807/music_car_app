@@ -6,7 +6,6 @@ import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_message_card.dart';
 import '../../widgets/luxury_loading_indicator.dart';
 
-
 class LyricsSheet extends StatelessWidget {
   const LyricsSheet({
     super.key,
@@ -122,7 +121,11 @@ class _LyricsContentState extends State<LyricsContent> {
   void didUpdateWidget(LyricsContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-    final int activeIndex = activeLyricLineIndex(lines, widget.position);
+    final int activeIndex = activeLyricLineIndex(
+      lines,
+      widget.position,
+      lead: lyricHighlightLead,
+    );
     if (activeIndex != _lastActiveIndex) {
       _lastActiveIndex = activeIndex;
       _scrollActiveLineIntoView(activeIndex);
@@ -196,7 +199,11 @@ class _LyricsContentState extends State<LyricsContent> {
         ),
       );
     }
-    final int activeIndex = activeLyricLineIndex(lines, widget.position);
+    final int activeIndex = activeLyricLineIndex(
+      lines,
+      widget.position,
+      lead: lyricHighlightLead,
+    );
     if (_lastActiveIndex != activeIndex) {
       _lastActiveIndex = activeIndex;
       _scrollActiveLineIntoView(activeIndex);
@@ -253,7 +260,9 @@ class _LyricsContentState extends State<LyricsContent> {
                             fontWeight: FontWeight.w900,
                             shadows: <Shadow>[
                               Shadow(
-                                color: AppColor.accentRoseEnd.withValues(alpha: 0.35),
+                                color: AppColor.accentRoseEnd.withValues(
+                                  alpha: 0.35,
+                                ),
                                 offset: Offset.zero,
                                 blurRadius: 14,
                               ),

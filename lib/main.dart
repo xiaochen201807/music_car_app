@@ -1072,7 +1072,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       }
       setState(() {
         _currentQualities = List<FreeMusicQuality>.unmodifiable(
-          result.qualities.take(4),
+          result.qualities,
         );
         _isLoadingQualities = false;
       });
@@ -1147,22 +1147,165 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     return bestQuality;
   }
 
-  String _qualityDisplayLabel(FreeMusicQuality quality) {
+  bool _isLosslessQuality(FreeMusicQuality quality) {
     final String combined =
         '${quality.bitrate} ${quality.name} ${quality.format}'.toLowerCase();
-    if (combined.contains('flac') ||
+    return combined.contains('flac') ||
         combined.contains('lossless') ||
-        combined.contains('无损')) {
-      return '无损 FLAC';
+        combined.contains('无损');
+  }
+
+  String _qualityTierValue(String bitrate, {FreeMusicQuality? quality}) {
+    final String value = bitrate.toLowerCase();
+    if (value.contains('flac') ||
+        value.contains('lossless') ||
+        value.contains('无损') ||
+        (quality != null && _isLosslessQuality(quality))) {
+      return 'lossless';
     }
-    final int value = _parseBitrateValue(combined);
-    if (value >= 256) {
-      return '极高 320K';
+    final int bitrateValue = _parseBitrateValue(bitrate);
+    if (bitrateValue >= 192) {
+      return 'extreme';
     }
-    if (value >= 128) {
-      return '较高 128K';
+    if (bitrateValue >= 128) {
+      return 'higher';
     }
-    return '标准';
+    return 'standard';
+  }
+
+  String _qualityIdentity(FreeMusicQuality quality) {
+    return <String>[
+      quality.bitrate,
+      quality.format,
+      quality.size,
+      quality.name,
+    ].join('|');
+  }
+
+  FreeMusicQuality? _closestQuality(
+    Iterable<FreeMusicQuality> qualities,
+    int targetValue,
+    Set<String> usedIds,
+  ) {
+    FreeMusicQuality? bestQuality;
+    int? minDifference;
+    for (final FreeMusicQuality quality in qualities) {
+      if (usedIds.contains(_qualityIdentity(quality))) {
+        continue;
+      }
+      final int difference = (_parseBitrateValue(quality.bitrate) - targetValue)
+          .abs();
+      if (minDifference == null || difference < minDifference) {
+        minDifference = difference;
+        bestQuality = quality;
+      }
+    }
+    return bestQuality;
+  }
+
+  FreeMusicQuality? _highestQuality(
+    Iterable<FreeMusicQuality> qualities,
+    Set<String> usedIds,
+  ) {
+    FreeMusicQuality? bestQuality;
+    for (final FreeMusicQuality quality in qualities) {
+      if (usedIds.contains(_qualityIdentity(quality))) {
+        continue;
+      }
+      if (bestQuality == null ||
+          _parseBitrateValue(quality.bitrate) >
+              _parseBitrateValue(bestQuality.bitrate)) {
+        bestQuality = quality;
+      }
+    }
+    return bestQuality;
+  }
+
+  List<_QualitySheetOption> _qualitySheetOptions(
+    List<FreeMusicQuality> qualities,
+  ) {
+    final List<FreeMusicQuality> lossyQualities = qualities
+        .where((FreeMusicQuality quality) => !_isLosslessQuality(quality))
+        .toList(growable: false);
+    final List<FreeMusicQuality> losslessQualities = qualities
+        .where(_isLosslessQuality)
+        .toList(growable: false);
+    final Set<String> usedIds = <String>{};
+
+    FreeMusicQuality? pickClosestLossy(
+      int targetValue, {
+      bool Function(FreeMusicQuality quality)? where,
+    }) {
+      final FreeMusicQuality? quality = _closestQuality(
+        where == null ? lossyQualities : lossyQualities.where(where),
+        targetValue,
+        usedIds,
+      );
+      if (quality != null) {
+        usedIds.add(_qualityIdentity(quality));
+      }
+      return quality;
+    }
+
+    FreeMusicQuality? pickHighestLossy({
+      bool Function(FreeMusicQuality quality)? where,
+    }) {
+      final FreeMusicQuality? quality = _highestQuality(
+        where == null ? lossyQualities : lossyQualities.where(where),
+        usedIds,
+      );
+      if (quality != null) {
+        usedIds.add(_qualityIdentity(quality));
+      }
+      return quality;
+    }
+
+    final FreeMusicQuality? standardQuality = pickClosestLossy(
+      48,
+      where: (FreeMusicQuality quality) =>
+          _parseBitrateValue(quality.bitrate) < 128,
+    );
+    final FreeMusicQuality? higherQuality = pickClosestLossy(
+      128,
+      where: (FreeMusicQuality quality) =>
+          _parseBitrateValue(quality.bitrate) >= 128 &&
+          _parseBitrateValue(quality.bitrate) < 192,
+    );
+    final FreeMusicQuality? extremeQuality = pickHighestLossy(
+      where: (FreeMusicQuality quality) =>
+          _parseBitrateValue(quality.bitrate) >= 192,
+    );
+    final FreeMusicQuality? losslessQuality = _highestQuality(
+      losslessQualities,
+      const <String>{},
+    );
+
+    return <_QualitySheetOption>[
+      _QualitySheetOption(
+        tier: 'standard',
+        label: '标准',
+        unavailableText: '当前歌曲暂无标准音源',
+        quality: standardQuality,
+      ),
+      _QualitySheetOption(
+        tier: 'higher',
+        label: '较高',
+        unavailableText: '当前歌曲暂无较高音源',
+        quality: higherQuality,
+      ),
+      _QualitySheetOption(
+        tier: 'extreme',
+        label: '极高',
+        unavailableText: '当前歌曲暂无极高音源',
+        quality: extremeQuality,
+      ),
+      _QualitySheetOption(
+        tier: 'lossless',
+        label: '无损',
+        unavailableText: '当前歌曲暂无无损音源',
+        quality: losslessQuality,
+      ),
+    ];
   }
 
   void _showQualitySheet() {
@@ -1206,6 +1349,13 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             qualities,
             _preferredBitrate,
           );
+          final String selectedQualityTier = _qualityTierValue(
+            selectedQuality.bitrate,
+            quality: selectedQuality,
+          );
+          final List<_QualitySheetOption> qualityOptions = _qualitySheetOptions(
+            qualities,
+          );
           content = ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1213,23 +1363,25 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
               horizontal: AppSpace.xl,
               vertical: AppSpace.md,
             ),
-            itemCount: qualities.length,
+            itemCount: qualityOptions.length,
             separatorBuilder: (_, _) => const SizedBox(height: AppSpace.xs),
             itemBuilder: (BuildContext context, int index) {
-              final FreeMusicQuality q = qualities[index];
-              final String label = _qualityDisplayLabel(q);
-              final String subtitle = <String>[
-                if (q.format.isNotEmpty) q.format,
-                if (q.size.isNotEmpty) q.size,
-                if (q.bitrate.isNotEmpty) q.bitrate,
-              ].join(' · ');
+              final _QualitySheetOption option = qualityOptions[index];
+              final FreeMusicQuality? quality = option.quality;
+              final String subtitle = quality == null
+                  ? option.unavailableText
+                  : <String>[
+                      if (quality.format.isNotEmpty) quality.format,
+                      if (quality.size.isNotEmpty) quality.size,
+                      if (quality.bitrate.isNotEmpty) quality.bitrate,
+                    ].join(' · ');
               final bool isSelected =
-                  q.bitrate == selectedQuality.bitrate &&
-                  q.format == selectedQuality.format;
+                  quality != null && option.tier == selectedQualityTier;
               return ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
+                enabled: quality != null,
                 tileColor: isSelected
                     ? colors.primaryContainer.withValues(alpha: 0.25)
                     : null,
@@ -1237,12 +1389,19 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
                   isSelected
                       ? Icons.check_circle_rounded
                       : Icons.radio_button_unchecked_rounded,
-                  color: isSelected ? colors.primary : colors.onSurfaceVariant,
+                  color: quality == null
+                      ? colors.onSurfaceVariant.withValues(alpha: 0.38)
+                      : isSelected
+                      ? colors.primary
+                      : colors.onSurfaceVariant,
                 ),
                 title: Text(
-                  label,
+                  option.label,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                    color: quality == null
+                        ? colors.onSurfaceVariant.withValues(alpha: 0.55)
+                        : null,
                   ),
                 ),
                 subtitle: subtitle.isNotEmpty
@@ -1253,10 +1412,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
                         ),
                       )
                     : null,
-                onTap: () {
-                  Navigator.pop(context);
-                  unawaited(_changePlaybackQuality(q));
-                },
+                onTap: quality == null
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        unawaited(_changePlaybackQuality(quality));
+                      },
               );
             },
           );
@@ -1772,6 +1933,20 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       child: const PortraitMusicScaffold(),
     );
   }
+}
+
+class _QualitySheetOption {
+  const _QualitySheetOption({
+    required this.tier,
+    required this.label,
+    required this.unavailableText,
+    required this.quality,
+  });
+
+  final String tier;
+  final String label;
+  final String unavailableText;
+  final FreeMusicQuality? quality;
 }
 
 // ==========================================
