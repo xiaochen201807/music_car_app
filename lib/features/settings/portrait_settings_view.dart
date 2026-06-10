@@ -10,10 +10,12 @@ class PortraitSettingsView extends StatelessWidget {
   const PortraitSettingsView({
     super.key,
     required this.themeMode,
+    required this.preferredBitrate,
     required this.carLifeStatus,
     required this.carLifeBusy,
     required this.updateBusy,
     required this.onThemeModeChanged,
+    required this.onPreferredBitrateChanged,
     required this.onOpenCarLife,
     required this.onSyncCarLife,
     required this.onRefreshCarLife,
@@ -22,10 +24,12 @@ class PortraitSettingsView extends StatelessWidget {
   });
 
   final ThemeMode themeMode;
+  final String preferredBitrate;
   final CarLifeStatus carLifeStatus;
   final bool carLifeBusy;
   final bool updateBusy;
   final ValueChanged<ThemeMode> onThemeModeChanged;
+  final ValueChanged<String> onPreferredBitrateChanged;
   final VoidCallback onOpenCarLife;
   final VoidCallback onSyncCarLife;
   final VoidCallback onRefreshCarLife;
@@ -78,6 +82,47 @@ class PortraitSettingsView extends StatelessWidget {
                   ],
                   selected: themeMode,
                   onSelected: onThemeModeChanged,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+          PortraitSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('默认音质', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpace.md),
+                _buildQualityOption(
+                  context: context,
+                  value: '48kaac',
+                  title: '标准',
+                  subtitle: '较低码率，保证播放与传输极致流畅',
+                  icon: Icons.network_check_rounded,
+                ),
+                const SizedBox(height: AppSpace.xs),
+                _buildQualityOption(
+                  context: context,
+                  value: '128kmp3',
+                  title: '较高 128K',
+                  subtitle: '高清压缩，细节饱满的经典均衡听感',
+                  icon: Icons.music_note_rounded,
+                ),
+                const SizedBox(height: AppSpace.xs),
+                _buildQualityOption(
+                  context: context,
+                  value: '320kmp3',
+                  title: '极高 320K',
+                  subtitle: '极高品质，清晰呈现原声音轨的所有细节',
+                  icon: Icons.high_quality_rounded,
+                ),
+                const SizedBox(height: AppSpace.xs),
+                _buildQualityOption(
+                  context: context,
+                  value: 'flac',
+                  title: '无损 FLAC',
+                  subtitle: '母带级音质，智能座舱极致纯净震撼声场',
+                  icon: Icons.spatial_audio_off_rounded,
                 ),
               ],
             ),
@@ -248,6 +293,57 @@ class PortraitSettingsView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQualityOption({
+    required BuildContext context,
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isSelected = preferredBitrate == value;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.tile),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onPreferredBitrateChanged(value);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
+        decoration: BoxDecoration(
+          color: isSelected ? colors.primaryContainer.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(color: isSelected ? colors.primary.withValues(alpha: 0.3) : Colors.transparent, width: 1.0),
+        ),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadius.control),
+                color: isSelected ? colors.primary.withValues(alpha: 0.16) : colors.surfaceContainerHighest.withValues(alpha: 0.3),
+              ),
+              child: Icon(icon, size: 20, color: isSelected ? colors.primary : colors.onSurfaceVariant),
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700, color: isSelected ? colors.primary : colors.onSurface)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, fontSize: 11)),
+                ],
+              ),
+            ),
+            if (isSelected) Icon(Icons.check_circle_rounded, color: colors.primary, size: 20),
+          ],
+        ),
       ),
     );
   }

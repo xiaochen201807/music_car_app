@@ -360,6 +360,15 @@ class NativeAudioController {
     await _player.dispose();
   }
 
+  Future<String> getPreferredBitrate() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      return prefs.getString('preferred_bitrate') ?? '320kmp3';
+    } catch (_) {
+      return '320kmp3';
+    }
+  }
+
   Future<String> _resolveAudioUrl(PlayerProbeSnapshot snapshot) async {
     final FreeMusicSong? song = snapshot.song;
     if (song != null && song.canResolve) {
@@ -391,8 +400,10 @@ class NativeAudioController {
     // exception: a dead source would otherwise make playback — and any CarLife
     // projection reading this same queue — silently stall. We fall through to
     // [_resolveViaSourceSwitch] instead.
+    final String preferredBitrate = await getPreferredBitrate();
     try {
-      final FreeMusicResolvedUrl? resolved = await _api.resolveSongUrl(song);
+      final FreeMusicResolvedUrl? resolved =
+          await _api.resolveSongUrl(song, bitrate: preferredBitrate);
       final String url = resolved?.url ?? '';
       if (url.isNotEmpty) {
         debugPrint('[native-audio] resolved ${snapshot.debugTitle}');

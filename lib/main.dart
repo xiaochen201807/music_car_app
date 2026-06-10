@@ -235,12 +235,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   int _selectedQueueIndex = 0;
   Color _coverSeedColor = AppColor.accentVioletStart;
   String _coverSeedUrl = '';
+  String _preferredBitrate = '320kmp3';
 
   @override
   void initState() {
     super.initState();
     _downloadService = DownloadService(_freeMusicApi);
     unawaited(_downloadService.init());
+    unawaited(_loadPreferredBitrate());
     _nativeAudioController = NativeAudioController(
       player: widget.audioHandler,
       api: _freeMusicApi,
@@ -307,6 +309,33 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky),
       );
     }
+  }
+
+  String get preferredBitrate => _preferredBitrate;
+
+  Future<void> _loadPreferredBitrate() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? br = prefs.getString('preferred_bitrate');
+      if (br != null && mounted) {
+        setState(() {
+          _preferredBitrate = br;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setPreferredBitrate(String br) async {
+    if (_preferredBitrate == br) {
+      return;
+    }
+    setState(() {
+      _preferredBitrate = br;
+    });
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('preferred_bitrate', br);
+    } catch (_) {}
   }
 
   Future<bool> _resumeNativePlayback() {
@@ -696,9 +725,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             await _freeMusicApi.fetchQualities(song);
         qualities = res.qualities;
       } catch (_) {}
-      final FreeMusicQuality targetQuality = qualities.isNotEmpty
-          ? qualities.first
-          : const FreeMusicQuality(name: '标准', bitrate: '128k');
+      final FreeMusicQuality targetQuality =
+          findBestQuality(qualities, _preferredBitrate);
 
       _showSnack('开始下载: ${song.name}');
       final Stream<double> progressStream =
@@ -1029,6 +1057,58 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
+  Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
+    await setPreferredBitrate(quality.bitrate);
+    final FreeMusicSong? current = _currentSong;
+    if (current != null) {
+      await _nativeAudioController.playSong(current);
+    }
+  }
+
+  int _parseBitrateValue(String bitrateStr) {
+    final String str = bitrateStr.toLowerCase();
+    if (str.contains('flac') ||
+        str.contains('lossless') ||
+        str.contains('无损')) {
+      return 1000;
+    }
+    final RegExp reg = RegExp(r'\d+');
+    final Match? match = reg.firstMatch(str);
+    if (match != null) {
+      return int.tryParse(match.group(0)!) ?? 128;
+    }
+    if (str.contains('aac')) {
+      return 48;
+    }
+    if (str.contains('mp3')) {
+      return 128;
+    }
+    return 128;
+  }
+
+  FreeMusicQuality findBestQuality(
+    List<FreeMusicQuality> qualities,
+    String preferredBitrate,
+  ) {
+    if (qualities.isEmpty) {
+      return const FreeMusicQuality(name: '标准', bitrate: '48kaac');
+    }
+    final int targetValue = _parseBitrateValue(preferredBitrate);
+    FreeMusicQuality bestQuality = qualities.first;
+    int minDifference =
+        (targetValue - _parseBitrateValue(bestQuality.bitrate)).abs();
+
+    for (final FreeMusicQuality q in qualities) {
+      final int value = _parseBitrateValue(q.bitrate);
+      final int diff = (targetValue - value).abs();
+      if (diff < minDifference) {
+        minDifference = diff;
+        bestQuality = q;
+      }
+    }
+    return bestQuality;
+  }
+
   void _showQualitySheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -1084,24 +1164,24 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
                 if (q.size.isNotEmpty) q.size,
                 if (q.bitrate.isNotEmpty && q.name.isNotEmpty) q.bitrate,
               ].join(' · ');
-              final bool isFirst = index == 0;
+              final bool isSelected = q.bitrate == _preferredBitrate;
               return ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
-                tileColor: isFirst
+                tileColor: isSelected
                     ? colors.primaryContainer.withValues(alpha: 0.25)
                     : null,
                 leading: Icon(
-                  isFirst
+                  isSelected
                       ? Icons.check_circle_rounded
                       : Icons.radio_button_unchecked_rounded,
-                  color: isFirst ? colors.primary : colors.onSurfaceVariant,
+                  color: isSelected ? colors.primary : colors.onSurfaceVariant,
                 ),
                 title: Text(
                   label,
                   style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: isFirst ? FontWeight.w900 : FontWeight.w600,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                   ),
                 ),
                 subtitle: subtitle.isNotEmpty
@@ -1112,7 +1192,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
                         ),
                       )
                     : null,
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  unawaited(_changePlaybackQuality(q));
+                },
               );
             },
           );

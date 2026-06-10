@@ -132,12 +132,17 @@ class PortraitMusicScaffold extends StatelessWidget {
         ),
       5 => PortraitSettingsView(
           themeMode: appState.widget.themeMode,
+          preferredBitrate: appState.preferredBitrate,
           carLifeStatus: appState.carLifeStatus,
           carLifeBusy: appState.isCheckingCarLife || appState.isSyncingCarLife,
           updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
-          onThemeModeChanged: appState.widget.onThemeModeChanged ?? (ThemeMode mode) {},
+          onThemeModeChanged:
+              appState.widget.onThemeModeChanged ?? (ThemeMode mode) {},
+          onPreferredBitrateChanged: (String br) =>
+              appState.setPreferredBitrate(br),
           onOpenCarLife: appState.openCarLife,
-          onSyncCarLife: () => appState.syncCarLifePlaybackContext(showResult: true),
+          onSyncCarLife: () =>
+              appState.syncCarLifePlaybackContext(showResult: true),
           onRefreshCarLife: appState.refreshCarLifeStatus,
           onCheckUpdate: () => appState.checkForUpdate(),
           onOpenDownloads: () => appState.openDownloads(),
