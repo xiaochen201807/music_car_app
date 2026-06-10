@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -1010,8 +1011,6 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   }
 }
 
-/// 封面持续旋转组件：播放时匀速转动，暂停时停止。
-/// 物理黑胶唱片旋转组件 (物理质感反射)
 class _SpinningVinylDisc extends StatefulWidget {
   const _SpinningVinylDisc({
     required this.spinning,
@@ -1028,8 +1027,10 @@ class _SpinningVinylDisc extends StatefulWidget {
 }
 
 class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final AnimationController _armCtrl;
+  late final Animation<double> _armAngleAnimation;
 
   @override
   void initState() {
@@ -1039,19 +1040,44 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
       duration: const Duration(seconds: 12),
     );
     if (widget.spinning) _ctrl.repeat();
+
+    _armCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _armAngleAnimation = Tween<double>(
+      begin: -0.35,
+      end: 0.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _armCtrl,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    if (widget.spinning) {
+      _armCtrl.value = 1.0;
+    }
   }
 
   @override
   void didUpdateWidget(covariant _SpinningVinylDisc old) {
     super.didUpdateWidget(old);
     if (widget.spinning != old.spinning) {
-      widget.spinning ? _ctrl.repeat() : _ctrl.stop();
+      if (widget.spinning) {
+        _ctrl.repeat();
+        _armCtrl.forward();
+      } else {
+        _ctrl.stop();
+        _armCtrl.reverse();
+      }
     }
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _armCtrl.dispose();
     super.dispose();
   }
 
@@ -1059,6 +1085,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
   Widget build(BuildContext context) {
     return Stack(
       alignment: Alignment.center,
+      clipBehavior: Clip.none,
       children: <Widget>[
         // 旋转的黑胶盘和封面
         RotationTransition(
@@ -1149,9 +1176,81 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
             ),
           ),
         ),
+        // 静态唱针 (悬浮于唱片右上方，在 build 阶段进行起落角度旋转)
+        Positioned(
+          right: 15,
+          top: -10,
+          width: 80,
+          height: 120,
+          child: AnimatedBuilder(
+            animation: _armAngleAnimation,
+            builder: (BuildContext context, Widget? child) {
+              return Transform.rotate(
+                angle: _armAngleAnimation.value,
+                alignment: const Alignment(0.7, -0.8),
+                child: child,
+              );
+            },
+            child: const CustomPaint(
+              painter: _ToneArmPainter(),
+            ),
+          ),
+        ),
       ],
     );
   }
+}
+
+class _ToneArmPainter extends CustomPainter {
+  const _ToneArmPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint armPaint = Paint()
+      ..color = const Color(0xFFD1D1D6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final Paint jointPaint = Paint()
+      ..color = const Color(0xFF48484A)
+      ..style = PaintingStyle.fill;
+
+    final Paint headPaint = Paint()
+      ..color = const Color(0xFF1C1C1E)
+      ..style = PaintingStyle.fill;
+
+    final Offset pivot = Offset(size.width * 0.85, size.height * 0.15);
+
+    // 1. 底座同心圆
+    canvas.drawCircle(pivot, 10.0, jointPaint);
+    canvas.drawCircle(pivot, 5.0, Paint()..color = const Color(0xFFE5E5EA));
+
+    // 2. 针臂折线
+    final Path path = Path()
+      ..moveTo(pivot.dx, pivot.dy)
+      ..lineTo(size.width * 0.65, size.height * 0.55)
+      ..lineTo(size.width * 0.25, size.height * 0.9);
+    canvas.drawPath(path, armPaint);
+
+    // 3. 针头 (带有粉红色彩装饰点缀)
+    final Offset headOffset = Offset(size.width * 0.25, size.height * 0.9);
+    canvas.save();
+    canvas.translate(headOffset.dx, headOffset.dy);
+    canvas.rotate(-math.pi / 5);
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset.zero, width: 10, height: 16),
+      headPaint,
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: const Offset(0, 3), width: 6, height: 3),
+      Paint()..color = const Color(0xFFFF5C9E),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _VinylTracksPainter extends CustomPainter {

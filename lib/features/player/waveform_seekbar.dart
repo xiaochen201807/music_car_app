@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class WaveformSeekBar extends StatefulWidget {
   const WaveformSeekBar({
@@ -22,6 +24,7 @@ class WaveformSeekBar extends StatefulWidget {
 class _WaveformSeekBarState extends State<WaveformSeekBar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animationController;
+  double _lastVibratedValue = 0.0;
 
   @override
   void initState() {
@@ -46,17 +49,23 @@ class _WaveformSeekBarState extends State<WaveformSeekBar>
           ? null
           : (TapDownDetails details) {
               final RenderBox box = context.findRenderObject()! as RenderBox;
-              widget.onChanged!(
-                (details.localPosition.dx / box.size.width).clamp(0, 1),
-              );
+              final double newValue =
+                  (details.localPosition.dx / box.size.width).clamp(0, 1);
+              _lastVibratedValue = newValue;
+              unawaited(HapticFeedback.lightImpact());
+              widget.onChanged!(newValue);
             },
       onHorizontalDragUpdate: widget.onChanged == null
           ? null
           : (DragUpdateDetails details) {
               final RenderBox box = context.findRenderObject()! as RenderBox;
-              widget.onChanged!(
-                (details.localPosition.dx / box.size.width).clamp(0, 1),
-              );
+              final double newValue =
+                  (details.localPosition.dx / box.size.width).clamp(0, 1);
+              if ((newValue - _lastVibratedValue).abs() >= 0.02) {
+                _lastVibratedValue = newValue;
+                unawaited(HapticFeedback.selectionClick());
+              }
+              widget.onChanged!(newValue);
             },
       child: SizedBox(
         height: 52,
