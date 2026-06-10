@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/design_tokens.dart';
-import 'glass_card.dart';
 
 class PortraitSegmentedTab<T> extends StatelessWidget {
   const PortraitSegmentedTab({

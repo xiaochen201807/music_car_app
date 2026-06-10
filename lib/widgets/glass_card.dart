@@ -87,7 +87,7 @@ class GlassPill extends StatelessWidget {
       blur: AppSpace.lg,
       padding: padding,
       shadows: const <BoxShadow>[],
-      child: child,
+      child: Center(child: child),
     );
     if (onTap == null) {
       return content;
