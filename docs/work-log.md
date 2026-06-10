@@ -13,6 +13,15 @@ Implemented in this increment:
   - Updated `test/widget_test.dart` to target the stable open area instead of
     relying on the full mini-player widget center, which can land on transport
     controls after layout changes.
+- Implemented the page-swipe shell plan from `implementation_plan.md`:
+  - Reworked `PortraitMusicScaffold` into a `PageView`-based regular shell for
+    首页、搜索、音乐库、设置, with keep-alive pages for state retention.
+  - Moved the full-screen player out of regular tab paging and into a bottom
+    slide-in overlay so its horizontal track-swipe gestures do not conflict
+    with regular page navigation.
+  - Expanded `test/widget_test.dart` to cover left/right page navigation,
+    bottom navigation sync, and returning from the player overlay to the
+    previous regular page.
 - **Phase B (Architecture & Module Separation)**:
   - Cleaned up modular architecture by splitting the mammoth 7800+ lines `lib/main.dart` into self-contained widgets and feature-based views.
   - Formed atomic components under `lib/shared/`: `portrait_artwork.dart`, `portrait_surface.dart`, `portrait_chip.dart`, `portrait_circle_button.dart`, `portrait_song_tile.dart`, `portrait_queue_tile.dart`, `portrait_section_header.dart`, `portrait_message_card.dart`.

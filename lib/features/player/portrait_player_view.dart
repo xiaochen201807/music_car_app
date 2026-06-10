@@ -634,95 +634,108 @@ class PortraitMiniPlayerBar extends StatelessWidget {
         ? currentSong?.artist ?? fallbackTrack.artist
         : playbackState.artist;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: onOpenPlayer,
-      child: GlassCard(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpace.sm),
-          child: Row(
-            children: <Widget>[
-              Hero(
-                tag: 'now-playing-artwork',
-                child: PortraitArtwork(
-                  visual: fallbackTrack,
-                  imageUrl: playbackState.coverUrl.isEmpty
-                      ? currentSong?.cover ?? ''
-                      : playbackState.coverUrl,
-                  size: 52,
-                  icon: Icons.album_rounded,
-                ),
-              ),
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+    final Widget innerContent = Padding(
+      padding: const EdgeInsets.all(AppSpace.sm),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: GestureDetector(
+              key: const ValueKey<String>('portrait-mini-player-open-area'),
+              behavior: HitTestBehavior.opaque,
+              onTap: onOpenPlayer,
+              child: Row(
+                children: <Widget>[
+                  Hero(
+                    tag: 'now-playing-artwork',
+                    child: PortraitArtwork(
+                      visual: fallbackTrack,
+                      imageUrl: playbackState.coverUrl.isEmpty
+                          ? currentSong?.cover ?? ''
+                          : playbackState.coverUrl,
+                      size: 52,
+                      icon: Icons.album_rounded,
                     ),
-                    const SizedBox(height: AppSpace.xs),
-                    Text(
-                      artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpace.xs),
+                        Text(
+                          artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              IconButton(
-              tooltip: '上一首',
-              onPressed: onPrevious,
-              icon: const Icon(Icons.skip_previous_rounded),
-            ),
-            IconButton(
-              tooltip: labelForPlaybackMode(playbackMode),
-              onPressed: onPlaybackMode,
-              icon: Icon(iconForPlaybackMode(playbackMode)),
-            ),
-            GlassPill(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onPlayPause();
-              },
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
-              child: Center(
-                widthFactor: 1.0,
-                heightFactor: 1.0,
-                child: Icon(
-                  playbackState.playing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  color: playbackState.playing ? colors.primary : colors.onSurface,
-                ),
+                  ),
+                ],
               ),
             ),
-            IconButton(
-              tooltip: '音质',
-              onPressed: onQuality,
-              icon: const Icon(Icons.equalizer_rounded),
-            ),
-            IconButton(
-              tooltip: '下一首',
-              onPressed: onNext,
-              icon: const Icon(Icons.skip_next_rounded),
-            ),
-            ],
           ),
-        ),
+          const SizedBox(width: AppSpace.sm),
+          IconButton(
+            tooltip: '上一首',
+            onPressed: onPrevious,
+            icon: const Icon(Icons.skip_previous_rounded),
+          ),
+          IconButton(
+            tooltip: labelForPlaybackMode(playbackMode),
+            onPressed: onPlaybackMode,
+            icon: Icon(iconForPlaybackMode(playbackMode)),
+          ),
+          GlassPill(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onPlayPause();
+            },
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+            child: Center(
+              widthFactor: 1.0,
+              heightFactor: 1.0,
+              child: Icon(
+                playbackState.playing
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                color: playbackState.playing
+                    ? colors.primary
+                    : colors.onSurface,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '音质',
+            onPressed: onQuality,
+            icon: const Icon(Icons.equalizer_rounded),
+          ),
+          IconButton(
+            tooltip: '下一首',
+            onPressed: onNext,
+            icon: const Icon(Icons.skip_next_rounded),
+          ),
+        ],
       ),
     );
+
+    if (transparent) {
+      return innerContent;
+    }
+
+    return GlassCard(child: innerContent);
   }
 }
 

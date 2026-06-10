@@ -98,6 +98,9 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       return;
     }
     _lastRegularTab = selectedTab;
+    if (_isAnimatingToPage) {
+      return;
+    }
     final PageController? controller = _pageController;
     if (controller == null || !controller.hasClients) {
       return;
@@ -178,21 +181,21 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
                   controller: _pageController,
                   onPageChanged: (int index) => _onPageChanged(appState, index),
                   children: <Widget>[
-                    KeyedSubtree(
+                    _KeepAlivePage(
                       key: const PageStorageKey<String>('portrait-home-page'),
                       child: _buildHomeView(appState, runSearchFromHome),
                     ),
-                    KeyedSubtree(
+                    _KeepAlivePage(
                       key: const PageStorageKey<String>('portrait-search-page'),
                       child: _buildSearchView(appState),
                     ),
-                    KeyedSubtree(
+                    _KeepAlivePage(
                       key: const PageStorageKey<String>(
                         'portrait-library-page',
                       ),
                       child: _buildLibraryView(appState),
                     ),
-                    KeyedSubtree(
+                    _KeepAlivePage(
                       key: const PageStorageKey<String>(
                         'portrait-settings-page',
                       ),
@@ -390,5 +393,26 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onPrevious: () => appState.skipToPreviousTrack(),
       onNext: () => appState.skipToNextTrack(),
     );
+  }
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin<_KeepAlivePage> {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

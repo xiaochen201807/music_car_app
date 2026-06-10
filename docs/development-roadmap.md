@@ -18,8 +18,9 @@ native audio foundation:
 1. `[x]` Flutter renders the main music experience without WebView.
 2. `[~]` Flutter is being rebuilt as a portrait-first app. The first portrait
    shell, Material 3 theme switch, recommendation grid, timeline, mini-player,
-   and immersive player are wired; mini-player entry regression coverage is
-   restored, while real-device portrait validation remains.
+   and immersive player are wired. Regular pages now swipe through a kept-alive
+   `PageView`, while the full-screen player opens as an overlay; real-device
+   portrait validation remains.
 3. `[x]` The UI provides home, search entry, recommendation, now-playing, queue,
    favorites, lyrics entry, and mini-player surfaces.
 4. `[x]` In-app update checking and APK installation support remain available.

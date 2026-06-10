@@ -22,12 +22,30 @@ void main() {
     expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
 
+    await tester.drag(find.byType(PageView), const Offset(-390, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('搜索'), findsWidgets);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('首页'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Music Car'), findsOneWidget);
+
     await tester.ensureVisible(find.text('播放时间线'));
     await tester.pumpAndSettle();
     expect(find.text('播放时间线'), findsOneWidget);
 
-    await tester.tap(find.text('音乐库'));
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('音乐库'),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('音乐库'), findsWidgets);
     expect(find.text('收藏'), findsWidgets);
@@ -37,21 +55,29 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey<String>('portrait-mini-player-open-area')),
     );
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
 
     expect(find.text('正在播放'), findsOneWidget);
     expect(find.text('等待歌词同步'), findsOneWidget);
+    expect(find.text('音乐库'), findsWidgets);
 
     await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded).first);
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+    expect(find.text('音乐库'), findsWidgets);
+
     await tester.drag(
       find.byType(CustomScrollView).first,
       const Offset(0, 420),
       warnIfMissed: false,
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.byIcon(Icons.settings_rounded).first);
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('设置'),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('设置'), findsWidgets);
     expect(find.text('主题模式'), findsOneWidget);
