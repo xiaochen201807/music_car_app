@@ -566,13 +566,21 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                       switchOutCurve: Curves.easeInCubic,
                       transitionBuilder:
                           (Widget child, Animation<double> animation) {
-                            return SizeTransition(
-                              sizeFactor: animation,
-                              axisAlignment: -1,
-                              child: FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              ),
+                            return AnimatedBuilder(
+                              animation: animation,
+                              child: child,
+                              builder: (BuildContext context, Widget? child) {
+                                return ClipRect(
+                                  child: Align(
+                                    alignment: AlignmentDirectional.topStart,
+                                    heightFactor: animation.value,
+                                    child: FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                       child: _isMinimized
