@@ -11,7 +11,6 @@ import '../../utils/formatters.dart';
 import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
-import '../../shared/portrait_play_button.dart';
 import '../../shared/portrait_surface.dart';
 import '../../widgets/glass_card.dart';
 import 'waveform_seekbar.dart';
@@ -208,6 +207,18 @@ class PortraitPlayerView extends StatelessWidget {
                         onClose();
                       }
                     },
+                    onTap: onPlayPause,
+                    onHorizontalDragEnd: (DragEndDetails details) {
+                      if (details.primaryVelocity != null) {
+                        if (details.primaryVelocity! < 0) {
+                          // 向左滑动 -> 上一首
+                          onPrevious();
+                        } else if (details.primaryVelocity! > 0) {
+                          // 向右滑动 -> 下一首
+                          onNext();
+                        }
+                      }
+                    },
                     child: Hero(
                       tag: 'now-playing-artwork',
                       child: AspectRatio(
@@ -266,39 +277,7 @@ class PortraitPlayerView extends StatelessWidget {
                       Text(formatDuration(duration)),
                     ],
                   ),
-                  const SizedBox(height: AppSpace.xl2),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: <Widget>[
-                      PortraitCircleButton(
-                        icon: iconForPlaybackMode(playbackMode),
-                        label: labelForPlaybackMode(playbackMode),
-                        onTap: onPlaybackMode,
-                      ),
-                      PortraitCircleButton(
-                        icon: Icons.skip_previous_rounded,
-                        label: '上一曲',
-                        large: true,
-                        onTap: onPrevious,
-                      ),
-                      PortraitPlayButton(
-                        playing: playbackState.playing,
-                        onTap: onPlayPause,
-                      ),
-                      PortraitCircleButton(
-                        icon: Icons.skip_next_rounded,
-                        label: '下一曲',
-                        large: true,
-                        onTap: onNext,
-                      ),
-                      PortraitCircleButton(
-                        icon: Icons.equalizer_rounded,
-                        label: '音质',
-                        onTap: onQuality,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpace.lg),
+                  const SizedBox(height: AppSpace.xl),
                   PortraitSurface(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -309,6 +288,25 @@ class PortraitPlayerView extends StatelessWidget {
                           lyricsBusy: lyricsBusy,
                           lyricsError: lyricsError,
                           onSeek: onSeek,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xl2),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        PortraitCircleButton(
+                          icon: iconForPlaybackMode(playbackMode),
+                          label: labelForPlaybackMode(playbackMode),
+                          onTap: onPlaybackMode,
+                        ),
+                        PortraitCircleButton(
+                          icon: Icons.equalizer_rounded,
+                          label: '音质',
+                          onTap: onQuality,
                         ),
                       ],
                     ),
