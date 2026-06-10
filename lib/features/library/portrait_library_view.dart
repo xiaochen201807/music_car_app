@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../favorite_song_store.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
@@ -7,6 +8,8 @@ import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_queue_tile.dart';
 import '../../shared/portrait_section_header.dart';
 import '../../shared/portrait_song_tile.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/portrait_segmented_tab.dart';
 
 class PortraitLibraryView extends StatefulWidget {
   const PortraitLibraryView({
@@ -52,10 +55,54 @@ class PortraitLibraryView extends StatefulWidget {
 class _PortraitLibraryViewState extends State<PortraitLibraryView> {
   int _selectedSubTab = 0; // 0: 收藏, 1: 离线下载
 
+  Widget _buildPlayButton({
+    required bool disabled,
+    required VoidCallback? onTap,
+    required String label,
+  }) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassPill(
+      onTap: disabled
+          ? null
+          : () {
+              HapticFeedback.lightImpact();
+              onTap?.call();
+            },
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+      child: Center(
+        widthFactor: 1.0,
+        heightFactor: 1.0,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              Icons.play_arrow_rounded,
+              size: 18,
+              color: disabled
+                  ? colors.onSurface.withValues(alpha: 0.38)
+                  : colors.primary,
+            ),
+            const SizedBox(width: AppSpace.xs),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: disabled
+                    ? colors.onSurface.withValues(alpha: 0.38)
+                    : colors.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
     return SafeArea(
       child: CustomScrollView(
         slivers: <Widget>[
@@ -78,47 +125,36 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                         ),
                       ),
                     ),
-                    if (_selectedSubTab == 0)
-                      FilledButton.tonalIcon(
-                        onPressed: widget.favoriteSongs.isEmpty
-                            ? null
-                            : widget.onPlayAllFavorites,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('播放收藏'),
-                      )
-                    else
-                      FilledButton.tonalIcon(
-                        onPressed: widget.downloadedSongs.isEmpty
-                            ? null
-                            : widget.onPlayAllDownloaded,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('播放离线'),
-                      ),
+                    _buildPlayButton(
+                      disabled: _selectedSubTab == 0
+                          ? widget.favoriteSongs.isEmpty
+                          : widget.downloadedSongs.isEmpty,
+                      onTap: _selectedSubTab == 0
+                          ? widget.onPlayAllFavorites
+                          : widget.onPlayAllDownloaded,
+                      label: _selectedSubTab == 0 ? '播放收藏' : '播放离线',
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpace.lg),
                 Center(
-                  child: SegmentedButton<int>(
-                    style: SegmentedButton.styleFrom(
-                      selectedBackgroundColor: colors.primaryContainer,
-                      selectedForegroundColor: colors.onPrimaryContainer,
-                    ),
-                    segments: const <ButtonSegment<int>>[
-                      ButtonSegment<int>(
+                  child: PortraitSegmentedTab<int>(
+                    tabs: const <PortraitSegmentTabItem<int>>[
+                      PortraitSegmentTabItem<int>(
                         value: 0,
-                        label: Text('我的收藏'),
-                        icon: Icon(Icons.favorite_rounded),
+                        label: '我的收藏',
+                        icon: Icons.favorite_rounded,
                       ),
-                      ButtonSegment<int>(
+                      PortraitSegmentTabItem<int>(
                         value: 1,
-                        label: Text('离线下载'),
-                        icon: Icon(Icons.download_done_rounded),
+                        label: '离线下载',
+                        icon: Icons.download_done_rounded,
                       ),
                     ],
-                    selected: <int>{_selectedSubTab},
-                    onSelectionChanged: (Set<int> newSelection) {
+                    selected: _selectedSubTab,
+                    onSelected: (int val) {
                       setState(() {
-                        _selectedSubTab = newSelection.first;
+                        _selectedSubTab = val;
                       });
                     },
                   ),

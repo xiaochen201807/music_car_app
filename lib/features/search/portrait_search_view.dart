@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../favorite_song_store.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
 import '../../theme/design_tokens.dart';
+import '../../widgets/glass_card.dart';
 import '../../shared/portrait_chip.dart';
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_song_tile.dart';
@@ -82,7 +84,10 @@ class PortraitSearchView extends StatelessWidget {
                     for (final String keyword in hotSearchKeywords.take(8))
                       PortraitChip(
                         label: keyword,
-                        onTap: () => onHotKeyword(keyword),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onHotKeyword(keyword);
+                        },
                       ),
                   ],
                 ),
@@ -132,27 +137,64 @@ class PortraitSearchView extends StatelessWidget {
                     ),
                 if (query.isNotEmpty)
                   Center(
-                    child: TextButton.icon(
-                      onPressed:
-                          (canLoadMore || loadMoreError.isNotEmpty) &&
-                              !busy &&
-                              !loadMoreBusy
-                          ? onLoadMore
-                          : null,
-                      icon: loadMoreBusy
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.expand_more_rounded),
-                      label: Text(
-                        loadMoreBusy
-                            ? '加载中'
-                            : loadMoreError.isNotEmpty
-                            ? '重试加载'
-                            : canLoadMore
-                            ? '加载更多'
-                            : '已加载全部',
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: AppSpace.md),
+                      child: GlassPill(
+                        onTap: (canLoadMore || loadMoreError.isNotEmpty) &&
+                                !busy &&
+                                !loadMoreBusy
+                            ? () {
+                                HapticFeedback.lightImpact();
+                                onLoadMore();
+                              }
+                            : null,
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                        child: Center(
+                          widthFactor: 1.0,
+                          heightFactor: 1.0,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              if (loadMoreBusy)
+                                SizedBox.square(
+                                  dimension: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  Icons.expand_more_rounded,
+                                  size: 18,
+                                  color: (canLoadMore || loadMoreError.isNotEmpty) &&
+                                          !busy &&
+                                          !loadMoreBusy
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurface.withValues(alpha: 0.38),
+                                ),
+                              const SizedBox(width: AppSpace.xs),
+                              Text(
+                                loadMoreBusy
+                                    ? '加载中'
+                                    : loadMoreError.isNotEmpty
+                                        ? '重试加载'
+                                        : canLoadMore
+                                            ? '加载更多'
+                                            : '已加载全部',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: (canLoadMore || loadMoreError.isNotEmpty) &&
+                                          !busy &&
+                                          !loadMoreBusy
+                                      ? theme.colorScheme.onSurface
+                                      : theme.colorScheme.onSurface.withValues(alpha: 0.38),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

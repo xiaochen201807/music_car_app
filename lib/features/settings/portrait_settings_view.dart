@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/carlife_service.dart';
 import '../../theme/design_tokens.dart';
 import '../../shared/portrait_surface.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/portrait_segmented_tab.dart';
 
 class PortraitSettingsView extends StatelessWidget {
   const PortraitSettingsView({
@@ -32,6 +35,7 @@ class PortraitSettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -54,28 +58,26 @@ class PortraitSettingsView extends StatelessWidget {
               children: <Widget>[
                 Text('主题模式', style: theme.textTheme.titleLarge),
                 const SizedBox(height: AppSpace.md),
-                SegmentedButton<ThemeMode>(
-                  segments: const <ButtonSegment<ThemeMode>>[
-                    ButtonSegment<ThemeMode>(
+                PortraitSegmentedTab<ThemeMode>(
+                  tabs: const <PortraitSegmentTabItem<ThemeMode>>[
+                    PortraitSegmentTabItem<ThemeMode>(
                       value: ThemeMode.system,
-                      label: Text('系统'),
-                      icon: Icon(Icons.brightness_auto_rounded),
+                      label: '系统',
+                      icon: Icons.brightness_auto_rounded,
                     ),
-                    ButtonSegment<ThemeMode>(
+                    PortraitSegmentTabItem<ThemeMode>(
                       value: ThemeMode.light,
-                      label: Text('白天'),
-                      icon: Icon(Icons.light_mode_rounded),
+                      label: '白天',
+                      icon: Icons.light_mode_rounded,
                     ),
-                    ButtonSegment<ThemeMode>(
+                    PortraitSegmentTabItem<ThemeMode>(
                       value: ThemeMode.dark,
-                      label: Text('黑夜'),
-                      icon: Icon(Icons.dark_mode_rounded),
+                      label: '黑夜',
+                      icon: Icons.dark_mode_rounded,
                     ),
                   ],
-                  selected: <ThemeMode>{themeMode},
-                  onSelectionChanged: (Set<ThemeMode> modes) {
-                    onThemeModeChanged(modes.single);
-                  },
+                  selected: themeMode,
+                  onSelected: onThemeModeChanged,
                 ),
               ],
             ),
@@ -92,10 +94,34 @@ class PortraitSettingsView extends StatelessWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpace.md),
-                FilledButton.tonalIcon(
-                  onPressed: onOpenDownloads,
-                  icon: const Icon(Icons.download_rounded),
-                  label: const Text('存储与缓存管理'),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GlassPill(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      onOpenDownloads();
+                    },
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                    child: Center(
+                      widthFactor: 1.0,
+                      heightFactor: 1.0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.download_rounded, size: 18, color: colors.primary),
+                          const SizedBox(width: AppSpace.xs),
+                          Text(
+                            '存储与缓存管理',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: colors.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -109,10 +135,44 @@ class PortraitSettingsView extends StatelessWidget {
             onRefresh: onRefreshCarLife,
           ),
           const SizedBox(height: AppSpace.lg),
-          FilledButton.icon(
-            onPressed: updateBusy ? null : onCheckUpdate,
-            icon: const Icon(Icons.system_update_rounded),
-            label: Text(updateBusy ? '检查中' : '检查更新'),
+          Align(
+            alignment: Alignment.center,
+            child: GlassPill(
+              onTap: updateBusy
+                  ? null
+                  : () {
+                      HapticFeedback.lightImpact();
+                      onCheckUpdate();
+                    },
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+              child: Center(
+                widthFactor: 1.0,
+                heightFactor: 1.0,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      Icons.system_update_rounded,
+                      size: 18,
+                      color: updateBusy
+                          ? colors.onSurface.withValues(alpha: 0.38)
+                          : colors.primary,
+                    ),
+                    const SizedBox(width: AppSpace.xs),
+                    Text(
+                      updateBusy ? '检查中' : '检查更新',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: updateBusy
+                            ? colors.onSurface.withValues(alpha: 0.38)
+                            : colors.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -196,29 +256,80 @@ class CarLifeCard extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: FilledButton(
-                  onPressed: busy ? null : onOpen,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: carlifeColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.tile),
+                child: GestureDetector(
+                  onTap: busy
+                      ? null
+                      : () {
+                          HapticFeedback.lightImpact();
+                          onOpen();
+                        },
+                  child: GlassCard(
+                    radius: AppRadius.tile,
+                    height: 40,
+                    shadows: const <BoxShadow>[],
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: busy
+                            ? Colors.transparent
+                            : carlifeColor.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(AppRadius.tile),
+                      ),
+                      child: Center(
+                        child: Text(
+                          status.launchable ? '打开' : '安装',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: busy
+                                ? colors.onSurface.withValues(alpha: 0.38)
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  child: Text(status.launchable ? '打开' : '安装'),
                 ),
               ),
               const SizedBox(width: AppSpace.sm),
-              IconButton.filledTonal(
-                tooltip: '同步当前播放',
-                onPressed: busy ? null : onSync,
-                icon: const Icon(Icons.sync_rounded),
+              GlassPill(
+                onTap: busy
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        onSync();
+                      },
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+                child: Center(
+                  widthFactor: 1.0,
+                  heightFactor: 1.0,
+                  child: Icon(
+                    Icons.sync_rounded,
+                    color: busy
+                        ? colors.onSurface.withValues(alpha: 0.38)
+                        : colors.primary,
+                  ),
+                ),
               ),
               const SizedBox(width: AppSpace.sm),
-              IconButton.filledTonal(
-                tooltip: '刷新连接',
-                onPressed: busy ? null : onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
+              GlassPill(
+                onTap: busy
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        onRefresh();
+                      },
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+                child: Center(
+                  widthFactor: 1.0,
+                  heightFactor: 1.0,
+                  child: Icon(
+                    Icons.refresh_rounded,
+                    color: busy
+                        ? colors.onSurface.withValues(alpha: 0.38)
+                        : colors.primary,
+                  ),
+                ),
               ),
             ],
           ),
