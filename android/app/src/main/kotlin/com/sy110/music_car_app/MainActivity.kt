@@ -81,6 +81,17 @@ class MainActivity : AudioServiceActivity() {
                     val context = call.arguments as? Map<*, *>
                     result.success(syncPlaybackContext(context))
                 }
+                "sendLyricBroadcast" -> {
+                    val lyric = call.argument<String>("lyric").orEmpty()
+                    val title = call.argument<String>("title").orEmpty()
+                    val artist = call.argument<String>("artist").orEmpty()
+                    val album = call.argument<String>("album").orEmpty()
+                    val duration = call.argument<Number>("duration")?.toLong() ?: 0L
+                    val position = call.argument<Number>("position")?.toLong() ?: 0L
+                    val playing = call.argument<Boolean>("playing") ?: false
+                    sendLyricBroadcast(lyric, title, artist, album, duration, position, playing)
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -214,6 +225,44 @@ class MainActivity : AudioServiceActivity() {
             "syncedTitle" to (normalizedContext["title"] as? String ?: ""),
             "lastControlResult" to lastCarLifeControlResult,
         )
+    }
+
+    private fun sendLyricBroadcast(
+        lyric: String,
+        title: String,
+        artist: String,
+        album: String,
+        duration: Long,
+        position: Long,
+        playing: Boolean
+    ) {
+        // 1. 发送酷狗/通用媒体广播 com.android.music.metachanged
+        val intentKuGou = Intent("com.android.music.metachanged").apply {
+            putExtra("lyric", lyric)
+            putExtra("track", title)
+            putExtra("artist", artist)
+            putExtra("album", album)
+            putExtra("duration", duration)
+            putExtra("position", position)
+            putExtra("playing", playing)
+        }
+        sendBroadcast(intentKuGou)
+
+        // 2. 发送QQ音乐广播
+        val intentQQ = Intent("com.tencent.qqmusic.ACTION_LYRIC").apply {
+            putExtra("lyric", lyric)
+            putExtra("track", title)
+            putExtra("artist", artist)
+        }
+        sendBroadcast(intentQQ)
+
+        // 3. 发送网易云广播
+        val intentNetease = Intent("com.netease.cloudmusic.music.lyric").apply {
+            putExtra("lyric", lyric)
+            putExtra("track", title)
+            putExtra("artist", artist)
+        }
+        sendBroadcast(intentNetease)
     }
 
     private fun ensureCarLifeSdkInitialized(): Boolean {

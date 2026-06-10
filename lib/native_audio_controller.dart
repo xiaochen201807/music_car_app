@@ -35,7 +35,7 @@ enum NativePlaybackMode {
         return mode;
       }
     }
-    return NativePlaybackMode.sequential;
+    return NativePlaybackMode.repeatAll;
   }
 }
 
@@ -210,7 +210,7 @@ class NativeAudioController {
   PlayerProbeSnapshot? _loadedSnapshot;
   List<FreeMusicSong> _playlist = const <FreeMusicSong>[];
   int _currentIndex = -1;
-  NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
+  NativePlaybackMode _playbackMode = NativePlaybackMode.repeatAll;
   final math.Random _random = math.Random();
 
   /// Alternate sources for the source-switch fallback, fetched lazily once.

@@ -152,6 +152,7 @@ void main() {
       player: player,
       api: api,
     );
+    await controller.setPlaybackMode(NativePlaybackMode.sequential);
 
     await controller.syncFromProbe(
       const PlayerProbeSnapshot(

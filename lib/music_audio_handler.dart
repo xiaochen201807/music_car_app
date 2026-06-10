@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'free_music_api.dart';
@@ -39,12 +41,20 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _stallTimer = Timer.periodic(_stallCheckInterval, (_) {
       unawaited(checkForPlaybackStall());
     });
+    _lyricTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      _checkAndUpdateCarLifeLyric();
+    });
   }
 
   static const Duration _stallCheckInterval = Duration(seconds: 2);
   static const Duration _stallSkipThreshold = Duration(seconds: 10);
   static const Duration _seekStep = Duration(seconds: 15);
   static const Duration _continuousSeekInterval = Duration(milliseconds: 500);
+
+  static const MethodChannel _carLifeChannel = MethodChannel('music_car_app/carlife');
+  List<FreeMusicLyricLine> _currentLyricLines = const [];
+  String _lastBroadcastLyric = '';
+  late final Timer _lyricTimer;
 
   final NativeAudioPlayer _player;
   late final StreamSubscription<PlaybackEvent> _playbackSubscription;
@@ -263,9 +273,69 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> dispose() async {
     _continuousSeekTimer?.cancel();
     _stallTimer.cancel();
+    _lyricTimer.cancel();
     await _playbackSubscription.cancel();
     await _player.dispose();
     await super.stop();
+  }
+
+  void updateLyrics(List<FreeMusicLyricLine> lines) {
+    _currentLyricLines = lines;
+    _lastBroadcastLyric = '';
+  }
+
+  void _checkAndUpdateCarLifeLyric() {
+    if (_currentLyricLines.isEmpty || !_player.playing) {
+      return;
+    }
+    final Duration currentPos = _player.position;
+    final int index = _findActiveLyricLineIndex(_currentLyricLines, currentPos);
+    if (index >= 0 && index < _currentLyricLines.length) {
+      final String lyric = _currentLyricLines[index].text;
+      if (lyric != _lastBroadcastLyric) {
+        _lastBroadcastLyric = lyric;
+        _sendLyricBroadcast(lyric);
+      }
+    }
+  }
+
+  int _findActiveLyricLineIndex(List<FreeMusicLyricLine> lines, Duration position) {
+    if (lines.isEmpty || position < lines.first.time) {
+      return -1;
+    }
+    int low = 0;
+    int high = lines.length - 1;
+    while (low <= high) {
+      final int mid = low + ((high - low) >> 1);
+      if (lines[mid].time <= position) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return math.max(0, high);
+  }
+
+  void _sendLyricBroadcast(String lyric) {
+    final MediaItem? currentItem = mediaItem.valueOrNull;
+    final String title = currentItem?.title ?? '';
+    final String artist = currentItem?.artist ?? '';
+    final String album = currentItem?.album ?? '';
+    final int durationMs = currentItem?.duration?.inMilliseconds ?? 0;
+    final int positionMs = _player.position.inMilliseconds;
+    final bool playing = _player.playing;
+
+    unawaited(
+      _carLifeChannel.invokeMethod<void>('sendLyricBroadcast', <String, Object?>{
+        'lyric': lyric,
+        'title': title,
+        'artist': artist,
+        'album': album,
+        'duration': durationMs,
+        'position': positionMs,
+        'playing': playing,
+      }),
+    );
   }
 
   void _broadcastPlaybackState(PlaybackEvent event) {

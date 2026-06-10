@@ -156,7 +156,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
   List<FreeMusicSong> _playlistSongs = const <FreeMusicSong>[];
   List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
-  NativePlaybackMode _playbackMode = NativePlaybackMode.sequential;
+  NativePlaybackMode _playbackMode = NativePlaybackMode.repeatAll;
   int _selectedTab = 0;
   int _selectedQueueIndex = 0;
 
@@ -784,8 +784,10 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _loadLyricsForSong(FreeMusicSong song) async {
     if (!song.canResolve) {
+      widget.audioHandler?.updateLyrics(const []);
       return;
     }
+    widget.audioHandler?.updateLyrics(const []);
     setState(() {
       _isLoadingLyrics = true;
       _lyricsError = '';
@@ -804,6 +806,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
         _currentLyrics = lyrics;
         _isLoadingLyrics = false;
       });
+      widget.audioHandler?.updateLyrics(lyrics.lines);
     } on FreeMusicApiException catch (error) {
       if (!mounted) {
         return;
@@ -812,6 +815,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
         _lyricsError = error.message;
         _isLoadingLyrics = false;
       });
+      widget.audioHandler?.updateLyrics(const []);
     } catch (error) {
       if (!mounted) {
         return;
@@ -820,6 +824,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
         _lyricsError = '歌词加载失败：$error';
         _isLoadingLyrics = false;
       });
+      widget.audioHandler?.updateLyrics(const []);
     }
   }
 
