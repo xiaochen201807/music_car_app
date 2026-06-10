@@ -175,7 +175,7 @@ class PortraitPlayerView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpace.xl2),
+                  const SizedBox(height: AppSpace.lg),
                   GestureDetector(
                     onVerticalDragEnd: (DragEndDetails details) {
                       if (details.primaryVelocity != null &&
@@ -189,18 +189,45 @@ class PortraitPlayerView extends StatelessWidget {
                         aspectRatio: 1,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(AppRadius.panel),
-                          child: PortraitArtwork(
-                            visual: fallbackTrack,
-                            imageUrl: playbackState.coverUrl.isEmpty
-                                ? currentSong?.cover ?? ''
-                                : playbackState.coverUrl,
-                            icon: Icons.album_rounded,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: <Widget>[
+                              AnimatedRotation(
+                                turns: playbackState.playing
+                                    ? double.infinity
+                                    : 0,
+                                duration: const Duration(seconds: 8),
+                                curve: Curves.linear,
+                                child: PortraitArtwork(
+                                  visual: fallbackTrack,
+                                  imageUrl: playbackState.coverUrl.isEmpty
+                                      ? currentSong?.cover ?? ''
+                                      : playbackState.coverUrl,
+                                  icon: Icons.album_rounded,
+                                ),
+                              ),
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: colors.surfaceContainerHighest,
+                                  shape: BoxShape.circle,
+                                  boxShadow: const <BoxShadow>[
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpace.xl2),
+                  const SizedBox(height: AppSpace.lg),
                   Text(
                     title,
                     maxLines: 2,
@@ -211,7 +238,7 @@ class PortraitPlayerView extends StatelessWidget {
                       letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: AppSpace.sm),
+                  const SizedBox(height: AppSpace.xs),
                   Text(
                     artist,
                     maxLines: 1,
@@ -222,7 +249,7 @@ class PortraitPlayerView extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: AppSpace.xl2),
+                  const SizedBox(height: AppSpace.lg),
                   WaveformSeekBar(
                     value: progress.clamp(0, 1).toDouble(),
                     color: colors.primary,
@@ -270,16 +297,16 @@ class PortraitPlayerView extends StatelessWidget {
                         onTap: onNext,
                       ),
                       PortraitCircleButton(
-                        icon: Icons.lyrics_rounded,
-                        label: '歌词',
+                        icon: Icons.equalizer_rounded,
+                        label: '音质',
                         onTap: onLyrics,
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpace.xl2),
+                  const SizedBox(height: AppSpace.lg),
                   PortraitSurface(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         PlayerLyricsView(
                           lyrics: lyrics,
@@ -287,12 +314,6 @@ class PortraitPlayerView extends StatelessWidget {
                           lyricsBusy: lyricsBusy,
                           lyricsError: lyricsError,
                           onSeek: onSeek,
-                        ),
-                        const SizedBox(height: AppSpace.md),
-                        QualityChips(
-                          qualities: qualities,
-                          busy: qualitiesBusy,
-                          error: qualityError,
                         ),
                       ],
                     ),
@@ -809,7 +830,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     final int activeIndex = activeLyricLineIndex(lines, widget.position);
 
     return SizedBox(
-      height: 120,
+      height: 200,
       child: Stack(
         children: <Widget>[
           ShaderMask(
@@ -823,7 +844,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                   Colors.white,
                   Colors.transparent,
                 ],
-                stops: <double>[0, 0.22, 0.78, 1],
+                stops: <double>[0, 0.15, 0.85, 1],
               ).createShader(rect);
             },
             blendMode: BlendMode.dstIn,
@@ -844,8 +865,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
               child: ListView.builder(
                 controller: _scrollController,
                 itemCount: lines.length,
-                itemExtent: 32,
-                padding: const EdgeInsets.symmetric(vertical: 44),
+                itemExtent: 40,
+                padding: const EdgeInsets.symmetric(vertical: 80),
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
@@ -863,24 +884,49 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                       },
                       child: Align(
                         alignment: Alignment.center,
-                        child: Text(
-                          line.text,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight:
-                                active ? FontWeight.w900 : FontWeight.w700,
-                            fontSize: active ? 18 : 16,
-                            color: active
-                                ? colors.primary
-                                : colors.onSurface.withValues(alpha: 0.38),
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 300),
+                          style: active
+                              ? theme.textTheme.headlineSmall!.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: colors.primary,
+                                  letterSpacing: -0.3,
+                                )
+                              : theme.textTheme.titleMedium!.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.onSurface.withValues(alpha: 0.45),
+                                  fontSize: 15,
+                                ),
+                          child: Text(
+                            line.text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ),
                     ),
                   );
                 },
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 100 - 20,
+            height: 40,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    colors.primary.withValues(alpha: 0.15),
+                    Colors.transparent,
+                  ],
+                  stops: const <double>[0.5, 1],
+                ),
               ),
             ),
           ),

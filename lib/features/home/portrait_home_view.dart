@@ -6,7 +6,7 @@ import '../../theme/design_tokens.dart';
 import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_chip.dart';
-import '../../shared/portrait_circle_button.dart';
+
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_section_header.dart';
 import '../../shared/portrait_surface.dart';
@@ -63,12 +63,7 @@ class PortraitHomeView extends StatelessWidget {
     final List<FreeMusicSong> timelineSongs = queueSongs.isNotEmpty
         ? queueSongs.take(5).toList(growable: false)
         : searchResults.take(5).toList(growable: false);
-    final List<String> sourceLabels =
-        musicSources?.activeSources
-            .map((String source) => musicSources?.labelFor(source) ?? source)
-            .take(3)
-            .toList(growable: false) ??
-        const <String>[];
+
 
     return SafeArea(
       child: CustomScrollView(
@@ -138,14 +133,6 @@ class PortraitHomeView extends StatelessWidget {
                     onSelect: onSelectPlaylist,
                   ),
                 const SizedBox(height: AppSpace.xl2),
-                PortraitMetricGrid(
-                  favoriteCount: favoriteSongs.length,
-                  queueCount: queueSongs.length,
-                  carLifeReady: carLifeStatus.launchable,
-                  onOpenFavorites: onOpenFavorites,
-                  onOpenDownloads: onOpenDownloads,
-                ),
-                const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
                   title: '播放时间线',
                   label: timelineSongs.isEmpty
@@ -171,6 +158,14 @@ class PortraitHomeView extends StatelessWidget {
                         ),
                       ),
                     ),
+                const SizedBox(height: AppSpace.xl2),
+                PortraitMetricGrid(
+                  favoriteCount: favoriteSongs.length,
+                  queueCount: queueSongs.length,
+                  carLifeReady: carLifeStatus.launchable,
+                  onOpenFavorites: onOpenFavorites,
+                  onOpenDownloads: onOpenDownloads,
+                ),
               ],
             ),
           ),
