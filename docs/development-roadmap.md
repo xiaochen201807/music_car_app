@@ -19,7 +19,7 @@ native audio foundation:
 2. `[x]` Flutter forces landscape orientation, immersive mode, and wakelock for
    car head units.
 3. `[x]` The UI provides home, search entry, recommendation, now-playing, queue,
-   lyrics entry, and mini-player surfaces.
+   favorites, lyrics entry, and mini-player surfaces.
 4. `[x]` In-app update checking and APK installation support remain available.
 5. `[x]` `audio_service` and `just_audio` remain the playback/media-session
    foundation.
@@ -48,6 +48,7 @@ The native car-media architecture is:
    queue path; real media-button/head-unit validation is still pending.
 8. `[x]` Repeat, shuffle, and sequential modes are represented natively.
 9. `[x]` Queue and playback state persist locally for app/process restarts.
+10. `[x]` Favorite songs persist locally and can be replayed as a native queue.
 
 Implementation record:
 
@@ -122,6 +123,8 @@ Exit criteria:
   prototype-aligned recommendation surface. Home recommendation cards and the
   search results area now stay visible above the mini-player; richer offline
   recovery remains pending.
+- `[x]` Add a local favorites list backed by `SharedPreferences`, with favorite
+  toggles in search, playlist rows, and now-playing surfaces.
 - `[x]` Apply the cold glassmorphism UI design system with shared tokens,
   `GlassCard`, cached artwork placeholders, and the rebuilt home
   recommendation grid.

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'favorite_song_store.dart';
 import 'free_music_api.dart';
 import 'music_audio_handler.dart';
 import 'models/app_update_info.dart';
@@ -108,6 +109,7 @@ class NativeMusicHomePage extends StatefulWidget {
 class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     with WidgetsBindingObserver {
   late final NativeAudioController _nativeAudioController;
+  final FavoriteSongStore _favoriteSongStore = FavoriteSongStore();
   final FreeMusicApi _freeMusicApi = FreeMusicApi();
   final TextEditingController _searchController = TextEditingController();
   final UpdateCheckService _updateCheckService = UpdateCheckService();
@@ -132,6 +134,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isLoadingLyrics = false;
   bool _isLoadingApiBootstrap = false;
   bool _isLoadingQualities = false;
+  bool _isLoadingFavorites = false;
   bool _syncingSessionPlaybackMode = false;
   int _searchRequestId = 0;
   String _searchError = '';
@@ -156,6 +159,7 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
   List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
   List<FreeMusicSong> _playlistSongs = const <FreeMusicSong>[];
   List<FreeMusicSong> _playbackQueue = const <FreeMusicSong>[];
+  List<FreeMusicSong> _favoriteSongs = const <FreeMusicSong>[];
   NativePlaybackMode _playbackMode = NativePlaybackMode.repeatAll;
   int _selectedTab = 0;
   int _selectedQueueIndex = 0;
@@ -306,11 +310,85 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _loadStartupMusicContent() async {
     unawaited(_restorePlaybackSession());
+    unawaited(_loadFavoriteSongs());
     await _loadApiBootstrap();
     if (!mounted) {
       return;
     }
     await _loadRecommendations();
+  }
+
+  Future<void> _loadFavoriteSongs() async {
+    setState(() {
+      _isLoadingFavorites = true;
+    });
+    try {
+      final List<FreeMusicSong> songs = await _favoriteSongStore.load();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _favoriteSongs = List<FreeMusicSong>.unmodifiable(songs);
+        _isLoadingFavorites = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoadingFavorites = false;
+      });
+      _showSnack('收藏列表加载失败：$error');
+    }
+  }
+
+  Set<String> get _favoriteSongKeys {
+    return _favoriteSongs.map(favoriteSongKey).toSet();
+  }
+
+  Future<void> _toggleFavoriteSong(FreeMusicSong song) async {
+    if (!song.canResolve) {
+      _showSnack('这首歌暂时不能收藏');
+      return;
+    }
+    final String key = favoriteSongKey(song);
+    final bool removing = _favoriteSongKeys.contains(key);
+    final List<FreeMusicSong> nextSongs = removing
+        ? _favoriteSongs
+              .where((FreeMusicSong item) => favoriteSongKey(item) != key)
+              .toList(growable: false)
+        : <FreeMusicSong>[song, ..._favoriteSongs];
+    setState(() {
+      _favoriteSongs = List<FreeMusicSong>.unmodifiable(nextSongs);
+    });
+    try {
+      await _favoriteSongStore.save(nextSongs);
+      if (!mounted) {
+        return;
+      }
+      _showSnack(removing ? '已取消收藏：${song.name}' : '已收藏：${song.name}');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      await _loadFavoriteSongs();
+      _showSnack('收藏保存失败：$error');
+    }
+  }
+
+  Future<void> _playFavoriteSong(int index) async {
+    if (index < 0 || index >= _favoriteSongs.length) {
+      return;
+    }
+    await _playSongQueue(_favoriteSongs, index);
+  }
+
+  Future<void> _playAllFavorites() async {
+    if (_favoriteSongs.isEmpty) {
+      _showSnack('收藏列表为空');
+      return;
+    }
+    await _playSongQueue(_favoriteSongs, 0);
   }
 
   /// Restores the previous playback session (queue + current song) from
@@ -586,10 +664,14 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               total: _playlistTotal,
               busy: _isLoadingPlaylistSongs,
               error: _playlistError,
+              favoriteSongKeys: _favoriteSongKeys,
               canLoadMore:
                   _playlistTotal == 0 || _playlistSongs.length < _playlistTotal,
               onPlay: (int index) {
                 unawaited(_playPlaylistSong(index));
+              },
+              onToggleFavorite: (FreeMusicSong song) {
+                unawaited(_toggleFavoriteSong(song));
               },
               onLoadMore: () {
                 unawaited(() async {
@@ -656,7 +738,6 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
     });
     _showSnack('已加入播放队列：${song.name}');
   }
-
 
   Future<void> _playSongQueue(List<FreeMusicSong> songs, int index) async {
     if (index < 0 || index >= songs.length) {
@@ -1278,10 +1359,15 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
           builder: (BuildContext context, PlaybackUiState playbackState) {
             final _DemoTrack currentTrack =
                 _demoQueue[_selectedQueueIndex % _demoQueue.length];
+            final Set<String> favoriteSongKeys = _favoriteSongKeys;
             return _NativeMusicScaffold(
               selectedTab: _selectedTab,
               selectedQueueIndex: _selectedQueueIndex,
               queueSongs: _playbackQueue,
+              favoriteSongs: _favoriteSongs,
+              favoriteSongKeys: favoriteSongKeys,
+              favoritesBusy: _isLoadingFavorites,
+              currentSong: _currentSong,
               searchController: _searchController,
               searchResults: _searchResults,
               searchBusy: _isSearchingMusic,
@@ -1328,6 +1414,15 @@ class _NativeMusicHomePageState extends State<NativeMusicHomePage>
               },
               onAddToQueue: (int index) {
                 unawaited(_addSearchResultToQueue(index));
+              },
+              onToggleFavorite: (FreeMusicSong song) {
+                unawaited(_toggleFavoriteSong(song));
+              },
+              onPlayFavorite: (int index) {
+                unawaited(_playFavoriteSong(index));
+              },
+              onPlayAllFavorites: () {
+                unawaited(_playAllFavorites());
               },
 
               onSelectPlaylist: (FreeMusicPlaylist playlist) {
@@ -1429,6 +1524,10 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.selectedTab,
     required this.selectedQueueIndex,
     required this.queueSongs,
+    required this.favoriteSongs,
+    required this.favoriteSongKeys,
+    required this.favoritesBusy,
+    required this.currentSong,
     required this.searchController,
     required this.searchResults,
     required this.searchBusy,
@@ -1464,6 +1563,9 @@ class _NativeMusicScaffold extends StatelessWidget {
     required this.onLoadMoreSearchResults,
     required this.onPlaySearchResult,
     required this.onAddToQueue,
+    required this.onToggleFavorite,
+    required this.onPlayFavorite,
+    required this.onPlayAllFavorites,
     required this.onSelectPlaylist,
     required this.onPlayPause,
     required this.onPlaybackMode,
@@ -1479,6 +1581,10 @@ class _NativeMusicScaffold extends StatelessWidget {
   final int selectedTab;
   final int selectedQueueIndex;
   final List<FreeMusicSong> queueSongs;
+  final List<FreeMusicSong> favoriteSongs;
+  final Set<String> favoriteSongKeys;
+  final bool favoritesBusy;
+  final FreeMusicSong? currentSong;
   final TextEditingController searchController;
   final List<FreeMusicSong> searchResults;
   final bool searchBusy;
@@ -1514,6 +1620,9 @@ class _NativeMusicScaffold extends StatelessWidget {
   final VoidCallback onLoadMoreSearchResults;
   final ValueChanged<int> onPlaySearchResult;
   final ValueChanged<int> onAddToQueue;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
+  final ValueChanged<int> onPlayFavorite;
+  final VoidCallback onPlayAllFavorites;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
@@ -1542,16 +1651,28 @@ class _NativeMusicScaffold extends StatelessWidget {
           builder: (BuildContext context, BoxConstraints constraints) {
             final bool showNowPlayingPanel =
                 constraints.maxWidth >= 980 &&
-                selectedTab != 2 &&
-                selectedTab != 3;
+                selectedTab != 3 &&
+                selectedTab != 4;
             final Widget centerPanel = switch (selectedTab) {
-              2 => _QueuePanel(
+              2 => _FavoritesPanel(
+                songs: favoriteSongs,
+                busy: favoritesBusy,
+                favoriteSongKeys: favoriteSongKeys,
+                onPlay: onPlayFavorite,
+                onPlayAll: onPlayAllFavorites,
+                onToggleFavorite: onToggleFavorite,
+              ),
+              3 => _QueuePanel(
                 selectedIndex: selectedQueueIndex,
                 songs: queueSongs,
                 onSelect: onSelectQueueIndex,
               ),
-              3 => _NowPlayingFullScreenPanel(
+              4 => _NowPlayingFullScreenPanel(
                 track: currentTrack,
+                currentSong: currentSong,
+                currentSongIsFavorite:
+                    currentSong != null &&
+                    favoriteSongKeys.contains(favoriteSongKey(currentSong!)),
                 playbackState: playbackState,
                 playbackMode: playbackMode,
                 lyrics: lyrics,
@@ -1564,10 +1685,13 @@ class _NativeMusicScaffold extends StatelessWidget {
                 onPlayPause: onPlayPause,
                 onPlaybackMode: onPlaybackMode,
                 onLyrics: onLyrics,
+                onToggleFavorite: currentSong == null
+                    ? null
+                    : () => onToggleFavorite(currentSong!),
                 onPrevious: onPrevious,
                 onNext: onNext,
               ),
-              4 => _SettingsPanel(
+              5 => _SettingsPanel(
                 carLifeStatus: carLifeStatus,
                 carLifeBusy: carLifeBusy,
                 updateBusy: updateBusy,
@@ -1594,12 +1718,14 @@ class _NativeMusicScaffold extends StatelessWidget {
                 recommendationsBusy: recommendationsBusy,
                 recommendationError: recommendationError,
                 playlistSongsBusy: playlistSongsBusy,
+                favoriteSongKeys: favoriteSongKeys,
                 carLifeStatus: carLifeStatus,
                 carLifeBusy: carLifeBusy,
                 onSearch: runSearchFromCurrentSurface,
                 onLoadMoreSearchResults: onLoadMoreSearchResults,
                 onPlaySearchResult: onPlaySearchResult,
                 onAddToQueue: onAddToQueue,
+                onToggleFavorite: onToggleFavorite,
                 onSelectPlaylist: onSelectPlaylist,
 
                 onOpenCarLife: onOpenCarLife,
@@ -1633,10 +1759,19 @@ class _NativeMusicScaffold extends StatelessWidget {
                               flex: 5,
                               child: _NowPlayingPanel(
                                 track: currentTrack,
+                                currentSong: currentSong,
+                                currentSongIsFavorite:
+                                    currentSong != null &&
+                                    favoriteSongKeys.contains(
+                                      favoriteSongKey(currentSong!),
+                                    ),
                                 playbackState: playbackState,
                                 playbackMode: playbackMode,
                                 onPlayPause: onPlayPause,
                                 onPlaybackMode: onPlaybackMode,
+                                onToggleFavorite: currentSong == null
+                                    ? null
+                                    : () => onToggleFavorite(currentSong!),
                                 onPrevious: onPrevious,
                                 onNext: onNext,
                               ),
@@ -1779,40 +1914,44 @@ class _SideNavigationRail extends StatelessWidget {
         horizontal: compact ? 8 : 10,
         vertical: compact ? 10 : 14,
       ),
-      child: Column(
-        children: <Widget>[
-          _GlassCard(
-            width: compact ? 48 : 58,
-            height: compact ? 48 : 58,
-            borderRadius: AppRadius.tile,
-            child: Icon(Icons.music_note_rounded, size: compact ? 28 : 34),
-          ),
-          SizedBox(height: compact ? 6 : 8),
-          Text(
-            '音乐',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _AppColors.textPrimary,
-              fontSize: compact ? 11 : 13,
-              fontWeight: FontWeight.w900,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _GlassCard(
+              width: compact ? 48 : 58,
+              height: compact ? 48 : 58,
+              borderRadius: AppRadius.tile,
+              child: Icon(Icons.music_note_rounded, size: compact ? 28 : 34),
             ),
-          ),
-          SizedBox(height: compact ? 10 : 16),
-          for (int index = 0; index < _navItems.length; index += 1)
-            _RailButton(
-              item: _navItems[index],
-              compact: compact,
-              selected: selectedIndex == index,
-              onTap: () => onSelect(index),
+            SizedBox(height: compact ? 6 : 8),
+            Text(
+              '音乐',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _AppColors.textPrimary,
+                fontSize: compact ? 11 : 13,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          const Spacer(),
-          _RailIconButton(
-            icon: Icons.system_update_rounded,
-            label: '更新',
-            enabled: !updateBusy,
-            onTap: onCheckUpdate,
-          ),
-        ],
+            SizedBox(height: compact ? 10 : 16),
+            for (int index = 0; index < _navItems.length; index += 1)
+              _RailButton(
+                item: _navItems[index],
+                compact: compact,
+                selected: selectedIndex == index,
+                onTap: () => onSelect(index),
+              ),
+            const SizedBox(height: 12),
+            _RailIconButton(
+              icon: Icons.system_update_rounded,
+              label: '更新',
+              enabled: !updateBusy,
+              onTap: onCheckUpdate,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1953,12 +2092,14 @@ class _HomePanel extends StatelessWidget {
     required this.recommendationsBusy,
     required this.recommendationError,
     required this.playlistSongsBusy,
+    required this.favoriteSongKeys,
     required this.carLifeStatus,
     required this.carLifeBusy,
     required this.onSearch,
     required this.onLoadMoreSearchResults,
     required this.onPlaySearchResult,
     required this.onAddToQueue,
+    required this.onToggleFavorite,
     required this.onSelectPlaylist,
     required this.onOpenCarLife,
     required this.onSyncCarLife,
@@ -1982,12 +2123,14 @@ class _HomePanel extends StatelessWidget {
   final bool recommendationsBusy;
   final String recommendationError;
   final bool playlistSongsBusy;
+  final Set<String> favoriteSongKeys;
   final CarLifeStatus carLifeStatus;
   final bool carLifeBusy;
   final VoidCallback onSearch;
   final VoidCallback onLoadMoreSearchResults;
   final ValueChanged<int> onPlaySearchResult;
   final ValueChanged<int> onAddToQueue;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
   final VoidCallback onOpenCarLife;
   final VoidCallback onSyncCarLife;
@@ -2041,13 +2184,14 @@ class _HomePanel extends StatelessWidget {
               loadMoreError: searchLoadMoreError,
               query: lastSearchQuery,
               hotSearchKeywords: hotSearchKeywords,
+              favoriteSongKeys: favoriteSongKeys,
               onSearch: onSearch,
               onHotKeyword: searchKeyword,
               onLoadMore: onLoadMoreSearchResults,
               onPlay: onPlaySearchResult,
               onAddToQueue: onAddToQueue,
+              onToggleFavorite: onToggleFavorite,
             ),
-
           )
         else
           Expanded(
@@ -2191,8 +2335,10 @@ class _HeroPlaylistGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         // Each card takes ~1/3 of available width, minimum 180px.
-        final double cardWidth =
-            math.max(180, (constraints.maxWidth - (AppSpace.lg * 2)) / 3);
+        final double cardWidth = math.max(
+          180,
+          (constraints.maxWidth - (AppSpace.lg * 2)) / 3,
+        );
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
@@ -2217,7 +2363,6 @@ class _HeroPlaylistGrid extends StatelessWidget {
     );
   }
 }
-
 
 class _HeroPlaylistCard extends StatelessWidget {
   const _HeroPlaylistCard({
@@ -2320,7 +2465,6 @@ class _SquarePlaylistGrid extends StatelessWidget {
     );
   }
 }
-
 
 class _SquarePlaylistCard extends StatelessWidget {
   const _SquarePlaylistCard({
@@ -2817,11 +2961,13 @@ class _SearchPanel extends StatelessWidget {
     required this.loadMoreError,
     required this.query,
     required this.hotSearchKeywords,
+    required this.favoriteSongKeys,
     required this.onSearch,
     required this.onHotKeyword,
     required this.onLoadMore,
     required this.onPlay,
     required this.onAddToQueue,
+    required this.onToggleFavorite,
   });
 
   final TextEditingController controller;
@@ -2833,11 +2979,13 @@ class _SearchPanel extends StatelessWidget {
   final String loadMoreError;
   final String query;
   final List<String> hotSearchKeywords;
+  final Set<String> favoriteSongKeys;
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final VoidCallback onLoadMore;
   final ValueChanged<int> onPlay;
   final ValueChanged<int> onAddToQueue;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -2945,10 +3093,12 @@ class _SearchPanel extends StatelessWidget {
                         loadMoreError: loadMoreError,
                         query: query,
                         hotSearchKeywords: hotSearchKeywords,
+                        favoriteSongKeys: favoriteSongKeys,
                         onLoadMore: onLoadMore,
                         onHotKeyword: onHotKeyword,
                         onPlay: onPlay,
                         onAddToQueue: onAddToQueue,
+                        onToggleFavorite: onToggleFavorite,
                       ),
                     ),
                   ],
@@ -2972,10 +3122,12 @@ class _SearchResultsBody extends StatelessWidget {
     required this.loadMoreError,
     required this.query,
     required this.hotSearchKeywords,
+    required this.favoriteSongKeys,
     required this.onLoadMore,
     required this.onHotKeyword,
     required this.onPlay,
     required this.onAddToQueue,
+    required this.onToggleFavorite,
   });
 
   final List<FreeMusicSong> songs;
@@ -2986,10 +3138,12 @@ class _SearchResultsBody extends StatelessWidget {
   final String loadMoreError;
   final String query;
   final List<String> hotSearchKeywords;
+  final Set<String> favoriteSongKeys;
   final VoidCallback onLoadMore;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<int> onPlay;
   final ValueChanged<int> onAddToQueue;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -3035,8 +3189,10 @@ class _SearchResultsBody extends StatelessWidget {
         return _SongResultTile(
           song: song,
           index: index,
+          favorite: favoriteSongKeys.contains(favoriteSongKey(song)),
           onPlay: onPlay,
           onAddToQueue: onAddToQueue,
+          onToggleFavorite: () => onToggleFavorite(song),
         );
       },
     );
@@ -3156,14 +3312,18 @@ class _SongResultTile extends StatelessWidget {
   const _SongResultTile({
     required this.song,
     required this.index,
+    required this.favorite,
     required this.onPlay,
     required this.onAddToQueue,
+    required this.onToggleFavorite,
   });
 
   final FreeMusicSong song;
   final int index;
+  final bool favorite;
   final ValueChanged<int> onPlay;
   final ValueChanged<int> onAddToQueue;
+  final VoidCallback onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -3234,6 +3394,8 @@ class _SongResultTile extends StatelessWidget {
             onTap: () => onAddToQueue(index),
           ),
           const SizedBox(width: 6),
+          _FavoriteIconButton(favorite: favorite, onTap: onToggleFavorite),
+          const SizedBox(width: 6),
           // 播放按钮（主操作）
           Material(
             color: Colors.transparent,
@@ -3262,7 +3424,6 @@ class _SongResultTile extends StatelessWidget {
   }
 }
 
-
 class _PlaylistSheet extends StatelessWidget {
   const _PlaylistSheet({
     required this.playlist,
@@ -3270,8 +3431,10 @@ class _PlaylistSheet extends StatelessWidget {
     required this.total,
     required this.busy,
     required this.error,
+    required this.favoriteSongKeys,
     required this.canLoadMore,
     required this.onPlay,
+    required this.onToggleFavorite,
     required this.onLoadMore,
   });
 
@@ -3280,8 +3443,10 @@ class _PlaylistSheet extends StatelessWidget {
   final int total;
   final bool busy;
   final String error;
+  final Set<String> favoriteSongKeys;
   final bool canLoadMore;
   final ValueChanged<int> onPlay;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
   final VoidCallback onLoadMore;
 
   @override
@@ -3397,7 +3562,12 @@ class _PlaylistSheet extends StatelessWidget {
                             song: songs[index],
                             visual: _demoQueue[index % _demoQueue.length],
                             index: index,
+                            favorite: favoriteSongKeys.contains(
+                              favoriteSongKey(songs[index]),
+                            ),
                             onTap: () => onPlay(index),
+                            onToggleFavorite: () =>
+                                onToggleFavorite(songs[index]),
                           );
                         },
                       ),
@@ -3415,13 +3585,17 @@ class _PlaylistSongRow extends StatelessWidget {
     required this.song,
     required this.visual,
     required this.index,
+    required this.favorite,
     required this.onTap,
+    required this.onToggleFavorite,
   });
 
   final FreeMusicSong song;
   final _DemoTrack visual;
   final int index;
+  final bool favorite;
   final VoidCallback onTap;
+  final VoidCallback onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -3495,6 +3669,8 @@ class _PlaylistSongRow extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
+            const SizedBox(width: AppSpace.sm),
+            _FavoriteIconButton(favorite: favorite, onTap: onToggleFavorite),
           ],
         ),
       ),
@@ -3564,19 +3740,25 @@ class _InlineMessage extends StatelessWidget {
 class _NowPlayingPanel extends StatelessWidget {
   const _NowPlayingPanel({
     required this.track,
+    required this.currentSong,
+    required this.currentSongIsFavorite,
     required this.playbackState,
     required this.playbackMode,
     required this.onPlayPause,
     required this.onPlaybackMode,
+    required this.onToggleFavorite,
     required this.onPrevious,
     required this.onNext,
   });
 
   final _DemoTrack track;
+  final FreeMusicSong? currentSong;
+  final bool currentSongIsFavorite;
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
+  final VoidCallback? onToggleFavorite;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -3600,13 +3782,23 @@ class _NowPlayingPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
-            '正在播放',
-            style: TextStyle(
-              color: _AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
+          Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  '正在播放',
+                  style: TextStyle(
+                    color: _AppColors.textPrimary,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              _FavoriteIconButton(
+                favorite: currentSongIsFavorite,
+                onTap: currentSong == null ? null : onToggleFavorite,
+              ),
+            ],
           ),
           const SizedBox(height: 18),
           Expanded(
@@ -3699,6 +3891,8 @@ class _NowPlayingPanel extends StatelessWidget {
 class _NowPlayingFullScreenPanel extends StatelessWidget {
   const _NowPlayingFullScreenPanel({
     required this.track,
+    required this.currentSong,
+    required this.currentSongIsFavorite,
     required this.playbackState,
     required this.playbackMode,
     required this.lyrics,
@@ -3711,11 +3905,14 @@ class _NowPlayingFullScreenPanel extends StatelessWidget {
     required this.onPlayPause,
     required this.onPlaybackMode,
     required this.onLyrics,
+    required this.onToggleFavorite,
     required this.onPrevious,
     required this.onNext,
   });
 
   final _DemoTrack track;
+  final FreeMusicSong? currentSong;
+  final bool currentSongIsFavorite;
   final PlaybackUiState playbackState;
   final NativePlaybackMode playbackMode;
   final FreeMusicLyrics? lyrics;
@@ -3728,6 +3925,7 @@ class _NowPlayingFullScreenPanel extends StatelessWidget {
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
   final VoidCallback onLyrics;
+  final VoidCallback? onToggleFavorite;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
@@ -3771,6 +3969,11 @@ class _NowPlayingFullScreenPanel extends StatelessWidget {
                 onTap: () {},
               ),
               const Spacer(),
+              _FavoriteIconButton(
+                favorite: currentSongIsFavorite,
+                onTap: currentSong == null ? null : onToggleFavorite,
+              ),
+              const SizedBox(width: AppSpace.sm),
               _LyricsButton(
                 available: lyricsAvailable,
                 busy: lyricsBusy,
@@ -3956,6 +4159,171 @@ class _QualityChips extends StatelessWidget {
           .toList(growable: false);
     }
     return Wrap(spacing: 8, runSpacing: 8, children: chips);
+  }
+}
+
+class _FavoritesPanel extends StatelessWidget {
+  const _FavoritesPanel({
+    required this.songs,
+    required this.busy,
+    required this.favoriteSongKeys,
+    required this.onPlay,
+    required this.onPlayAll,
+    required this.onToggleFavorite,
+  });
+
+  final List<FreeMusicSong> songs;
+  final bool busy;
+  final Set<String> favoriteSongKeys;
+  final ValueChanged<int> onPlay;
+  final VoidCallback onPlayAll;
+  final ValueChanged<FreeMusicSong> onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      padding: const EdgeInsets.all(AppSpace.xl2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Expanded(child: Text('我的收藏', style: AppType.h1)),
+              _ChipLabel(text: '${songs.length} 首'),
+              const SizedBox(width: AppSpace.sm),
+              _QueueHeaderAction(label: '播放全部', onTap: onPlayAll),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          const Text('从搜索结果、歌单或正在播放页点红心收藏，收藏会保存在本机。', style: AppType.caption),
+          const SizedBox(height: AppSpace.xl),
+          Expanded(
+            child: busy && songs.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : songs.isEmpty
+                ? const _SearchMessage(
+                    icon: Icons.favorite_border_rounded,
+                    title: '还没有收藏',
+                    message: '搜索或播放歌曲后，点红心即可加入收藏列表。',
+                  )
+                : ListView.separated(
+                    itemCount: songs.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpace.sm),
+                    itemBuilder: (BuildContext context, int index) {
+                      final FreeMusicSong song = songs[index];
+                      return _FavoriteSongTile(
+                        song: song,
+                        visual: _demoQueue[index % _demoQueue.length],
+                        index: index,
+                        favorite: favoriteSongKeys.contains(
+                          favoriteSongKey(song),
+                        ),
+                        onPlay: () => onPlay(index),
+                        onToggleFavorite: () => onToggleFavorite(song),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FavoriteSongTile extends StatelessWidget {
+  const _FavoriteSongTile({
+    required this.song,
+    required this.visual,
+    required this.index,
+    required this.favorite,
+    required this.onPlay,
+    required this.onToggleFavorite,
+  });
+
+  final FreeMusicSong song;
+  final _DemoTrack visual;
+  final int index;
+  final bool favorite;
+  final VoidCallback onPlay;
+  final VoidCallback onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.tile),
+      onTap: onPlay,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 72),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg,
+          vertical: AppSpace.md,
+        ),
+        decoration: BoxDecoration(
+          color: AppColor.fillNeutral,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(color: AppColor.strokeHairline),
+        ),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: AppSpace.xl3,
+              child: Text(
+                '${index + 1}',
+                textAlign: TextAlign.center,
+                style: AppType.caption.copyWith(color: AppColor.textTertiary),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            _ArtworkView(
+              track: visual,
+              imageUrl: song.cover,
+              size: 48,
+              radius: AppRadius.control,
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.cardTitle,
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    <String>[
+                      song.artist,
+                      if (song.album.isNotEmpty) song.album,
+                      song.source,
+                    ].where((String value) => value.isNotEmpty).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.caption,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpace.md),
+            Text(
+              _formatDuration(Duration(seconds: song.duration)),
+              style: AppType.micro,
+            ),
+            const SizedBox(width: AppSpace.sm),
+            _FavoriteIconButton(favorite: favorite, onTap: onToggleFavorite),
+            const SizedBox(width: AppSpace.sm),
+            _SmallGlassIconButton(
+              tooltip: '播放',
+              icon: Icons.play_arrow_rounded,
+              busy: false,
+              onTap: onPlay,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -4432,6 +4800,43 @@ class _SmallGlassIconButton extends StatelessWidget {
                   ),
                 )
               : Icon(icon, color: AppColor.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteIconButton extends StatelessWidget {
+  const _FavoriteIconButton({required this.favorite, required this.onTap});
+
+  final bool favorite;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: favorite ? '取消收藏' : '收藏',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+        onTap: onTap,
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: favorite
+                ? AppColor.accentRoseEnd.withValues(alpha: 0.18)
+                : AppColor.fillNeutral,
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            border: Border.all(
+              color: favorite
+                  ? AppColor.accentRoseEnd
+                  : AppColor.strokeHairline,
+            ),
+          ),
+          child: Icon(
+            favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            color: favorite ? AppColor.accentRoseEnd : AppColor.textSecondary,
+          ),
         ),
       ),
     );
@@ -5215,6 +5620,7 @@ class _DemoTrack {
 const List<_NavItem> _navItems = <_NavItem>[
   _NavItem(icon: Icons.home_rounded, label: '推荐'),
   _NavItem(icon: Icons.search_rounded, label: '搜索'),
+  _NavItem(icon: Icons.favorite_rounded, label: '收藏'),
   _NavItem(icon: Icons.queue_music_rounded, label: '播放队列'),
   _NavItem(icon: Icons.equalizer_rounded, label: '正在播放'),
   _NavItem(icon: Icons.settings_rounded, label: '设置'),

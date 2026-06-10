@@ -3,6 +3,24 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-10 - Local Favorites List
+
+Implemented in this increment:
+
+- Added a local `FavoriteSongStore` backed by `SharedPreferences`, preserving
+  FreeMusic song metadata and de-duplicating by source plus song id.
+- Added a side-navigation Favorites tab with an empty state, song count, play
+  all action, per-song playback, and remove-from-favorites control.
+- Added favorite toggles to search results, playlist song rows, the side
+  now-playing panel, and the full-screen now-playing panel.
+- Kept the active favorite visual treatment on the red heart only; surrounding
+  cards and inactive buttons continue to use neutral glass tokens.
+
+Verification in this increment:
+
+- Added `test/favorite_song_store_test.dart` for persistence, de-duplication,
+  metadata restoration, and favorite key generation.
+
 ## 2026-06-09
 
 Objective: build a native music app with common car music features and Baidu
