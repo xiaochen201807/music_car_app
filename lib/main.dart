@@ -1201,10 +1201,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       final FreeMusicLyrics lyrics = await _freeMusicApi.fetchEnhancedLyrics(
         song,
       ).timeout(const Duration(seconds: 5));
-      if (!mounted ||
-          requestId != _lyricsRequestId ||
-          _currentSong?.id != song.id ||
-          _currentSong?.source != song.source) {
+      if (!mounted || requestId != _lyricsRequestId) {
         return;
       }
       setState(() {
@@ -1213,10 +1210,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       widget.audioHandler?.updateLyrics(lyrics.lines);
     } on FreeMusicApiException catch (error) {
-      if (!mounted ||
-          requestId != _lyricsRequestId ||
-          _currentSong?.id != song.id ||
-          _currentSong?.source != song.source) {
+      if (!mounted || requestId != _lyricsRequestId) {
         return;
       }
       setState(() {
@@ -1225,10 +1219,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       widget.audioHandler?.updateLyrics(const []);
     } catch (error) {
-      if (!mounted ||
-          requestId != _lyricsRequestId ||
-          _currentSong?.id != song.id ||
-          _currentSong?.source != song.source) {
+      if (!mounted || requestId != _lyricsRequestId) {
         return;
       }
       setState(() {
@@ -1253,10 +1244,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       final FreeMusicQualityResult result = await _freeMusicApi.fetchQualities(
         song,
       ).timeout(const Duration(seconds: 5));
-      if (!mounted ||
-          requestId != _qualitiesRequestId ||
-          _currentSong?.id != song.id ||
-          _currentSong?.source != song.source) {
+      if (!mounted || requestId != _qualitiesRequestId) {
         return;
       }
       setState(() {
@@ -1266,10 +1254,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _isLoadingQualities = false;
       });
     } on FreeMusicApiException catch (error) {
-      if (!mounted ||
-          requestId != _qualitiesRequestId ||
-          _currentSong?.id != song.id ||
-          _currentSong?.source != song.source) {
+      if (!mounted || requestId != _qualitiesRequestId) {
         return;
       }
       setState(() {
@@ -1277,10 +1262,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _isLoadingQualities = false;
       });
     } catch (error) {
-      if (!mounted ||
-          requestId != _qualitiesRequestId ||
-          _currentSong?.id != song.id ||
-          _currentSong?.source != song.source) {
+      if (!mounted || requestId != _qualitiesRequestId) {
         return;
       }
       setState(() {
