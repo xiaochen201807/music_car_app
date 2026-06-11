@@ -149,6 +149,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         if (handled) {
           return;
         }
+      } catch (error) {
+        debugPrint('[audio-handler] onPlayTrack failed: $error');
+        return;
       } finally {
         _handlingPlayCallback = false;
       }

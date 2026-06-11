@@ -13,6 +13,7 @@ class DownloadService {
 
   final FreeMusicApi _api;
   final Map<String, CachedTrack> _cacheMap = <String, CachedTrack>{};
+  final Set<String> _downloadingKeys = <String>{};
   late final SharedPreferences _prefs;
   bool _initialized = false;
 
@@ -41,6 +42,31 @@ class DownloadService {
     }
     _initialized = true;
     await _saveToPrefs();
+    unawaited(_cleanupDirtyCacheFiles(appDirPath));
+  }
+
+  Future<void> _cleanupDirtyCacheFiles(String appDirPath) async {
+    try {
+      final Directory downloadDir = Directory('$appDirPath/music_downloads');
+      if (await downloadDir.exists()) {
+        final List<FileSystemEntity> files = await downloadDir.list().toList();
+        for (final FileSystemEntity entity in files) {
+          if (entity is File && entity.path.endsWith('.mp3')) {
+            final String fileName = entity.path.split('/').last;
+            final RegExp reg = RegExp(r'music_cache_(.+?)_(.+?)\.mp3$');
+            final Match? match = reg.firstMatch(fileName);
+            if (match != null) {
+              final String source = match.group(1)!;
+              final String id = match.group(2)!;
+              final String key = _cacheKey(source, id);
+              if (!_cacheMap.containsKey(key)) {
+                await entity.delete();
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   bool isDownloaded(String source, String id) {
@@ -101,6 +127,14 @@ class DownloadService {
 
   Stream<double> downloadTrack(FreeMusicSong song, FreeMusicQuality quality) {
     final StreamController<double> controller = StreamController<double>();
+    final String key = _cacheKey(song.source, song.id);
+
+    if (_downloadingKeys.contains(key)) {
+      controller.addError(Exception('该歌曲正在下载中，请勿重复操作'));
+      controller.close();
+      return controller.stream;
+    }
+    _downloadingKeys.add(key);
 
     unawaited(
       () async {
@@ -172,6 +206,8 @@ class DownloadService {
         } catch (e) {
           controller.addError(e);
           await controller.close();
+        } finally {
+          _downloadingKeys.remove(key);
         }
       }(),
     );

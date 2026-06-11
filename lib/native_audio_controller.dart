@@ -223,6 +223,8 @@ class NativeAudioController {
   int _currentIndex = -1;
   NativePlaybackMode _playbackMode = NativePlaybackMode.repeatAll;
   final math.Random _random = math.Random();
+  bool _isQueueLoading = false;
+  Timer? _persistTimer;
 
   /// Alternate sources for the source-switch fallback, fetched lazily once.
   List<String>? _cachedSources;
@@ -231,6 +233,26 @@ class NativeAudioController {
   List<FreeMusicSong> get playlist => _playlist;
 
   int get currentIndex => _currentIndex;
+
+  Duration get position => _player.position;
+
+  Future<void> seek(Duration position) async {
+    int retryCount = 0;
+    while (_player.processingState == ProcessingState.loading && retryCount < 40) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      retryCount++;
+    }
+    await _player.seek(position);
+  }
+
+  PlaybackQueueContext getPlaybackContext() {
+    return PlaybackQueueContext(
+      currentIndex: _currentIndex,
+      playlist: List<FreeMusicSong>.unmodifiable(_playlist),
+    );
+  }
+
+  Future<void> flush() => _persistState(immediate: true);
 
   /// Waits for the restore-state future to complete. Call this before reading
   /// [playlist] or [currentIndex] to ensure persisted data has been loaded.
@@ -251,7 +273,7 @@ class NativeAudioController {
       return;
     }
     _playbackMode = mode;
-    await _persistState();
+    await _persistState(immediate: true);
     debugPrint('[native-audio] playback mode set: ${mode.storageValue}');
   }
 
@@ -273,7 +295,7 @@ class NativeAudioController {
         await _player.seek(snapshot.currentTime);
       }
       debugPrint('[native-audio] loaded ${snapshot.debugTitle}');
-      await _persistState();
+      await _persistState(immediate: true);
     }
     if (snapshot.playing) {
       await _player.play();
@@ -370,6 +392,8 @@ class NativeAudioController {
   }
 
   Future<void> dispose() async {
+    _persistTimer?.cancel();
+    await _performPersist();
     _api.close();
     await _player.dispose();
   }
@@ -417,7 +441,7 @@ class NativeAudioController {
     final String preferredBitrate = await getPreferredBitrate();
     try {
       final FreeMusicResolvedUrl? resolved =
-          await _api.resolveSongUrl(song, bitrate: preferredBitrate);
+          await _api.resolveSongUrl(song, bitrate: preferredBitrate).timeout(const Duration(seconds: 5));
       final String url = resolved?.url ?? '';
       if (url.isNotEmpty) {
         debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
@@ -454,13 +478,13 @@ class NativeAudioController {
         final FreeMusicSourceSwitch? matched = await _api.switchSource(
           song,
           target: target,
-        );
+        ).timeout(const Duration(seconds: 5));
         if (matched == null) {
           continue;
         }
         final FreeMusicResolvedUrl? resolved = await _api.resolveSongUrl(
           matched.song,
-        );
+        ).timeout(const Duration(seconds: 5));
         final String url = resolved?.url ?? '';
         if (url.isNotEmpty) {
           debugPrint(
@@ -486,7 +510,7 @@ class NativeAudioController {
     }
     List<String> sources;
     try {
-      final FreeMusicSources fetched = await _api.fetchSources();
+      final FreeMusicSources fetched = await _api.fetchSources().timeout(const Duration(seconds: 5));
       sources = fetched.allSources.isNotEmpty
           ? fetched.allSources
           : _fallbackSources;
@@ -588,50 +612,59 @@ class NativeAudioController {
   }
 
   Future<bool> _loadQueueIndex(int index) async {
-    final FreeMusicSong song = _playlist[index];
-    if (!song.canResolve) {
+    if (_isQueueLoading) {
+      debugPrint('[native-audio] skip operation busy, ignored');
       return false;
     }
-
-    final bool wasPlaying = _player.playing;
-    if (wasPlaying) {
-      await _fadeOut(const Duration(milliseconds: 250));
-    }
-
-    final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
-      audioUrl: '',
-      playing: true,
-      song: song,
-      playlist: _playlist,
-      currentIndex: index,
-      title: song.name,
-      artist: song.artist,
-      coverUrl: song.cover,
-      duration: Duration(seconds: song.duration),
-    );
-    final String audioUrl = await _resolveAudioUrl(snapshot);
-    if (audioUrl.isEmpty) {
-      debugPrint(
-        '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
-      );
-      if (wasPlaying) {
-        await _player.setVolume(1.0);
+    _isQueueLoading = true;
+    try {
+      final FreeMusicSong song = _playlist[index];
+      if (!song.canResolve) {
+        return false;
       }
-      return false;
+
+      final bool wasPlaying = _player.playing;
+      if (wasPlaying) {
+        await _fadeOut(const Duration(milliseconds: 250));
+      }
+
+      final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: true,
+        song: song,
+        playlist: _playlist,
+        currentIndex: index,
+        title: song.name,
+        artist: song.artist,
+        coverUrl: song.cover,
+        duration: Duration(seconds: song.duration),
+      );
+      final String audioUrl = await _resolveAudioUrl(snapshot);
+      if (audioUrl.isEmpty) {
+        debugPrint(
+          '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
+        );
+        if (wasPlaying) {
+          await _player.setVolume(1.0);
+        }
+        return false;
+      }
+
+      await _player.setVolume(0.0);
+
+      _currentIndex = index;
+      _loadedUrl = audioUrl;
+      _loadedSnapshot = snapshot;
+      await _player.loadFromSnapshot(audioUrl, snapshot);
+      await _player.play();
+      await _persistState(immediate: true);
+      debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
+
+      await _fadeIn(const Duration(milliseconds: 250));
+      return true;
+    } finally {
+      _isQueueLoading = false;
     }
-
-    await _player.setVolume(0.0);
-
-    _currentIndex = index;
-    _loadedUrl = audioUrl;
-    _loadedSnapshot = snapshot;
-    await _player.loadFromSnapshot(audioUrl, snapshot);
-    await _player.play();
-    await _persistState();
-    debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
-
-    await _fadeIn(const Duration(milliseconds: 250));
-    return true;
   }
 
   int _indexOfSong(FreeMusicSong? song) {
@@ -694,7 +727,19 @@ class NativeAudioController {
     }
   }
 
-  Future<void> _persistState() async {
+  Future<void> _persistState({bool immediate = false}) async {
+    if (immediate) {
+      _persistTimer?.cancel();
+      await _performPersist();
+      return;
+    }
+    _persistTimer?.cancel();
+    _persistTimer = Timer(const Duration(milliseconds: 500), () {
+      unawaited(_performPersist());
+    });
+  }
+
+  Future<void> _performPersist() async {
     try {
       if (_loadedUrl.isEmpty &&
           _playlist.isEmpty &&
@@ -854,4 +899,13 @@ PlayerProbeSnapshot? _snapshotFromJson(
     currentTime: Duration(milliseconds: _intValue(value['currentTimeMs'])),
     duration: Duration(milliseconds: _intValue(value['durationMs'])),
   );
+}
+
+class PlaybackQueueContext {
+  const PlaybackQueueContext({
+    required this.currentIndex,
+    required this.playlist,
+  });
+  final int currentIndex;
+  final List<FreeMusicSong> playlist;
 }

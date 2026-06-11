@@ -251,6 +251,18 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Color _coverSeedColor = AppColor.accentVioletStart;
   String _coverSeedUrl = '';
   String _preferredBitrate = '320kmp3';
+  bool _isPlayerActionBusy = false;
+  final List<StreamSubscription<double>> _downloadSubscriptions = <StreamSubscription<double>>[];
+
+  PlaybackUiState get playbackState {
+    final MusicAudioHandler? handler = widget.audioHandler;
+    return handler == null
+        ? const PlaybackUiState()
+        : PlaybackUiState.fromAudioService(
+            handler.playbackState.valueOrNull,
+            handler.mediaItem.valueOrNull,
+          );
+  }
 
   @override
   void initState() {
@@ -313,6 +325,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _freeMusicApi.close();
     _searchController.dispose();
     _updateCheckService.dispose();
+    for (final StreamSubscription<double> sub in _downloadSubscriptions) {
+      unawaited(sub.cancel());
+    }
+    _downloadSubscriptions.clear();
     super.dispose();
   }
 
@@ -329,6 +345,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky),
       );
+    } else if (state == AppLifecycleState.paused) {
+      unawaited(_nativeAudioController.flush());
     }
   }
 
@@ -382,24 +400,18 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   void _syncSelectedQueueIndexFromAudioController() {
-    final int index = _nativeAudioController.currentIndex;
-    final List<FreeMusicSong> controllerQueue = _nativeAudioController.playlist;
-    final bool needQueueUpdate = controllerQueue.isNotEmpty &&
-        (_playbackQueue.length != controllerQueue.length || index >= _playbackQueue.length);
-
-    if (index < 0 || (index >= _playbackQueue.length && !needQueueUpdate)) {
+    final PlaybackQueueContext context = _nativeAudioController.getPlaybackContext();
+    final int index = context.currentIndex;
+    final List<FreeMusicSong> controllerQueue = context.playlist;
+    if (index < 0 || controllerQueue.isEmpty || index >= controllerQueue.length) {
       return;
     }
-    
-    final List<FreeMusicSong> resolvedQueue = needQueueUpdate ? controllerQueue : _playbackQueue;
-    if (index >= resolvedQueue.length) {
-      return;
-    }
-    final FreeMusicSong song = resolvedQueue[index];
+    final bool needQueueUpdate = _playbackQueue.length != controllerQueue.length;
+    final FreeMusicSong song = controllerQueue[index];
 
     setState(() {
       if (needQueueUpdate) {
-        _playbackQueue = List<FreeMusicSong>.unmodifiable(controllerQueue);
+        _playbackQueue = controllerQueue;
       }
       _selectedQueueIndex = index;
       _currentSong = song;
@@ -450,13 +462,19 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _loadStartupMusicContent() async {
-    unawaited(_restorePlaybackSession());
-    unawaited(_loadFavoriteSongs());
-    await _loadApiBootstrap();
-    if (!mounted) {
-      return;
+    try {
+      await Future.wait(<Future<void>>[
+        _restorePlaybackSession().catchError((Object e) => debugPrint('[startup] restore failed: $e')),
+        _loadFavoriteSongs().catchError((Object e) => debugPrint('[startup] load favorites failed: $e')),
+        _loadApiBootstrap().catchError((Object e) => debugPrint('[startup] load api bootstrap failed: $e')),
+      ]);
+      if (!mounted) {
+        return;
+      }
+      await _loadRecommendations().catchError((Object e) => debugPrint('[startup] load recommendations failed: $e'));
+    } catch (error) {
+      debugPrint('[main] startup loading failed: $error');
     }
-    await _loadRecommendations();
   }
 
   Future<void> _loadFavoriteSongs() async {
@@ -602,14 +620,16 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
 
+    _isSearchingMusic = true;
+    if (!_isLoadingMoreSearchResults) {
+      _searchHasMore = false;
+    }
     setState(() {
-      _isSearchingMusic = true;
       _isLoadingMoreSearchResults = false;
       _searchError = '';
       _searchLoadMoreError = '';
       _lastSearchQuery = query;
       _searchPage = 0;
-      _searchHasMore = false;
     });
 
     try {
@@ -648,12 +668,15 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _loadMoreSearchResults() async {
     final String query = _lastSearchQuery.trim();
-    if (query.isEmpty || !_searchHasMore || _isLoadingMoreSearchResults) {
+    if (query.isEmpty ||
+        !_searchHasMore ||
+        _isLoadingMoreSearchResults ||
+        _isSearchingMusic) {
       return;
     }
     final int requestId = _searchRequestId;
+    _isLoadingMoreSearchResults = true;
     setState(() {
-      _isLoadingMoreSearchResults = true;
       _searchLoadMoreError = '';
     });
 
@@ -760,7 +783,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       try {
         final FreeMusicQualityResult res = await _freeMusicApi.fetchQualities(
           song,
-        );
+        ).timeout(const Duration(seconds: 5));
         qualities = res.qualities;
       } catch (_) {}
       final FreeMusicQuality targetQuality = findBestQuality(
@@ -774,19 +797,30 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         targetQuality,
       );
 
-      progressStream.listen(
+      late final StreamSubscription<double> subscription;
+      subscription = progressStream.listen(
         (double progress) {
           if (progress >= 1.0) {
             _showSnack('下载成功: ${song.name}');
             if (mounted) {
               setState(() {});
             }
+            subscription.cancel();
+            _downloadSubscriptions.remove(subscription);
           }
         },
         onError: (Object error) {
           _showSnack('下载失败: $error');
+          subscription.cancel();
+          _downloadSubscriptions.remove(subscription);
         },
+        onDone: () {
+          subscription.cancel();
+          _downloadSubscriptions.remove(subscription);
+        },
+        cancelOnError: true,
       );
+      _downloadSubscriptions.add(subscription);
     } catch (e) {
       _showSnack('下载失败: $e');
     }
@@ -796,7 +830,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     try {
       await _downloadService.deleteTrack(song.source, song.id);
       _showSnack('已删除本地缓存: ${song.name}');
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
       _showSnack('删除失败: $e');
     }
@@ -858,19 +894,23 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _showSnack('该歌曲已在队列末尾');
       return;
     }
+    final bool isQueueEmpty = _playbackQueue.isEmpty;
     final List<FreeMusicSong> newQueue = <FreeMusicSong>[
       ..._playbackQueue,
       song,
     ];
-    final int currentIdx =
-        _selectedQueueIndex >= 0 && _selectedQueueIndex < _playbackQueue.length
-        ? _selectedQueueIndex
-        : 0;
+    final int currentIdx = isQueueEmpty
+        ? 0
+        : (_selectedQueueIndex >= 0 && _selectedQueueIndex < _playbackQueue.length
+            ? _selectedQueueIndex
+            : 0);
+    final FreeMusicSong? nextCurrentSong = isQueueEmpty ? song : _currentSong;
+
     await _nativeAudioController.syncQueueFromProbe(
       PlayerProbeSnapshot(
         audioUrl: '',
         playing: false,
-        song: _currentSong,
+        song: nextCurrentSong,
         playlist: newQueue,
         currentIndex: currentIdx,
       ),
@@ -880,14 +920,27 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     setState(() {
       _playbackQueue = List<FreeMusicSong>.unmodifiable(newQueue);
+      if (isQueueEmpty) {
+        _selectedQueueIndex = 0;
+        _currentSong = song;
+      }
     });
     _showSnack('已加入播放队列：${song.name}');
+    if (isQueueEmpty) {
+      unawaited(_updateCoverSeed(song));
+      unawaited(_loadLyricsForSong(song));
+      unawaited(_loadQualitiesForSong(song));
+    }
   }
 
   Future<void> _playSongQueue(List<FreeMusicSong> songs, int index) async {
     if (index < 0 || index >= songs.length) {
       return;
     }
+    if (_isPlayerActionBusy) {
+      return;
+    }
+    _isPlayerActionBusy = true;
     final FreeMusicSong song = songs[index];
     final FreeMusicSong? oldSong = _currentSong;
     final int oldIndex = _selectedQueueIndex;
@@ -899,45 +952,59 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _currentSong = song;
     });
 
-    final bool handled = await _nativeAudioController.syncFromProbe(
-      PlayerProbeSnapshot(
-        audioUrl: '',
-        playing: true,
-        song: song,
-        playlist: songs,
-        currentIndex: index,
-        title: song.name,
-        artist: song.artist,
-        coverUrl: song.cover,
-        duration: Duration(seconds: song.duration),
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    if (!handled) {
-      _showSnack('暂时无法播放：${song.name}');
-      setState(() {
-        _playbackQueue = oldQueue;
-        _selectedQueueIndex = oldIndex;
-        _currentSong = oldSong;
-      });
-      if (oldSong != null) {
-        unawaited(_loadLyricsForSong(oldSong));
-        unawaited(_loadQualitiesForSong(oldSong));
+    try {
+      final bool handled = await _nativeAudioController.syncFromProbe(
+        PlayerProbeSnapshot(
+          audioUrl: '',
+          playing: true,
+          song: song,
+          playlist: songs,
+          currentIndex: index,
+          title: song.name,
+          artist: song.artist,
+          coverUrl: song.cover,
+          duration: Duration(seconds: song.duration),
+        ),
+      );
+      if (!mounted) {
+        return;
       }
-      return;
+      if (!handled) {
+        _showSnack('暂时无法播放：${song.name}');
+        if (_currentSong?.id == song.id && _currentSong?.source == song.source) {
+          setState(() {
+            _playbackQueue = oldQueue;
+            _selectedQueueIndex = oldIndex;
+            _currentSong = oldSong;
+          });
+          if (oldSong != null) {
+            unawaited(_loadLyricsForSong(oldSong));
+            unawaited(_loadQualitiesForSong(oldSong));
+          }
+        }
+        return;
+      }
+      unawaited(_updateCoverSeed(song));
+      unawaited(_loadLyricsForSong(song));
+      unawaited(_loadQualitiesForSong(song));
+      unawaited(_syncCarLifePlaybackContext(showResult: false));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlayerActionBusy = false;
+        });
+      }
     }
-    unawaited(_updateCoverSeed(song));
-    unawaited(_loadLyricsForSong(song));
-    unawaited(_loadQualitiesForSong(song));
-    unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 
-  Future<void> _skipToQueueItem(int index) async {
+  Future<bool> _skipToQueueItem(int index) async {
     if (index < 0 || index >= _playbackQueue.length) {
-      return;
+      return false;
     }
+    if (_isPlayerActionBusy) {
+      return false;
+    }
+    _isPlayerActionBusy = true;
     final FreeMusicSong? oldSong = _currentSong;
     final int oldIndex = _selectedQueueIndex;
     final FreeMusicSong targetSong = _playbackQueue[index];
@@ -947,25 +1014,37 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _currentSong = targetSong;
     });
 
-    final bool handled = await _nativeAudioController.skipToQueueIndex(index);
-    if (!mounted) {
-      return;
-    }
-    if (!handled) {
-      setState(() {
-        _selectedQueueIndex = oldIndex;
-        _currentSong = oldSong;
-      });
-      if (oldSong != null) {
-        unawaited(_loadLyricsForSong(oldSong));
-        unawaited(_loadQualitiesForSong(oldSong));
+    try {
+      final bool handled = await _nativeAudioController.skipToQueueIndex(index);
+      if (!mounted) {
+        return false;
       }
-      return;
+      if (!handled) {
+        _showSnack('切歌失败：${targetSong.name}');
+        if (_currentSong?.id == targetSong.id && _currentSong?.source == targetSong.source) {
+          setState(() {
+            _selectedQueueIndex = oldIndex;
+            _currentSong = oldSong;
+          });
+          if (oldSong != null) {
+            unawaited(_loadLyricsForSong(oldSong));
+            unawaited(_loadQualitiesForSong(oldSong));
+          }
+        }
+        return false;
+      }
+      unawaited(_updateCoverSeed(targetSong));
+      unawaited(_loadLyricsForSong(targetSong));
+      unawaited(_loadQualitiesForSong(targetSong));
+      unawaited(_syncCarLifePlaybackContext(showResult: false));
+      return true;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlayerActionBusy = false;
+        });
+      }
     }
-    unawaited(_updateCoverSeed(targetSong));
-    unawaited(_loadLyricsForSong(targetSong));
-    unawaited(_loadQualitiesForSong(targetSong));
-    unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 
   Future<CarLifeControlResult> _handleCarLifeControl(
@@ -1011,8 +1090,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             reason: 'queue_item_not_found',
           );
         }
-        await _skipToQueueItem(index);
-        final bool handled = _nativeAudioController.currentIndex == index;
+        final bool handled = await _skipToQueueItem(index);
         return CarLifeControlResult(
           handled: handled,
           reason: handled ? 'queue_item_selected' : 'queue_item_failed',
@@ -1061,7 +1139,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     try {
       final FreeMusicLyrics lyrics = await _freeMusicApi.fetchEnhancedLyrics(
         song,
-      );
+      ).timeout(const Duration(seconds: 5));
       if (!mounted ||
           requestId != _lyricsRequestId ||
           _currentSong?.id != song.id ||
@@ -1074,7 +1152,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       widget.audioHandler?.updateLyrics(lyrics.lines);
     } on FreeMusicApiException catch (error) {
-      if (!mounted || requestId != _lyricsRequestId) {
+      if (!mounted ||
+          requestId != _lyricsRequestId ||
+          _currentSong?.id != song.id ||
+          _currentSong?.source != song.source) {
         return;
       }
       setState(() {
@@ -1083,7 +1164,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       });
       widget.audioHandler?.updateLyrics(const []);
     } catch (error) {
-      if (!mounted || requestId != _lyricsRequestId) {
+      if (!mounted ||
+          requestId != _lyricsRequestId ||
+          _currentSong?.id != song.id ||
+          _currentSong?.source != song.source) {
         return;
       }
       setState(() {
@@ -1106,7 +1190,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     try {
       final FreeMusicQualityResult result = await _freeMusicApi.fetchQualities(
         song,
-      );
+      ).timeout(const Duration(seconds: 5));
       if (!mounted ||
           _currentSong?.id != song.id ||
           _currentSong?.source != song.source) {
@@ -1139,9 +1223,15 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
     await setPreferredBitrate(quality.bitrate);
+    if (!mounted) return;
     final FreeMusicSong? current = _currentSong;
     if (current != null) {
+      final Duration currentPosition = _nativeAudioController.position;
       await _nativeAudioController.playSong(current);
+      if (!mounted) return;
+      if (currentPosition != Duration.zero) {
+        await _nativeAudioController.seek(currentPosition);
+      }
     }
   }
 

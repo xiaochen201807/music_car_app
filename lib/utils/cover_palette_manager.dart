@@ -71,35 +71,39 @@ class CoverPaletteManager {
     );
     stream.addListener(listener);
 
-    final ui.Image image = await completer.future.timeout(
-      const Duration(milliseconds: 3500),
-    );
+    try {
+      final ui.Image image = await completer.future.timeout(
+        const Duration(milliseconds: 3500),
+      );
 
-    final ui.PictureRecorder recorder = ui.PictureRecorder();
-    final Canvas canvas = Canvas(recorder);
-    canvas.drawImageRect(
-      image,
-      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-      const Rect.fromLTWH(0, 0, 1, 1),
-      Paint()..filterQuality = FilterQuality.medium,
-    );
-    final ui.Picture picture = recorder.endRecording();
-    final ui.Image smallImage = await picture.toImage(1, 1);
-    final ByteData? byteData = await smallImage.toByteData(
-      format: ui.ImageByteFormat.rawRgba,
-    );
+      final ui.PictureRecorder recorder = ui.PictureRecorder();
+      final Canvas canvas = Canvas(recorder);
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        const Rect.fromLTWH(0, 0, 1, 1),
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      final ui.Picture picture = recorder.endRecording();
+      final ui.Image smallImage = await picture.toImage(1, 1);
+      final ByteData? byteData = await smallImage.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
 
-    if (byteData == null || byteData.lengthInBytes < 4) {
-      return AppColor.accentVioletStart;
+      if (byteData == null || byteData.lengthInBytes < 4) {
+        return AppColor.accentVioletStart;
+      }
+
+      final int r = byteData.getUint8(0);
+      final int g = byteData.getUint8(1);
+      final int b = byteData.getUint8(2);
+
+      final HSLColor hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
+      final double s = hsl.saturation.clamp(0.24, 0.48);
+      final double l = hsl.lightness.clamp(0.32, 0.62);
+      return hsl.withSaturation(s).withLightness(l).toColor();
+    } finally {
+      stream.removeListener(listener);
     }
-
-    final int r = byteData.getUint8(0);
-    final int g = byteData.getUint8(1);
-    final int b = byteData.getUint8(2);
-
-    final HSLColor hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
-    final double s = hsl.saturation.clamp(0.24, 0.48);
-    final double l = hsl.lightness.clamp(0.32, 0.62);
-    return hsl.withSaturation(s).withLightness(l).toColor();
   }
 }
