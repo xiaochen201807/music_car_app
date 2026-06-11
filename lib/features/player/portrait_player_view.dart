@@ -207,13 +207,15 @@ class PortraitPlayerView extends StatelessWidget {
                           onTap: onClose,
                         ),
                         const SizedBox(width: AppSpace.sm),
-                        Text(
-                          '正在播放',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
+                        Expanded(
+                          child: MarqueeText(
+                            text: artist.isEmpty ? title : '$title - $artist',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: AppSpace.sm),
                         PortraitCircleButton(
                           icon: favorite
                               ? Icons.favorite_rounded
@@ -267,28 +269,6 @@ class PortraitPlayerView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpace.lg),
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpace.xs),
-                    Text(
-                      artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpace.xl),
                     PlayerLyricsView(
                       lyrics: lyrics,
                       position: playbackState.position,
@@ -1221,11 +1201,22 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                                     );
                                   },
                                   blendMode: BlendMode.srcIn,
-                                  child: Text(
-                                    line.text,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
+                                  child: MarqueeText(
+                                    text: line.text,
+                                    style: theme.textTheme.titleLarge!.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      letterSpacing: -0.3,
+                                      shadows: <Shadow>[
+                                        Shadow(
+                                          color: AppColor.accentRoseEnd.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          offset: Offset.zero,
+                                          blurRadius: 14,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 )
                               : Text(
@@ -1601,6 +1592,139 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class MarqueeText extends StatefulWidget {
+  const MarqueeText({
+    super.key,
+    required this.text,
+    required this.style,
+    this.speed = 30.0,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final double speed;
+
+  @override
+  State<MarqueeText> createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<MarqueeText> {
+  final ScrollController _scrollController = ScrollController();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkLayout());
+  }
+
+  @override
+  void didUpdateWidget(MarqueeText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text != oldWidget.text) {
+      _stopScroll();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkLayout());
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopScroll();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _stopScroll() {
+    _timer?.cancel();
+    _timer = null;
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0.0);
+    }
+  }
+
+  void _checkLayout() {
+    if (!mounted || !_scrollController.hasClients) return;
+    
+    final double maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll > 0.0) {
+      _startScroll(maxScroll);
+    }
+  }
+
+  void _startScroll(double maxScroll) {
+    _timer?.cancel();
+    
+    final double scrollDurationMs = (maxScroll / widget.speed) * 1000;
+    
+    void scrollLoop() {
+      if (!mounted || !_scrollController.hasClients) return;
+      
+      _timer = Timer(const Duration(seconds: 2), () {
+        if (!mounted || !_scrollController.hasClients) return;
+        
+        _scrollController.animateTo(
+          maxScroll,
+          duration: Duration(milliseconds: scrollDurationMs.round()),
+          curve: Curves.linear,
+        ).then((_) {
+          if (!mounted || !_scrollController.hasClients) return;
+          
+          _timer = Timer(const Duration(seconds: 2), () {
+            if (!mounted || !_scrollController.hasClients) return;
+            
+            _scrollController.jumpTo(0.0);
+            scrollLoop();
+          });
+        });
+      });
+    }
+    
+    scrollLoop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double maxWidth = constraints.maxWidth;
+        
+        final TextPainter textPainter = TextPainter(
+          text: TextSpan(text: widget.text, style: widget.style),
+          maxLines: 1,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: double.infinity);
+        
+        final double textWidth = textPainter.width;
+        
+        if (textWidth <= maxWidth) {
+          return Center(
+            child: Text(
+              widget.text,
+              style: widget.style,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+            ),
+          );
+        } else {
+          return SizedBox(
+            width: maxWidth,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: Text(
+                widget.text,
+                style: widget.style,
+                maxLines: 1,
+              ),
+            ),
+          );
+        }
+      },
     );
   }
 }

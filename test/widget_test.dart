@@ -66,7 +66,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('正在播放'), findsOneWidget);
+    expect(find.text('Highway Morning - Native Radio'), findsOneWidget);
     expect(find.text('等待歌词同步'), findsOneWidget);
     expect(find.text('音乐库'), findsWidgets);
 
