@@ -207,6 +207,7 @@ class NativeAudioController {
        _api = api ?? FreeMusicApi(),
        _downloadService = downloadService,
        _preferences = preferences {
+    _updatePlaybackContext();
     _restoreFuture = _restoreState();
   }
 
@@ -225,6 +226,7 @@ class NativeAudioController {
   final math.Random _random = math.Random();
   bool _isQueueLoading = false;
   Timer? _persistTimer;
+  late PlaybackQueueContext _currentContext;
 
   /// Alternate sources for the source-switch fallback, fetched lazily once.
   List<String>? _cachedSources;
@@ -242,14 +244,19 @@ class NativeAudioController {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       retryCount++;
     }
-    await _player.seek(position);
+    try {
+      await _player.seek(position);
+    } catch (e) {
+      debugPrint('[native-audio] seek failed: $e, retrying once in 200ms...');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      try {
+        await _player.seek(position);
+      } catch (_) {}
+    }
   }
 
   PlaybackQueueContext getPlaybackContext() {
-    return PlaybackQueueContext(
-      currentIndex: _currentIndex,
-      playlist: List<FreeMusicSong>.unmodifiable(_playlist),
-    );
+    return _currentContext;
   }
 
   Future<void> flush() => _persistState(immediate: true);
@@ -534,6 +541,7 @@ class NativeAudioController {
         '[native-audio] queue synced: length=${_playlist.length} '
         'index=$_currentIndex',
       );
+      _updatePlaybackContext();
       unawaited(_persistState());
       return;
     }
@@ -542,6 +550,7 @@ class NativeAudioController {
       '[native-audio] queue synced: length=${_playlist.length} '
       'index=$_currentIndex',
     );
+    _updatePlaybackContext();
     unawaited(_persistState());
   }
 
@@ -653,6 +662,7 @@ class NativeAudioController {
       await _player.setVolume(0.0);
 
       _currentIndex = index;
+      _updatePlaybackContext();
       _loadedUrl = audioUrl;
       _loadedSnapshot = snapshot;
       await _player.loadFromSnapshot(audioUrl, snapshot);
@@ -719,6 +729,7 @@ class NativeAudioController {
         'queue=${_playlist.length} index=$_currentIndex '
         'mode=${_playbackMode.storageValue}',
       );
+      _updatePlaybackContext();
     } catch (error, stackTrace) {
       debugPrint('[native-audio] restore failed: $error');
       if (kDebugMode) {
@@ -766,6 +777,13 @@ class NativeAudioController {
         debugPrint('$stackTrace');
       }
     }
+  }
+
+  void _updatePlaybackContext() {
+    _currentContext = PlaybackQueueContext(
+      currentIndex: _currentIndex,
+      playlist: List<FreeMusicSong>.unmodifiable(_playlist),
+    );
   }
 }
 

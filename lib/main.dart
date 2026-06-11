@@ -227,6 +227,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _visualAnimationsEnabled = true;
   int _searchRequestId = 0;
   int _lyricsRequestId = 0;
+  int _qualitiesRequestId = 0;
   String _searchError = '';
   String _searchLoadMoreError = '';
   String _recommendationError = '';
@@ -321,6 +322,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     _carLifeService.setControlHandler(null);
     unawaited(WakelockPlus.disable());
+    unawaited(_nativeAudioController.flush());
     unawaited(_nativeAudioController.dispose());
     _freeMusicApi.close();
     _searchController.dispose();
@@ -377,26 +379,63 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     } catch (_) {}
   }
 
-  Future<bool> _resumeNativePlayback() {
-    return _nativeAudioController.resumePlayback();
+  Future<bool> _resumeNativePlayback() async {
+    if (_isPlayerActionBusy) {
+      return false;
+    }
+    _isPlayerActionBusy = true;
+    try {
+      final bool handled = await _nativeAudioController.resumePlayback();
+      return handled;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlayerActionBusy = false;
+        });
+      }
+    }
   }
 
   Future<bool> _skipToNextTrack() async {
-    final bool handled = await _nativeAudioController.skipToNext();
-    if (!mounted || !handled) {
-      return handled;
+    if (_isPlayerActionBusy) {
+      return false;
     }
-    _syncSelectedQueueIndexFromAudioController();
-    return true;
+    _isPlayerActionBusy = true;
+    try {
+      final bool handled = await _nativeAudioController.skipToNext();
+      if (!mounted || !handled) {
+        return handled;
+      }
+      _syncSelectedQueueIndexFromAudioController();
+      return true;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlayerActionBusy = false;
+        });
+      }
+    }
   }
 
   Future<bool> _skipToPreviousTrack() async {
-    final bool handled = await _nativeAudioController.skipToPrevious();
-    if (!mounted || !handled) {
-      return handled;
+    if (_isPlayerActionBusy) {
+      return false;
     }
-    _syncSelectedQueueIndexFromAudioController();
-    return true;
+    _isPlayerActionBusy = true;
+    try {
+      final bool handled = await _nativeAudioController.skipToPrevious();
+      if (!mounted || !handled) {
+        return handled;
+      }
+      _syncSelectedQueueIndexFromAudioController();
+      return true;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlayerActionBusy = false;
+        });
+      }
+    }
   }
 
   void _syncSelectedQueueIndexFromAudioController() {
@@ -675,6 +714,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     final int requestId = _searchRequestId;
+    if (requestId != _searchRequestId || _isSearchingMusic) {
+      return;
+    }
     _isLoadingMoreSearchResults = true;
     setState(() {
       _searchLoadMoreError = '';
@@ -976,6 +1018,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             _playbackQueue = oldQueue;
             _selectedQueueIndex = oldIndex;
             _currentSong = oldSong;
+            if (oldSong == null) {
+              _isLoadingLyrics = false;
+              _isLoadingQualities = false;
+              _lyricsError = '';
+              _qualityError = '';
+              _currentLyrics = null;
+              _currentQualities = const <FreeMusicQuality>[];
+            }
           });
           if (oldSong != null) {
             unawaited(_loadLyricsForSong(oldSong));
@@ -1025,6 +1075,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
           setState(() {
             _selectedQueueIndex = oldIndex;
             _currentSong = oldSong;
+            if (oldSong == null) {
+              _isLoadingLyrics = false;
+              _isLoadingQualities = false;
+              _lyricsError = '';
+              _qualityError = '';
+              _currentLyrics = null;
+              _currentQualities = const <FreeMusicQuality>[];
+            }
           });
           if (oldSong != null) {
             unawaited(_loadLyricsForSong(oldSong));
@@ -1182,6 +1240,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (!song.canResolve) {
       return;
     }
+    final int requestId = ++_qualitiesRequestId;
     setState(() {
       _isLoadingQualities = true;
       _qualityError = '';
@@ -1192,6 +1251,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         song,
       ).timeout(const Duration(seconds: 5));
       if (!mounted ||
+          requestId != _qualitiesRequestId ||
           _currentSong?.id != song.id ||
           _currentSong?.source != song.source) {
         return;
@@ -1203,7 +1263,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _isLoadingQualities = false;
       });
     } on FreeMusicApiException catch (error) {
-      if (!mounted) {
+      if (!mounted ||
+          requestId != _qualitiesRequestId ||
+          _currentSong?.id != song.id ||
+          _currentSong?.source != song.source) {
         return;
       }
       setState(() {
@@ -1211,7 +1274,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _isLoadingQualities = false;
       });
     } catch (error) {
-      if (!mounted) {
+      if (!mounted ||
+          requestId != _qualitiesRequestId ||
+          _currentSong?.id != song.id ||
+          _currentSong?.source != song.source) {
         return;
       }
       setState(() {
@@ -1222,15 +1288,27 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
-    await setPreferredBitrate(quality.bitrate);
-    if (!mounted) return;
-    final FreeMusicSong? current = _currentSong;
-    if (current != null) {
-      final Duration currentPosition = _nativeAudioController.position;
-      await _nativeAudioController.playSong(current);
+    if (_isPlayerActionBusy) {
+      return;
+    }
+    _isPlayerActionBusy = true;
+    try {
+      await setPreferredBitrate(quality.bitrate);
       if (!mounted) return;
-      if (currentPosition != Duration.zero) {
-        await _nativeAudioController.seek(currentPosition);
+      final FreeMusicSong? current = _currentSong;
+      if (current != null) {
+        final Duration currentPosition = _nativeAudioController.position;
+        await _nativeAudioController.playSong(current);
+        if (!mounted) return;
+        if (currentPosition != Duration.zero) {
+          await _nativeAudioController.seek(currentPosition);
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPlayerActionBusy = false;
+        });
       }
     }
   }
@@ -2062,6 +2140,17 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Widget build(BuildContext context) {
     return MusicAppStateScope(
       state: this,
+      currentSong: _currentSong,
+      selectedQueueIndex: _selectedQueueIndex,
+      playbackQueue: _playbackQueue,
+      playbackMode: _playbackMode,
+      searchResults: _searchResults,
+      favoriteSongs: _favoriteSongs,
+      selectedTab: _selectedTab,
+      isLoadingRecommendations: _isLoadingRecommendations,
+      isLoadingApiBootstrap: _isLoadingApiBootstrap,
+      recommendationError: _recommendationError,
+      apiBootstrapError: _apiBootstrapError,
       child: const PortraitMusicScaffold(),
     );
   }
