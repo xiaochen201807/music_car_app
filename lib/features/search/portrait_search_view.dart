@@ -202,34 +202,42 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
             ),
           ),
           if (showList)
+            // 禁用列表项的 BackdropFilter 以降低 GPU 渲染压力
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-              sliver: SliverList.builder(
-                itemCount: widget.songs.length,
-                itemBuilder: (BuildContext context, int index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                    child: StaggeredAnimatedItem(
-                      index: index,
-                      child: PortraitSongTile(
-                        song: widget.songs[index],
-                        visual: demoQueue[index % demoQueue.length],
-                        favorite: widget.favoriteSongKeys.contains(
-                          favoriteSongKey(widget.songs[index]),
-                        ),
-                        downloaded: widget.downloadedSongKeys.contains(
-                          '${widget.songs[index].source}_${widget.songs[index].id}',
-                        ),
-                        onPlay: () => widget.onPlay(index),
-                        onAddToQueue: () => widget.onAddToQueue(index),
-                        onToggleFavorite: () =>
-                            widget.onToggleFavorite(widget.songs[index]),
-                        onDownload: () =>
-                            widget.onDownload(widget.songs[index]),
+              sliver: GlassPerformanceMode(
+                enabled: true,
+                child: SliverList.builder(
+                  itemCount: widget.songs.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    final FreeMusicSong song = widget.songs[index];
+                    final Widget songTile = PortraitSongTile(
+                      song: song,
+                      visual: demoQueue[index % demoQueue.length],
+                      favorite: widget.favoriteSongKeys.contains(
+                        favoriteSongKey(song),
                       ),
-                    ),
-                  );
-                },
+                      downloaded: widget.downloadedSongKeys.contains(
+                        '${song.source}_${song.id}',
+                      ),
+                      onPlay: () => widget.onPlay(index),
+                      onAddToQueue: () => widget.onAddToQueue(index),
+                      onToggleFavorite: () =>
+                          widget.onToggleFavorite(song),
+                      onDownload: () => widget.onDownload(song),
+                    );
+                    // 仅前 6 项启用入场动画，后续项直接显示避免大量 AnimationController 开销
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                      child: index < 6
+                          ? StaggeredAnimatedItem(
+                              index: index,
+                              child: songTile,
+                            )
+                          : songTile,
+                    );
+                  },
+                ),
               ),
             ),
           if (widget.query.isNotEmpty && widget.songs.isNotEmpty && !widget.busy)

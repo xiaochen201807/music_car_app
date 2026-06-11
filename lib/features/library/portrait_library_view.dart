@@ -309,35 +309,44 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                       message: '在搜索、歌单或播放器点红心即可收藏。',
                     )
                   else
-                    for (int index = 0;
-                        index < widget.favoriteSongs.length;
-                        index += 1)
-                      StaggeredAnimatedItem(
-                        index: index,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                          child: _isBatchMode
-                              ? _buildBatchTile(widget.favoriteSongs[index], index)
-                              : PortraitSongTile(
-                                  song: widget.favoriteSongs[index],
-                                  visual: demoQueue[index % demoQueue.length],
-                                  favorite: widget.favoriteSongKeys.contains(
-                                    favoriteSongKey(widget.favoriteSongs[index]),
-                                  ),
-                                  downloaded: widget.downloadedSongKeys.contains(
-                                    '${widget.favoriteSongs[index].source}_${widget.favoriteSongs[index].id}',
-                                  ),
-                                  onPlay: () => widget.onPlayFavorite(index),
-                                  onAddToQueue: null,
-                                  onToggleFavorite: () => widget.onToggleFavorite(
-                                      widget.favoriteSongs[index]),
-                                  onDownload: () =>
-                                      widget.onDownload(widget.favoriteSongs[index]),
-                                  onDeleteCache: () =>
-                                      widget.onDeleteCache(widget.favoriteSongs[index]),
-                                ),
+                    // 禁用 BackdropFilter 以降低 GPU 渲染压力
+                    GlassPerformanceMode(
+                      enabled: true,
+                      child: SliverToBoxAdapter(
+                        child: Column(
+                          children: List<Widget>.generate(
+                            widget.favoriteSongs.length,
+                            (int index) {
+                              final FreeMusicSong song = widget.favoriteSongs[index];
+                              final Widget songTile = _isBatchMode
+                                  ? _buildBatchTile(song, index)
+                                  : PortraitSongTile(
+                                      song: song,
+                                      visual: demoQueue[index % demoQueue.length],
+                                      favorite: widget.favoriteSongKeys.contains(
+                                        favoriteSongKey(song),
+                                      ),
+                                      downloaded: widget.downloadedSongKeys.contains(
+                                        '${song.source}_${song.id}',
+                                      ),
+                                      onPlay: () => widget.onPlayFavorite(index),
+                                      onAddToQueue: null,
+                                      onToggleFavorite: () => widget.onToggleFavorite(song),
+                                      onDownload: () => widget.onDownload(song),
+                                      onDeleteCache: () => widget.onDeleteCache(song),
+                                    );
+                              // 仅前 6 项启用入场动画
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                                child: index < 6
+                                    ? StaggeredAnimatedItem(index: index, child: songTile)
+                                    : songTile,
+                              );
+                            },
+                          ),
                         ),
                       ),
+                    ),
                 ] else ...<Widget>[
                   PortraitSectionHeader(
                     title: '离线下载',
@@ -350,31 +359,41 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                       message: '在搜索或收藏列表中点击操作菜单可以“下载到本地”。',
                     )
                   else
-                    for (int index = 0;
-                        index < widget.downloadedSongs.length;
-                        index += 1)
-                      StaggeredAnimatedItem(
-                        index: index,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                          child: _isBatchMode
-                              ? _buildBatchTile(widget.downloadedSongs[index], index)
-                              : PortraitSongTile(
-                                  song: widget.downloadedSongs[index],
-                                  visual: demoQueue[index % demoQueue.length],
-                                  favorite: widget.favoriteSongKeys.contains(
-                                    favoriteSongKey(widget.downloadedSongs[index]),
-                                  ),
-                                  downloaded: true,
-                                  onPlay: () => widget.onPlayDownloaded(index),
-                                  onAddToQueue: null,
-                                  onToggleFavorite: () => widget.onToggleFavorite(
-                                      widget.downloadedSongs[index]),
-                                  onDeleteCache: () => widget.onDeleteCache(
-                                      widget.downloadedSongs[index]),
-                                ),
+                    // 禁用 BackdropFilter 以降低 GPU 渲染压力
+                    GlassPerformanceMode(
+                      enabled: true,
+                      child: SliverToBoxAdapter(
+                        child: Column(
+                          children: List<Widget>.generate(
+                            widget.downloadedSongs.length,
+                            (int index) {
+                              final FreeMusicSong song = widget.downloadedSongs[index];
+                              final Widget songTile = _isBatchMode
+                                  ? _buildBatchTile(song, index)
+                                  : PortraitSongTile(
+                                      song: song,
+                                      visual: demoQueue[index % demoQueue.length],
+                                      favorite: widget.favoriteSongKeys.contains(
+                                        favoriteSongKey(song),
+                                      ),
+                                      downloaded: true,
+                                      onPlay: () => widget.onPlayDownloaded(index),
+                                      onAddToQueue: null,
+                                      onToggleFavorite: () => widget.onToggleFavorite(song),
+                                      onDeleteCache: () => widget.onDeleteCache(song),
+                                    );
+                              // 仅前 6 项启用入场动画
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                                child: index < 6
+                                    ? StaggeredAnimatedItem(index: index, child: songTile)
+                                    : songTile,
+                              );
+                            },
+                          ),
                         ),
                       ),
+                    ),
                 ],
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(

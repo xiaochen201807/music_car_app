@@ -9,6 +9,7 @@ import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_surface.dart';
 import '../../shared/staggered_animated_item.dart';
+import '../../widgets/glass_card.dart';
 
 class PlaylistDetailsPage extends StatefulWidget {
   const PlaylistDetailsPage({
@@ -245,18 +246,21 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                   ),
                 )
               else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpace.xl,
-                    0,
-                    AppSpace.xl,
-                    120,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((
-                      BuildContext context,
-                      int index,
-                    ) {
+                // 禁用列表项的 BackdropFilter 以降低 GPU 渲染压力
+                GlassPerformanceMode(
+                  enabled: true,
+                  child: SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.xl,
+                      0,
+                      AppSpace.xl,
+                      120,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((
+                        BuildContext context,
+                        int index,
+                      ) {
                       if (index == _songs.length) {
                         final bool canLoadMore =
                             _total == 0 || _songs.length < _total;
@@ -289,32 +293,40 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                         );
                       }
                       final FreeMusicSong song = _songs[index];
-                      return StaggeredAnimatedItem(
+                      final Widget songRow = PlaylistSongRow(
+                        song: song,
+                        visual: demoQueue[index % demoQueue.length],
                         index: index,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                          child: PlaylistSongRow(
-                            song: song,
-                            visual: demoQueue[index % demoQueue.length],
-                            index: index,
-                            favorite: widget.favoriteSongKeys.contains(
-                              favoriteSongKey(song),
-                            ),
-                            downloaded: widget.downloadedSongKeys.contains(
-                              '${song.source}_${song.id}',
-                            ),
-                            onTap: () => widget.onPlay(_songs, index),
-                            onToggleFavorite: () {
-                              widget.onToggleFavorite(song);
-                              setState(() {});
-                            },
-                            onDownload: () => widget.onDownload(song),
-                            onDeleteCache: () => widget.onDeleteCache(song),
-                          ),
+                        favorite: widget.favoriteSongKeys.contains(
+                          favoriteSongKey(song),
                         ),
+                        downloaded: widget.downloadedSongKeys.contains(
+                          '${song.source}_${song.id}',
+                        ),
+                        onTap: () => widget.onPlay(_songs, index),
+                        onToggleFavorite: () {
+                          widget.onToggleFavorite(song);
+                          setState(() {});
+                        },
+                        onDownload: () => widget.onDownload(song),
+                        onDeleteCache: () => widget.onDeleteCache(song),
                       );
+                      // 仅前 6 项启用入场动画，后续项直接显示避免大量 AnimationController 开销
+                      return index < 6
+                          ? StaggeredAnimatedItem(
+                              index: index,
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                                child: songRow,
+                              ),
+                            )
+                          : Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                              child: songRow,
+                            );
                     }, childCount: _songs.length + 1),
                   ),
+                ),
                 ),
             ],
           ),

@@ -396,11 +396,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       final bool handled = await _nativeAudioController.resumePlayback();
       return handled;
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPlayerActionBusy = false;
-        });
-      }
+      _isPlayerActionBusy = false;
     }
   }
 
@@ -418,11 +414,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _syncSelectedQueueIndexFromAudioController();
       return true;
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPlayerActionBusy = false;
-        });
-      }
+      _isPlayerActionBusy = false;
     }
   }
 
@@ -440,11 +432,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _syncSelectedQueueIndexFromAudioController();
       return true;
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPlayerActionBusy = false;
-        });
-      }
+      _isPlayerActionBusy = false;
     }
   }
 
@@ -1062,11 +1050,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(_loadQualitiesForSong(song));
       unawaited(_syncCarLifePlaybackContext(showResult: false));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPlayerActionBusy = false;
-        });
-      }
+      _isPlayerActionBusy = false;
     }
   }
 
@@ -1121,11 +1105,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(_syncCarLifePlaybackContext(showResult: false));
       return true;
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPlayerActionBusy = false;
-        });
-      }
+      _isPlayerActionBusy = false;
     }
   }
 
@@ -1331,11 +1311,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         }
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPlayerActionBusy = false;
-        });
-      }
+      _isPlayerActionBusy = false;
     }
   }
 
