@@ -387,53 +387,29 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<bool> _resumeNativePlayback() async {
-    if (_isPlayerActionBusy) {
-      unawaited(HapticFeedback.lightImpact());
-      return false;
-    }
-    _isPlayerActionBusy = true;
-    try {
-      final bool handled = await _nativeAudioController.resumePlayback();
-      return handled;
-    } finally {
-      _isPlayerActionBusy = false;
-    }
+    // 无 setState 操作，不需要全局锁；NativeAudioController 内部自有并发控制
+    final bool handled = await _nativeAudioController.resumePlayback();
+    return handled;
   }
 
   Future<bool> _skipToNextTrack() async {
-    if (_isPlayerActionBusy) {
-      unawaited(HapticFeedback.lightImpact());
-      return false;
+    // 无需全局锁阻塞，NativeAudioController 内部自有并发控制
+    final bool handled = await _nativeAudioController.skipToNext();
+    if (!mounted || !handled) {
+      return handled;
     }
-    _isPlayerActionBusy = true;
-    try {
-      final bool handled = await _nativeAudioController.skipToNext();
-      if (!mounted || !handled) {
-        return handled;
-      }
-      _syncSelectedQueueIndexFromAudioController();
-      return true;
-    } finally {
-      _isPlayerActionBusy = false;
-    }
+    _syncSelectedQueueIndexFromAudioController();
+    return true;
   }
 
   Future<bool> _skipToPreviousTrack() async {
-    if (_isPlayerActionBusy) {
-      unawaited(HapticFeedback.lightImpact());
-      return false;
+    // 无需全局锁阻塞，NativeAudioController 内部自有并发控制
+    final bool handled = await _nativeAudioController.skipToPrevious();
+    if (!mounted || !handled) {
+      return handled;
     }
-    _isPlayerActionBusy = true;
-    try {
-      final bool handled = await _nativeAudioController.skipToPrevious();
-      if (!mounted || !handled) {
-        return handled;
-      }
-      _syncSelectedQueueIndexFromAudioController();
-      return true;
-    } finally {
-      _isPlayerActionBusy = false;
-    }
+    _syncSelectedQueueIndexFromAudioController();
+    return true;
   }
 
   void _syncSelectedQueueIndexFromAudioController() {
@@ -1004,14 +980,19 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     final int oldIndex = _selectedQueueIndex;
     final List<FreeMusicSong> oldQueue = _playbackQueue;
 
+    // 锁仅保护 setState，立即释放；后续网络/音频操作由 NativeAudioController 内部并发控制
     try {
       setState(() {
         _playbackQueue = List<FreeMusicSong>.unmodifiable(songs);
         _selectedQueueIndex = index;
         _currentSong = song;
       });
+    } finally {
+      _isPlayerActionBusy = false;
+    }
 
-      final bool handled = await _nativeAudioController.syncFromProbe(
+    // 以下为耗时异步操作（网络解析 URL + 音频加载），不再持有全局锁
+    final bool handled = await _nativeAudioController.syncFromProbe(
         PlayerProbeSnapshot(
           audioUrl: '',
           playing: true,
@@ -1054,9 +1035,6 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(_loadLyricsForSong(song));
       unawaited(_loadQualitiesForSong(song));
       unawaited(_syncCarLifePlaybackContext(showResult: false));
-    } finally {
-      _isPlayerActionBusy = false;
-    }
   }
 
   Future<bool> _skipToQueueItem(int index) async {
@@ -1072,46 +1050,48 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     final int oldIndex = _selectedQueueIndex;
     final FreeMusicSong targetSong = _playbackQueue[index];
 
+    // 锁仅保护 setState，立即释放
     try {
       setState(() {
         _selectedQueueIndex = index;
         _currentSong = targetSong;
       });
-
-      final bool handled = await _nativeAudioController.skipToQueueIndex(index);
-      if (!mounted) {
-        return false;
-      }
-      if (!handled) {
-        _showSnack('切歌失败：${targetSong.name}');
-        if (_currentSong?.id == targetSong.id && _currentSong?.source == targetSong.source) {
-          setState(() {
-            _selectedQueueIndex = oldIndex;
-            _currentSong = oldSong;
-            if (oldSong == null) {
-              _isLoadingLyrics = false;
-              _isLoadingQualities = false;
-              _lyricsError = '';
-              _qualityError = '';
-              _currentLyrics = null;
-              _currentQualities = const <FreeMusicQuality>[];
-            }
-          });
-          if (oldSong != null) {
-            unawaited(_loadLyricsForSong(oldSong));
-            unawaited(_loadQualitiesForSong(oldSong));
-          }
-        }
-        return false;
-      }
-      unawaited(_updateCoverSeed(targetSong));
-      unawaited(_loadLyricsForSong(targetSong));
-      unawaited(_loadQualitiesForSong(targetSong));
-      unawaited(_syncCarLifePlaybackContext(showResult: false));
-      return true;
     } finally {
       _isPlayerActionBusy = false;
     }
+
+    // 耗时异步操作不再持有全局锁
+    final bool handled = await _nativeAudioController.skipToQueueIndex(index);
+    if (!mounted) {
+      return false;
+    }
+    if (!handled) {
+      _showSnack('切歌失败：${targetSong.name}');
+      if (_currentSong?.id == targetSong.id && _currentSong?.source == targetSong.source) {
+        setState(() {
+          _selectedQueueIndex = oldIndex;
+          _currentSong = oldSong;
+          if (oldSong == null) {
+            _isLoadingLyrics = false;
+            _isLoadingQualities = false;
+            _lyricsError = '';
+            _qualityError = '';
+            _currentLyrics = null;
+            _currentQualities = const <FreeMusicQuality>[];
+          }
+        });
+        if (oldSong != null) {
+          unawaited(_loadLyricsForSong(oldSong));
+          unawaited(_loadQualitiesForSong(oldSong));
+        }
+      }
+      return false;
+    }
+    unawaited(_updateCoverSeed(targetSong));
+    unawaited(_loadLyricsForSong(targetSong));
+    unawaited(_loadQualitiesForSong(targetSong));
+    unawaited(_syncCarLifePlaybackContext(showResult: false));
+    return true;
   }
 
   Future<CarLifeControlResult> _handleCarLifeControl(
@@ -1297,26 +1277,18 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
-    if (_isPlayerActionBusy) {
-      unawaited(HapticFeedback.lightImpact());
-      return;
-    }
-    _isPlayerActionBusy = true;
-    try {
-      await setPreferredBitrate(quality.bitrate);
+    // 无 setState 操作，不需要全局锁；NativeAudioController 内部自有并发控制
+    await setPreferredBitrate(quality.bitrate);
+    if (!mounted) return;
+    final FreeMusicSong? current = _currentSong;
+    if (current != null) {
+      final Duration currentPosition = _nativeAudioController.position;
+      await _nativeAudioController.playSong(current);
       if (!mounted) return;
-      final FreeMusicSong? current = _currentSong;
-      if (current != null) {
-        final Duration currentPosition = _nativeAudioController.position;
-        await _nativeAudioController.playSong(current);
-        if (!mounted) return;
-        if (currentPosition != Duration.zero) {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-          await _nativeAudioController.seek(currentPosition);
-        }
+      if (currentPosition != Duration.zero) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await _nativeAudioController.seek(currentPosition);
       }
-    } finally {
-      _isPlayerActionBusy = false;
     }
   }
 
