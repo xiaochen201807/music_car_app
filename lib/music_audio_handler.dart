@@ -69,6 +69,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> Function(AudioServiceRepeatMode repeatMode)? onSetRepeatMode;
   Future<void> Function(AudioServiceShuffleMode shuffleMode)? onSetShuffleMode;
   bool _handlingPlayCallback = false;
+  bool _autoSkippingToNext = false; // 操作级防重入：await 完成后释放
   int? _activeQueueIndex;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
@@ -381,10 +382,17 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @visibleForTesting
   Future<void> autoSkipToNextAfterCompletion() async {
-    // 不再用 _autoSkippingToNext 防重入，允许快速连续切歌
-    final bool handled = await onSkipToNextTrack?.call() ?? false;
-    if (!handled) {
-      await stop();
+    if (_autoSkippingToNext) {
+      return;
+    }
+    _autoSkippingToNext = true;
+    try {
+      final bool handled = await onSkipToNextTrack?.call() ?? false;
+      if (!handled) {
+        await stop();
+      }
+    } finally {
+      _autoSkippingToNext = false;
     }
   }
 
@@ -410,6 +418,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _lastPlaybackProgressAt ??= observedAt;
 
     if (observedAt.difference(stalledSince) < _stallSkipThreshold) {
+      return;
+    }
+    if (_autoSkippingToNext) {
       return;
     }
 
