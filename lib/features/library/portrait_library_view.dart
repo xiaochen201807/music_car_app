@@ -454,6 +454,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
               ),
               sliver: SliverReorderableList(
                 itemCount: widget.queueSongs.length,
+                // ignore: deprecated_member_use
                 onReorder: (int oldIdx, int newIdx) {
                   HapticFeedback.lightImpact();
                   MusicAppStateScope.of(context).reorderQueue(oldIdx, newIdx);
