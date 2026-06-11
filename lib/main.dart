@@ -21,6 +21,7 @@ import 'native_audio_controller.dart';
 import 'services/app_installer_service.dart';
 import 'services/download_service.dart';
 import 'services/carlife_service.dart';
+import 'services/carplay_service.dart';
 import 'services/update_check_service.dart';
 import 'theme/design_tokens.dart';
 import 'widgets/luxury_loading_indicator.dart';
@@ -226,6 +227,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   CarLifePlaybackContext? _pendingSyncContext;
   final AppInstallerService _appInstallerService = const AppInstallerService();
   final CarLifeService _carLifeService = const CarLifeService();
+  CarPlayService? _carPlayService;
   CarLifeStatus _carLifeStatus = const CarLifeStatus(
     available: false,
     installed: false,
@@ -306,6 +308,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     widget.audioHandler?.onSetRepeatMode = _setRepeatModeFromSession;
     widget.audioHandler?.onSetShuffleMode = _setShuffleModeFromSession;
     _carLifeService.setControlHandler(_handleCarLifeControl);
+    if (defaultTargetPlatform == TargetPlatform.iOS && widget.audioHandler != null) {
+      _carPlayService = CarPlayService(widget.audioHandler!, _nativeAudioController);
+      unawaited(_carPlayService!.init());
+    }
     WidgetsBinding.instance.addObserver(this);
     _startLyricBroadcastTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -325,6 +331,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   @override
   void dispose() {
+    _carPlayService?.dispose();
     _lyricBroadcastTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     if (widget.audioHandler?.onSkipToNextTrack == _skipToNextTrack) {
