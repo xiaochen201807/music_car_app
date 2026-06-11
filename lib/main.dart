@@ -416,10 +416,22 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     return handled;
   }
 
+  bool _isPausing = false;
+  bool _isSkippingPrevious = false;
+
   Future<void> _pauseNativePlayback() async {
-    debugPrint('[main] _pauseNativePlayback called');
-    final bool result = await _nativeAudioController.pausePlayback();
-    debugPrint('[main] _pauseNativePlayback result: $result');
+    if (_isPausing) {
+      debugPrint('[main] _pauseNativePlayback already in progress, skipping');
+      return;
+    }
+    _isPausing = true;
+    try {
+      debugPrint('[main] _pauseNativePlayback called');
+      final bool result = await _nativeAudioController.pausePlayback();
+      debugPrint('[main] _pauseNativePlayback result: $result');
+    } finally {
+      _isPausing = false;
+    }
   }
 
   Future<bool> _skipToNextTrack() async {
@@ -433,15 +445,24 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<bool> _skipToPreviousTrack() async {
-    // 无需全局锁阻塞，NativeAudioController 内部自有并发控制
-    debugPrint('[main] _skipToPreviousTrack called');
-    final bool handled = await _nativeAudioController.skipToPrevious();
-    debugPrint('[main] _skipToPreviousTrack handled: $handled');
-    if (!mounted || !handled) {
-      return handled;
+    if (_isSkippingPrevious) {
+      debugPrint('[main] _skipToPreviousTrack already in progress, skipping');
+      return false;
     }
-    _syncSelectedQueueIndexFromAudioController();
-    return true;
+    _isSkippingPrevious = true;
+    try {
+      // 无需全局锁阻塞，NativeAudioController 内部自有并发控制
+      debugPrint('[main] _skipToPreviousTrack called');
+      final bool handled = await _nativeAudioController.skipToPrevious();
+      debugPrint('[main] _skipToPreviousTrack handled: $handled');
+      if (!mounted || !handled) {
+        return handled;
+      }
+      _syncSelectedQueueIndexFromAudioController();
+      return true;
+    } finally {
+      _isSkippingPrevious = false;
+    }
   }
 
   void _syncSelectedQueueIndexFromAudioController() {
