@@ -227,7 +227,6 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isLoadingApiBootstrap = false;
   bool _isLoadingQualities = false;
   bool _isLoadingFavorites = false;
-  bool _syncingSessionPlaybackMode = false;
   bool _visualAnimationsEnabled = true;
   int _searchRequestId = 0;
   int _lyricsRequestId = 0;
@@ -992,19 +991,20 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
 
     // 以下为耗时异步操作（网络解析 URL + 音频加载），不再持有全局锁
-    final bool handled = await _nativeAudioController.syncFromProbe(
-        PlayerProbeSnapshot(
-          audioUrl: '',
-          playing: true,
-          song: song,
-          playlist: songs,
-          currentIndex: index,
-          title: song.name,
-          artist: song.artist,
-          coverUrl: song.cover,
-          duration: Duration(seconds: song.duration),
-        ),
-      );
+    try {
+      final bool handled = await _nativeAudioController.syncFromProbe(
+          PlayerProbeSnapshot(
+            audioUrl: '',
+            playing: true,
+            song: song,
+            playlist: songs,
+            currentIndex: index,
+            title: song.name,
+            artist: song.artist,
+            coverUrl: song.cover,
+            duration: Duration(seconds: song.duration),
+          ),
+        );
       if (!mounted) {
         return;
       }
@@ -1035,6 +1035,20 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(_loadLyricsForSong(song));
       unawaited(_loadQualitiesForSong(song));
       unawaited(_syncCarLifePlaybackContext(showResult: false));
+    } catch (e) {
+      debugPrint('[main] _playSongQueue error: $e');
+      if (mounted) {
+        _showSnack('播放失败：${song.name}');
+        // 回滚 UI 状态
+        if (_currentSong?.id == song.id && _currentSong?.source == song.source) {
+          setState(() {
+            _playbackQueue = oldQueue;
+            _selectedQueueIndex = oldIndex;
+            _currentSong = oldSong;
+          });
+        }
+      }
+    }
   }
 
   Future<bool> _skipToQueueItem(int index) async {
@@ -1721,13 +1735,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (handler == null) {
       return;
     }
-    _syncingSessionPlaybackMode = true;
-    try {
-      await handler.setRepeatMode(_repeatModeForNativeMode(mode));
-      await handler.setShuffleMode(_shuffleModeForNativeMode(mode));
-    } finally {
-      _syncingSessionPlaybackMode = false;
-    }
+    await handler.setRepeatMode(_repeatModeForNativeMode(mode));
+    await handler.setShuffleMode(_shuffleModeForNativeMode(mode));
   }
 
   Future<void> _togglePlayback(bool playing) async {
@@ -2192,6 +2201,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> skipToQueueItem(int index) => _skipToQueueItem(index);
   Future<void> searchSongs() => _searchSongs();
   Future<void> loadMoreSearchResults() => _loadMoreSearchResults();
+  Future<void> retryLoadRecommendations() => _loadRecommendations();
   Future<void> playSearchResult(int index) => _playSearchResult(index);
   Future<void> addSearchResultToQueue(int index) =>
       _addSearchResultToQueue(index);

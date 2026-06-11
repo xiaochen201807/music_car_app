@@ -8,11 +8,13 @@ class PortraitMessageCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    this.action,
   });
 
   final IconData icon;
   final String title;
   final String message;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,10 @@ class PortraitMessageCard extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
+          if (action != null) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            action!,
+          ],
         ],
       ),
     );

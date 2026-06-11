@@ -69,7 +69,6 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> Function(AudioServiceRepeatMode repeatMode)? onSetRepeatMode;
   Future<void> Function(AudioServiceShuffleMode shuffleMode)? onSetShuffleMode;
   bool _handlingPlayCallback = false;
-  bool _autoSkippingToNext = false;
   int? _activeQueueIndex;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;

@@ -235,7 +235,6 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
 
     final Widget mainContent = SafeArea(
       child: CustomScrollView(

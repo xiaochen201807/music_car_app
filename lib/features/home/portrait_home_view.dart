@@ -31,6 +31,7 @@ class PortraitHomeView extends StatefulWidget {
     required this.onSearch,
     required this.onHotKeyword,
     required this.onSelectPlaylist,
+    this.onRetryRecommendations,
   });
 
   final TextEditingController controller;
@@ -47,6 +48,7 @@ class PortraitHomeView extends StatefulWidget {
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
+  final VoidCallback? onRetryRecommendations;
 
   @override
   State<PortraitHomeView> createState() => _PortraitHomeViewState();
@@ -178,6 +180,15 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                     icon: Icons.cloud_off_rounded,
                     title: '推荐加载失败',
                     message: widget.recommendationError,
+                    action: widget.onRetryRecommendations != null
+                        ? FilledButton.tonal(
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              widget.onRetryRecommendations?.call();
+                            },
+                            child: const Text('重试'),
+                          )
+                        : null,
                   )
                 else
                   PortraitPlaylistGrid(

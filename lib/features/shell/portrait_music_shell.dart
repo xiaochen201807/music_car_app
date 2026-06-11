@@ -367,6 +367,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
         runSearchFromHome();
       },
       onSelectPlaylist: appState.openPlaylistDetails,
+      onRetryRecommendations: appState.retryLoadRecommendations,
     );
   }
 

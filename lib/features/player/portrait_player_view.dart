@@ -1871,90 +1871,99 @@ class _PlayerSeekBarState extends State<_PlayerSeekBar> {
         ? (_dragValue ?? 0.0)
         : (totalMs > 0 ? currentMs / totalMs : 0.0);
 
-    return SizedBox(
-      height: 24,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              height: 4.0,
-              color: colors.surfaceContainerHighest.withValues(alpha: 0.2),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 24,
-            child: SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 4.0,
-                activeTrackColor: Colors.transparent,
-                inactiveTrackColor: Colors.transparent,
-                thumbColor: colors.primary,
-                thumbShape: RoundSliderThumbShape(
-                  enabledThumbRadius: _isDragging ? 8.0 : 0.0,
-                ),
-                overlayShape: SliderComponentShape.noOverlay,
-                trackShape: const _FullWidthTrackShape(),
-              ),
-              child: Slider(
-                value: value.clamp(0.0, 1.0),
-                onChanged: (double val) {
-                  setState(() {
-                    _isDragging = true;
-                    _dragValue = val;
-                  });
-                },
-                onChangeStart: (double val) {
-                  setState(() {
-                    _isDragging = true;
-                    _dragValue = val;
-                  });
-                },
-                onChangeEnd: (double val) {
-                  if (widget.onSeek != null) {
-                    final int targetMs = (val * totalMs).round();
-                    widget.onSeek!(Duration(milliseconds: targetMs));
-                  }
-                  setState(() {
-                    _isDragging = false;
-                    _dragValue = null;
-                  });
-                },
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: SizedBox(
-                height: 4.0,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: value.clamp(0.0, 1.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: AppColor.accentGradient,
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(2.0),
-                          bottomRight: Radius.circular(2.0),
-                        ),
-                      ),
-                    ),
+    // 静态背景轨道：不随 position 变化重建
+    final Widget trackBg = Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        height: 4.0,
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.2),
+      ),
+    );
+
+    // 静态已播放进度条：仅 widthFactor 变化，用 FractionallySizedBox 轻量更新
+    final Widget progressIndicator = Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        child: SizedBox(
+          height: 4.0,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: value.clamp(0.0, 1.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: AppColor.accentGradient,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(2.0),
+                    bottomRight: Radius.circular(2.0),
                   ),
                 ),
               ),
             ),
           ),
-        ],
+        ),
+      ),
+    );
+
+    // SliderThemeData 是纯静态的，每次 build 重建浪费；缓存到 State 级别
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 24,
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            trackBg,
+            progressIndicator,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 24,
+              child: SliderTheme(
+                data: SliderThemeData(
+                  trackHeight: 4.0,
+                  activeTrackColor: Colors.transparent,
+                  inactiveTrackColor: Colors.transparent,
+                  thumbColor: colors.primary,
+                  thumbShape: RoundSliderThumbShape(
+                    enabledThumbRadius: _isDragging ? 8.0 : 0.0,
+                  ),
+                  overlayShape: SliderComponentShape.noOverlay,
+                  trackShape: const _FullWidthTrackShape(),
+                ),
+                child: Slider(
+                  value: value.clamp(0.0, 1.0),
+                  onChanged: (double val) {
+                    setState(() {
+                      _isDragging = true;
+                      _dragValue = val;
+                    });
+                  },
+                  onChangeStart: (double val) {
+                    setState(() {
+                      _isDragging = true;
+                      _dragValue = val;
+                    });
+                  },
+                  onChangeEnd: (double val) {
+                    if (widget.onSeek != null) {
+                      final int targetMs = (val * totalMs).round();
+                      widget.onSeek!(Duration(milliseconds: targetMs));
+                    }
+                    setState(() {
+                      _isDragging = false;
+                      _dragValue = null;
+                    });
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
