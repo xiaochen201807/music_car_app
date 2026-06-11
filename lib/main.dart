@@ -27,6 +27,7 @@ import 'features/home/playlist_details_page.dart';
 import 'app/music_app_state_scope.dart';
 import 'features/shell/portrait_music_shell.dart';
 import 'utils/cover_palette_manager.dart';
+import 'utils/lyrics_utils.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -257,6 +258,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   String _preferredBitrate = '320kmp3';
   bool _isPlayerActionBusy = false;
   final List<StreamSubscription<double>> _downloadSubscriptions = <StreamSubscription<double>>[];
+  Timer? _lyricBroadcastTimer;
 
   PlaybackUiState get playbackState {
     final MusicAudioHandler? handler = widget.audioHandler;
@@ -287,6 +289,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     widget.audioHandler?.onSetShuffleMode = _setShuffleModeFromSession;
     _carLifeService.setControlHandler(_handleCarLifeControl);
     WidgetsBinding.instance.addObserver(this);
+    _startLyricBroadcastTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadStartupMusicContent());
       unawaited(_refreshCarLifeStatus());
@@ -304,6 +307,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   @override
   void dispose() {
+    _lyricBroadcastTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     if (widget.audioHandler?.onSkipToNextTrack == _skipToNextTrack) {
       widget.audioHandler?.onSkipToNextTrack = null;
@@ -1875,6 +1879,45 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   bool _isHttpAudioUrl(String value) {
     return value.startsWith('http://') || value.startsWith('https://');
+  }
+
+  void _startLyricBroadcastTimer() {
+    _lyricBroadcastTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _sendLyricBroadcast();
+    });
+  }
+
+  void _sendLyricBroadcast() {
+    final FreeMusicSong? song = _currentSong;
+    final FreeMusicLyrics? lyrics = _currentLyrics;
+    if (song == null) return;
+
+    final PlaybackUiState state = playbackState;
+    final Duration position = state.position;
+
+    String currentLyric = '';
+    if (lyrics != null && lyrics.lines.isNotEmpty) {
+      final int activeIndex = activeLyricLineIndex(
+        lyrics.lines,
+        position,
+        lead: lyricHighlightLead,
+      );
+      if (activeIndex >= 0 && activeIndex < lyrics.lines.length) {
+        currentLyric = lyrics.lines[activeIndex].text;
+      }
+    }
+
+    unawaited(_carLifeService.sendLyricBroadcast(
+      lyric: currentLyric,
+      title: song.name,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration > 0
+          ? Duration(seconds: song.duration)
+          : (state.duration ?? Duration.zero),
+      position: position,
+      playing: state.playing,
+    ));
   }
 
   Future<void> _autoCheckForUpdate() async {

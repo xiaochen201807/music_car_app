@@ -93,6 +93,32 @@ class CarLifeService {
       return CarLifeSyncResult(supported: false, reason: error.code);
     }
   }
+
+  Future<void> sendLyricBroadcast({
+    required String lyric,
+    required String title,
+    required String artist,
+    String album = '',
+    Duration duration = Duration.zero,
+    Duration position = Duration.zero,
+    bool playing = false,
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('sendLyricBroadcast', <String, Object?>{
+        'lyric': lyric,
+        'title': title,
+        'artist': artist,
+        'album': album,
+        'duration': duration.inMilliseconds,
+        'position': position.inMilliseconds,
+        'playing': playing,
+      });
+    } on MissingPluginException {
+      // Android only, ignore on other platforms
+    } on PlatformException {
+      // Ignore errors
+    }
+  }
 }
 
 enum CarLifeControlAction {
