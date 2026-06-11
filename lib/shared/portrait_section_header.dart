@@ -6,14 +6,17 @@ class PortraitSectionHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.label,
+    this.showLoading = false,
   });
 
   final String title;
   final String? label;
+  final bool showLoading;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
     return Row(
       children: <Widget>[
         Expanded(
@@ -24,6 +27,17 @@ class PortraitSectionHeader extends StatelessWidget {
             ),
           ),
         ),
+        if (showLoading) ...<Widget>[
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         if (label != null) PortraitChip(label: label!),
       ],
     );

@@ -142,15 +142,18 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool showList = widget.songs.isNotEmpty && !widget.busy;
+    final double topSliverBottomPadding = showList ? 0.0 : 140.0;
+
     return SafeArea(
       child: CustomScrollView(
         slivers: <Widget>[
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
+            padding: EdgeInsets.fromLTRB(
               AppSpace.xl,
               AppSpace.lg,
               AppSpace.xl,
-              140,
+              topSliverBottomPadding,
             ),
             sliver: SliverList.list(
               children: <Widget>[
@@ -163,6 +166,7 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
                 const SizedBox(height: AppSpace.lg),
                 PortraitSearchHero(
                   controller: widget.controller,
+                  autofocus: true,
                   onSearch: _runSearch,
                 ),
                 if (_searchHistory.isNotEmpty) ...[
@@ -193,107 +197,121 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
                     icon: Icons.music_off_rounded,
                     title: '没有结果',
                     message: '换一个关键词再试。',
-                  )
-                else
-                  for (int index = 0; index < widget.songs.length; index += 1)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                      child: StaggeredAnimatedItem(
-                        index: index,
-                        child: PortraitSongTile(
-                          song: widget.songs[index],
-                          visual: demoQueue[index % demoQueue.length],
-                          favorite: widget.favoriteSongKeys.contains(
-                            favoriteSongKey(widget.songs[index]),
-                          ),
-                          downloaded: widget.downloadedSongKeys.contains(
-                            '${widget.songs[index].source}_${widget.songs[index].id}',
-                          ),
-                          onPlay: () => widget.onPlay(index),
-                          onAddToQueue: () => widget.onAddToQueue(index),
-                          onToggleFavorite: () =>
-                              widget.onToggleFavorite(widget.songs[index]),
-                          onDownload: () =>
-                              widget.onDownload(widget.songs[index]),
-                        ),
-                      ),
-                    ),
-                if (widget.query.isNotEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: AppSpace.md),
-                      child: GlassPill(
-                        onTap:
-                            (widget.canLoadMore ||
-                                    widget.loadMoreError.isNotEmpty) &&
-                                !widget.busy &&
-                                !widget.loadMoreBusy
-                            ? () {
-                                HapticFeedback.lightImpact();
-                                widget.onLoadMore();
-                              }
-                            : null,
-                        height: 38,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpace.xl,
-                        ),
-                        child: Center(
-                          widthFactor: 1.0,
-                          heightFactor: 1.0,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              if (widget.loadMoreBusy)
-                                LuxuryLoadingIndicator(size: 14)
-                              else
-                                Icon(
-                                  Icons.expand_more_rounded,
-                                  size: 18,
-                                  color:
-                                      (widget.canLoadMore ||
-                                              widget
-                                                  .loadMoreError
-                                                  .isNotEmpty) &&
-                                          !widget.busy &&
-                                          !widget.loadMoreBusy
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.onSurface.withValues(
-                                          alpha: 0.38,
-                                        ),
-                                ),
-                              const SizedBox(width: AppSpace.xs),
-                              Text(
-                                widget.loadMoreBusy
-                                    ? '加载中'
-                                    : widget.loadMoreError.isNotEmpty
-                                    ? '重试加载'
-                                    : widget.canLoadMore
-                                    ? '加载更多'
-                                    : '已加载全部',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color:
-                                      (widget.canLoadMore ||
-                                              widget
-                                                  .loadMoreError
-                                                  .isNotEmpty) &&
-                                          !widget.busy &&
-                                          !widget.loadMoreBusy
-                                      ? theme.colorScheme.onSurface
-                                      : theme.colorScheme.onSurface.withValues(
-                                          alpha: 0.38,
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                   ),
               ],
             ),
           ),
+          if (showList)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+              sliver: SliverList.builder(
+                itemCount: widget.songs.length,
+                itemBuilder: (BuildContext context, int index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                    child: StaggeredAnimatedItem(
+                      index: index,
+                      child: PortraitSongTile(
+                        song: widget.songs[index],
+                        visual: demoQueue[index % demoQueue.length],
+                        favorite: widget.favoriteSongKeys.contains(
+                          favoriteSongKey(widget.songs[index]),
+                        ),
+                        downloaded: widget.downloadedSongKeys.contains(
+                          '${widget.songs[index].source}_${widget.songs[index].id}',
+                        ),
+                        onPlay: () => widget.onPlay(index),
+                        onAddToQueue: () => widget.onAddToQueue(index),
+                        onToggleFavorite: () =>
+                            widget.onToggleFavorite(widget.songs[index]),
+                        onDownload: () =>
+                            widget.onDownload(widget.songs[index]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          if (widget.query.isNotEmpty && widget.songs.isNotEmpty && !widget.busy)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.xl,
+                AppSpace.md,
+                AppSpace.xl,
+                140,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: Center(
+                  child: GlassPill(
+                    onTap:
+                        (widget.canLoadMore ||
+                                widget.loadMoreError.isNotEmpty) &&
+                            !widget.busy &&
+                            !widget.loadMoreBusy
+                        ? () {
+                            HapticFeedback.lightImpact();
+                            widget.onLoadMore();
+                          }
+                        : null,
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.xl,
+                    ),
+                    child: Center(
+                      widthFactor: 1.0,
+                      heightFactor: 1.0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          if (widget.loadMoreBusy)
+                            LuxuryLoadingIndicator(size: 14)
+                          else
+                            Icon(
+                              Icons.expand_more_rounded,
+                              size: 18,
+                              color:
+                                  (widget.canLoadMore ||
+                                          widget
+                                              .loadMoreError
+                                              .isNotEmpty) &&
+                                      !widget.busy &&
+                                      !widget.loadMoreBusy
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.38,
+                                    ),
+                            ),
+                          const SizedBox(width: AppSpace.xs),
+                          Text(
+                            widget.loadMoreBusy
+                                ? '加载中'
+                                : widget.loadMoreError.isNotEmpty
+                                ? '重试加载'
+                                : widget.canLoadMore
+                                ? '加载更多'
+                                : '已加载全部',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color:
+                                  (widget.canLoadMore ||
+                                          widget
+                                              .loadMoreError
+                                              .isNotEmpty) &&
+                                      !widget.busy &&
+                                      !widget.loadMoreBusy
+                                  ? theme.colorScheme.onSurface
+                                  : theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.38,
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

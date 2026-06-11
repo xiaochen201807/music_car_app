@@ -2166,6 +2166,80 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     });
   }
 
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    if (_playbackQueue.isEmpty) return;
+    final List<FreeMusicSong> list = List<FreeMusicSong>.from(_playbackQueue);
+    int targetNewIndex = newIndex;
+    if (oldIndex < newIndex) {
+      targetNewIndex -= 1;
+    }
+    final FreeMusicSong song = list.removeAt(oldIndex);
+    list.insert(targetNewIndex, song);
+
+    int nextIdx = _selectedQueueIndex;
+    if (_selectedQueueIndex == oldIndex) {
+      nextIdx = targetNewIndex;
+    } else if (oldIndex < _selectedQueueIndex && targetNewIndex >= _selectedQueueIndex) {
+      nextIdx -= 1;
+    } else if (oldIndex > _selectedQueueIndex && targetNewIndex <= _selectedQueueIndex) {
+      nextIdx += 1;
+    }
+
+    await _nativeAudioController.syncQueueFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: _nativeAudioController.playing,
+        song: _currentSong,
+        playlist: list,
+        currentIndex: nextIdx,
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(list);
+      _selectedQueueIndex = nextIdx;
+    });
+  }
+
+  Future<void> removeQueueItem(int index) async {
+    if (index < 0 || index >= _playbackQueue.length) return;
+    if (_playbackQueue.length <= 1) {
+      _showToast('队列中至少保留一首歌曲');
+      return;
+    }
+
+    final List<FreeMusicSong> list = List<FreeMusicSong>.from(_playbackQueue);
+    final FreeMusicSong removedSong = list.removeAt(index);
+
+    int nextIdx = _selectedQueueIndex;
+    if (_selectedQueueIndex == index) {
+      nextIdx = index < list.length ? index : 0;
+    } else if (index < _selectedQueueIndex) {
+      nextIdx -= 1;
+    }
+
+    final FreeMusicSong nextCurrentSong = list[nextIdx];
+
+    await _nativeAudioController.syncQueueFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: _nativeAudioController.playing,
+        song: nextCurrentSong,
+        playlist: list,
+        currentIndex: nextIdx,
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(list);
+      _selectedQueueIndex = nextIdx;
+      _currentSong = nextCurrentSong;
+    });
+    _showToast('已从队列移除：${removedSong.name}');
+  }
+
   Future<void> skipToQueueIndex(int index) => _skipToQueueItem(index);
   Future<void> skipToQueueItem(int index) => _skipToQueueItem(index);
   Future<void> searchSongs() => _searchSongs();

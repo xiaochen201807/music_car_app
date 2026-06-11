@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../app/music_app_state_scope.dart';
 import '../../favorite_song_store.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
@@ -55,6 +56,54 @@ class PortraitLibraryView extends StatefulWidget {
 
 class _PortraitLibraryViewState extends State<PortraitLibraryView> {
   int _selectedSubTab = 0; // 0: 收藏, 1: 离线下载
+  bool _isBatchMode = false;
+  final Set<FreeMusicSong> _selectedSongs = <FreeMusicSong>{};
+
+  void _toggleBatchSong(FreeMusicSong song) {
+    setState(() {
+      if (_selectedSongs.contains(song)) {
+        _selectedSongs.remove(song);
+      } else {
+        _selectedSongs.add(song);
+      }
+    });
+  }
+
+  void _exitBatchMode() {
+    setState(() {
+      _isBatchMode = false;
+      _selectedSongs.clear();
+    });
+  }
+
+  void _handleQueueItemTap(int index, bool isSelected) {
+    if (isSelected) {
+      widget.onSelectQueueIndex(index);
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('切换播放'),
+          content: Text('是否要切换播放到队列中的《${widget.queueSongs[index].name}》？'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onSelectQueueIndex(index);
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildPlayButton({
     required bool disabled,
@@ -105,10 +154,90 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
     );
   }
 
+  Widget _buildBatchButton() {
+    final bool hasItems = _selectedSubTab == 0
+        ? widget.favoriteSongs.isNotEmpty
+        : widget.downloadedSongs.isNotEmpty;
+    if (!hasItems) return const SizedBox.shrink();
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpace.sm),
+      child: GlassPill(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          setState(() {
+            _isBatchMode = !_isBatchMode;
+            _selectedSongs.clear();
+          });
+        },
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+        child: Center(
+          widthFactor: 1.0,
+          heightFactor: 1.0,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                _isBatchMode ? Icons.close_rounded : Icons.checklist_rounded,
+                size: 18,
+                color: colors.primary,
+              ),
+              const SizedBox(width: AppSpace.xs),
+              Text(
+                _isBatchMode ? '取消' : '批量操作',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: colors.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBatchTile(FreeMusicSong song, int index) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isSelected = _selectedSongs.contains(song);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _toggleBatchSong(song),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
+            color: isSelected ? colors.primary : colors.onSurfaceVariant,
+            size: 20,
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: IgnorePointer(
+              child: PortraitSongTile(
+                song: song,
+                visual: demoQueue[index % demoQueue.length],
+                favorite: widget.favoriteSongKeys.contains(favoriteSongKey(song)),
+                downloaded: widget.downloadedSongKeys.contains('${song.source}_${song.id}'),
+                onPlay: () {},
+                onAddToQueue: null,
+                onToggleFavorite: () {},
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return SafeArea(
+    final ColorScheme colors = theme.colorScheme;
+
+    final Widget mainContent = SafeArea(
       child: CustomScrollView(
         slivers: <Widget>[
           SliverPadding(
@@ -116,7 +245,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
               AppSpace.xl,
               AppSpace.lg,
               AppSpace.xl,
-              140,
+              0,
             ),
             sliver: SliverList.list(
               children: <Widget>[
@@ -130,6 +259,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                         ),
                       ),
                     ),
+                    _buildBatchButton(),
                     _buildPlayButton(
                       disabled: _selectedSubTab == 0
                           ? widget.favoriteSongs.isEmpty
@@ -160,6 +290,8 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                     onSelected: (int val) {
                       setState(() {
                         _selectedSubTab = val;
+                        _isBatchMode = false;
+                        _selectedSongs.clear();
                       });
                     },
                   ),
@@ -184,24 +316,26 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                         index: index,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                          child: PortraitSongTile(
-                            song: widget.favoriteSongs[index],
-                            visual: demoQueue[index % demoQueue.length],
-                            favorite: widget.favoriteSongKeys.contains(
-                              favoriteSongKey(widget.favoriteSongs[index]),
-                            ),
-                            downloaded: widget.downloadedSongKeys.contains(
-                              '${widget.favoriteSongs[index].source}_${widget.favoriteSongs[index].id}',
-                            ),
-                            onPlay: () => widget.onPlayFavorite(index),
-                            onAddToQueue: null,
-                            onToggleFavorite: () => widget.onToggleFavorite(
-                                widget.favoriteSongs[index]),
-                            onDownload: () =>
-                                widget.onDownload(widget.favoriteSongs[index]),
-                            onDeleteCache: () =>
-                                widget.onDeleteCache(widget.favoriteSongs[index]),
-                          ),
+                          child: _isBatchMode
+                              ? _buildBatchTile(widget.favoriteSongs[index], index)
+                              : PortraitSongTile(
+                                  song: widget.favoriteSongs[index],
+                                  visual: demoQueue[index % demoQueue.length],
+                                  favorite: widget.favoriteSongKeys.contains(
+                                    favoriteSongKey(widget.favoriteSongs[index]),
+                                  ),
+                                  downloaded: widget.downloadedSongKeys.contains(
+                                    '${widget.favoriteSongs[index].source}_${widget.favoriteSongs[index].id}',
+                                  ),
+                                  onPlay: () => widget.onPlayFavorite(index),
+                                  onAddToQueue: null,
+                                  onToggleFavorite: () => widget.onToggleFavorite(
+                                      widget.favoriteSongs[index]),
+                                  onDownload: () =>
+                                      widget.onDownload(widget.favoriteSongs[index]),
+                                  onDeleteCache: () =>
+                                      widget.onDeleteCache(widget.favoriteSongs[index]),
+                                ),
                         ),
                       ),
                 ] else ...<Widget>[
@@ -223,58 +357,207 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                         index: index,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                          child: PortraitSongTile(
-                            song: widget.downloadedSongs[index],
-                            visual: demoQueue[index % demoQueue.length],
-                            favorite: widget.favoriteSongKeys.contains(
-                              favoriteSongKey(widget.downloadedSongs[index]),
-                            ),
-                            downloaded: true,
-                            onPlay: () => widget.onPlayDownloaded(index),
-                            onAddToQueue: null,
-                            onToggleFavorite: () => widget.onToggleFavorite(
-                                widget.downloadedSongs[index]),
-                            onDeleteCache: () => widget.onDeleteCache(
-                                widget.downloadedSongs[index]),
-                          ),
+                          child: _isBatchMode
+                              ? _buildBatchTile(widget.downloadedSongs[index], index)
+                              : PortraitSongTile(
+                                  song: widget.downloadedSongs[index],
+                                  visual: demoQueue[index % demoQueue.length],
+                                  favorite: widget.favoriteSongKeys.contains(
+                                    favoriteSongKey(widget.downloadedSongs[index]),
+                                  ),
+                                  downloaded: true,
+                                  onPlay: () => widget.onPlayDownloaded(index),
+                                  onAddToQueue: null,
+                                  onToggleFavorite: () => widget.onToggleFavorite(
+                                      widget.downloadedSongs[index]),
+                                  onDeleteCache: () => widget.onDeleteCache(
+                                      widget.downloadedSongs[index]),
+                                ),
                         ),
                       ),
                 ],
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
                   title: '当前队列',
-                  label: widget.queueSongs.isEmpty
-                      ? '空'
-                      : null,
+                  label: widget.queueSongs.isEmpty ? '空' : null,
                 ),
                 const SizedBox(height: AppSpace.md),
-                if (widget.queueSongs.isEmpty)
-                  const PortraitMessageCard(
-                    icon: Icons.queue_music_rounded,
-                    title: '队列为空',
-                    message: '播放搜索结果或歌单后，这里会显示队列。',
-                  )
-                else
-                  for (int index = 0;
-                      index < widget.queueSongs.length;
-                      index += 1)
-                    StaggeredAnimatedItem(
-                      index: index,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                        child: PortraitQueueTile(
-                          song: widget.queueSongs[index],
-                          visual: demoQueue[index % demoQueue.length],
-                          selected: widget.selectedQueueIndex == index,
-                          onTap: () => widget.onSelectQueueIndex(index),
-                        ),
-                      ),
-                    ),
               ],
             ),
           ),
+          if (widget.queueSongs.isEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.xl,
+                0,
+                AppSpace.xl,
+                140,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: const PortraitMessageCard(
+                  icon: Icons.queue_music_rounded,
+                  title: '队列为空',
+                  message: '播放搜索结果或歌单后，这里会显示队列。',
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.xl,
+                0,
+                AppSpace.xl,
+                140,
+              ),
+              sliver: SliverReorderableList(
+                itemCount: widget.queueSongs.length,
+                onReorder: (int oldIdx, int newIdx) {
+                  HapticFeedback.lightImpact();
+                  MusicAppStateScope.of(context).reorderQueue(oldIdx, newIdx);
+                },
+                itemBuilder: (BuildContext context, int index) {
+                  final FreeMusicSong song = widget.queueSongs[index];
+                  final bool isSelected = widget.selectedQueueIndex == index;
+                  return ReorderableDragStartListener(
+                    key: ValueKey<String>('queue-item-${song.source}-${song.id}-$index'),
+                    index: index,
+                    child: Dismissible(
+                      key: ValueKey<String>('dismiss-queue-item-${song.source}-${song.id}-$index'),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: AppSpace.md),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(AppRadius.panel),
+                        ),
+                        child: const Icon(Icons.delete_sweep_rounded, color: Colors.red),
+                      ),
+                      onDismissed: (DismissDirection direction) {
+                        HapticFeedback.mediumImpact();
+                        MusicAppStateScope.of(context).removeQueueItem(index);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: PortraitQueueTile(
+                          song: song,
+                          visual: demoQueue[index % demoQueue.length],
+                          selected: isSelected,
+                          onTap: () => _handleQueueItemTap(index, isSelected),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
+    );
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: mainContent),
+        if (_isBatchMode)
+          Positioned(
+            bottom: 140,
+            left: AppSpace.xl,
+            right: AppSpace.xl,
+            child: GlassCard(
+              radius: AppRadius.pill,
+              shadows: const <BoxShadow>[],
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.md,
+                  vertical: AppSpace.xs,
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Text(
+                      '已选 ${_selectedSongs.length} 首',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        final List<FreeMusicSong> currentList = _selectedSubTab == 0
+                            ? widget.favoriteSongs
+                            : widget.downloadedSongs;
+                        setState(() {
+                          if (_selectedSongs.length == currentList.length) {
+                            _selectedSongs.clear();
+                          } else {
+                            _selectedSongs
+                              ..clear()
+                              ..addAll(currentList);
+                          }
+                        });
+                      },
+                      child: Text(
+                        _selectedSongs.length ==
+                                (_selectedSubTab == 0
+                                    ? widget.favoriteSongs.length
+                                    : widget.downloadedSongs.length)
+                            ? '取消全选'
+                            : '全选',
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    if (_selectedSubTab == 0) ...<Widget>[
+                      IconButton(
+                        tooltip: '批量取消收藏',
+                        icon: const Icon(Icons.favorite_rounded, color: Colors.red),
+                        onPressed: _selectedSongs.isEmpty
+                            ? null
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                for (final FreeMusicSong song in _selectedSongs) {
+                                  widget.onToggleFavorite(song);
+                                }
+                                _exitBatchMode();
+                              },
+                      ),
+                      IconButton(
+                        tooltip: '批量下载',
+                        icon: Icon(Icons.download_rounded, color: colors.primary),
+                        onPressed: _selectedSongs.isEmpty
+                            ? null
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                for (final FreeMusicSong song in _selectedSongs) {
+                                  if (!widget.downloadedSongKeys.contains(
+                                    '${song.source}_${song.id}',
+                                  )) {
+                                    widget.onDownload(song);
+                                  }
+                                }
+                                _exitBatchMode();
+                              },
+                      ),
+                    ] else ...<Widget>[
+                      IconButton(
+                        tooltip: '批量删除本地缓存',
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                        onPressed: _selectedSongs.isEmpty
+                            ? null
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                for (final FreeMusicSong song in _selectedSongs) {
+                                  widget.onDeleteCache(song);
+                                }
+                                _exitBatchMode();
+                              },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

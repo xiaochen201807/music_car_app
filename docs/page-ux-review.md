@@ -46,17 +46,7 @@
 
 ---
 
-### 4. 歌词区域占用空间过大
 
-**位置**: [`lib/features/player/portrait_player_view.dart#L275-L282`](file:///m:/music_car_app/lib/features/player/portrait_player_view.dart#L275-L282)
-
-**问题描述**: 播放器页面布局：关闭按钮 → 标题 → 唱片 → 歌词 → 控制按钮。歌词区域即使只有几行也会占据固定高度，导致用户需要大量滚动才能看到底部控制按钮。
-
-**影响**: 播放器页面过长，底部控制按钮难以触及。
-
-**建议**: 
-- 歌词区域使用 `Flexible` 或 `Expanded` 限制最大高度
-- 或提供"折叠歌词"模式，只显示当前行
 
 ---
 

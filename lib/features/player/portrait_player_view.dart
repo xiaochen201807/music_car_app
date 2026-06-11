@@ -104,9 +104,7 @@ class PortraitPlayerView extends StatelessWidget {
         ? currentSong?.artist ?? fallbackTrack.artist
         : playbackState.artist;
     final Duration duration = playbackState.duration ?? fallbackTrack.duration;
-    final double progress = duration == Duration.zero
-        ? 0
-        : playbackState.position.inMilliseconds / duration.inMilliseconds;
+
 
     // lyric calculation handled inside PlayerLyricsView
 
@@ -165,26 +163,10 @@ class PortraitPlayerView extends StatelessWidget {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: Container(
-                      height: 3.0,
-                      color: colors.surfaceContainerHighest.withValues(
-                        alpha: 0.2,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: progress.clamp(0.0, 1.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: AppColor.accentGradient,
-                              borderRadius: const BorderRadius.only(
-                                topRight: Radius.circular(2.0),
-                                bottomRight: Radius.circular(2.0),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    child: _PlayerSeekBar(
+                      position: playbackState.position,
+                      duration: duration,
+                      onSeek: onSeek,
                     ),
                   ),
                 ],
@@ -237,10 +219,6 @@ class PortraitPlayerView extends StatelessWidget {
                           onClose();
                         }
                       },
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        onPlayPause();
-                      },
                       onHorizontalDragEnd: (DragEndDetails details) {
                         if (details.primaryVelocity != null) {
                           if (details.primaryVelocity! < 0) {
@@ -254,19 +232,25 @@ class PortraitPlayerView extends StatelessWidget {
                           }
                         }
                       },
-                      child: Hero(
-                        tag: 'now-playing-artwork',
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: _SpinningVinylDisc(
-                            spinning:
-                                playbackState.playing && animationsEnabled,
-                            imageUrl: playbackState.coverUrl.isEmpty
-                                ? currentSong?.cover ?? ''
-                                : playbackState.coverUrl,
-                            fallbackTrack: fallbackTrack,
-                            transitionKey:
-                                '${currentSong?.source ?? ''}:${currentSong?.id ?? ''}:${playbackState.coverUrl}',
+                      child: _VinylTouchWrapper(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          onPlayPause();
+                        },
+                        child: Hero(
+                          tag: 'now-playing-artwork',
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: _SpinningVinylDisc(
+                              spinning:
+                                  playbackState.playing && animationsEnabled,
+                              imageUrl: playbackState.coverUrl.isEmpty
+                                  ? currentSong?.cover ?? ''
+                                  : playbackState.coverUrl,
+                              fallbackTrack: fallbackTrack,
+                              transitionKey:
+                                  '${currentSong?.source ?? ''}:${currentSong?.id ?? ''}:${playbackState.coverUrl}',
+                            ),
                           ),
                         ),
                       ),
@@ -642,8 +626,12 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
                                         3 => 5,
                                         _ => 0,
                                       };
-                                      HapticFeedback.lightImpact();
-                                      widget.onSelectTab(target);
+                                      if (widget.selectedTab == target) {
+                                        HapticFeedback.mediumImpact();
+                                      } else {
+                                        HapticFeedback.lightImpact();
+                                        widget.onSelectTab(target);
+                                      }
                                     },
                                     destinations: const <NavigationDestination>[
                                       NavigationDestination(
@@ -973,7 +961,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
 
   void _startRestoreAutoScrollTimer() {
     _userScrollTimer?.cancel();
-    _userScrollTimer = Timer(const Duration(seconds: 3), () {
+    _userScrollTimer = Timer(const Duration(seconds: 8), () {
       if (mounted) {
         setState(() {
           _isUserScrolling = false;
@@ -1046,7 +1034,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        formatDuration(line.time),
+                        '从此处播放 ${formatDuration(line.time)}',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: colors.onPrimaryContainer,
                           fontWeight: FontWeight.bold,
@@ -1315,22 +1303,34 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
     }
   }
 
+  Timer? _debounceStopTimer;
+
   @override
   void didUpdateWidget(covariant _SpinningVinylDisc old) {
     super.didUpdateWidget(old);
     if (widget.spinning != old.spinning) {
       if (widget.spinning) {
-        _ctrl.repeat();
+        _debounceStopTimer?.cancel();
+        _debounceStopTimer = null;
+        if (!_ctrl.isAnimating) {
+          _ctrl.repeat();
+        }
         _armCtrl.forward();
       } else {
-        _ctrl.stop();
-        _armCtrl.reverse();
+        _debounceStopTimer?.cancel();
+        _debounceStopTimer = Timer(const Duration(milliseconds: 800), () {
+          if (mounted && !widget.spinning) {
+            _ctrl.stop();
+            _armCtrl.reverse();
+          }
+        });
       }
     }
   }
 
   @override
   void dispose() {
+    _debounceStopTimer?.cancel();
     _ctrl.dispose();
     _armCtrl.dispose();
     super.dispose();
@@ -1750,6 +1750,212 @@ class _MarqueeTextState extends State<MarqueeText> {
           );
         }
       },
+    );
+  }
+}
+
+class _VinylTouchWrapper extends StatefulWidget {
+  const _VinylTouchWrapper({required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  State<_VinylTouchWrapper> createState() => _VinylTouchWrapperState();
+}
+
+class _VinylTouchWrapperState extends State<_VinylTouchWrapper>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) {
+        _controller.forward();
+      },
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () {
+        _controller.reverse();
+      },
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _FullWidthTrackShape extends SliderTrackShape with BaseSliderTrackShape {
+  const _FullWidthTrackShape();
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+    double additionalActiveTrackHeight = 0,
+  }) {
+  }
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = sliderTheme.trackHeight ?? 4.0;
+    final double trackLeft = offset.dx;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+}
+
+class _PlayerSeekBar extends StatefulWidget {
+  const _PlayerSeekBar({
+    required this.position,
+    required this.duration,
+    required this.onSeek,
+  });
+
+  final Duration position;
+  final Duration duration;
+  final ValueChanged<Duration>? onSeek;
+
+  @override
+  State<_PlayerSeekBar> createState() => _PlayerSeekBarState();
+}
+
+class _PlayerSeekBarState extends State<_PlayerSeekBar> {
+  double? _dragValue;
+  bool _isDragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final int totalMs = widget.duration.inMilliseconds;
+    final int currentMs = widget.position.inMilliseconds;
+    final double value = _isDragging
+        ? (_dragValue ?? 0.0)
+        : (totalMs > 0 ? currentMs / totalMs : 0.0);
+
+    return SizedBox(
+      height: 24,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: 4.0,
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.2),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 24,
+            child: SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 4.0,
+                activeTrackColor: Colors.transparent,
+                inactiveTrackColor: Colors.transparent,
+                thumbColor: colors.primary,
+                thumbShape: RoundSliderThumbShape(
+                  enabledThumbRadius: _isDragging ? 8.0 : 0.0,
+                ),
+                overlayShape: SliderComponentShape.noOverlay,
+                trackShape: const _FullWidthTrackShape(),
+              ),
+              child: Slider(
+                value: value.clamp(0.0, 1.0),
+                onChanged: (double val) {
+                  setState(() {
+                    _isDragging = true;
+                    _dragValue = val;
+                  });
+                },
+                onChangeStart: (double val) {
+                  setState(() {
+                    _isDragging = true;
+                    _dragValue = val;
+                  });
+                },
+                onChangeEnd: (double val) {
+                  if (widget.onSeek != null) {
+                    final int targetMs = (val * totalMs).round();
+                    widget.onSeek!(Duration(milliseconds: targetMs));
+                  }
+                  setState(() {
+                    _isDragging = false;
+                    _dragValue = null;
+                  });
+                },
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: SizedBox(
+                height: 4.0,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: value.clamp(0.0, 1.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: AppColor.accentGradient,
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(2.0),
+                          bottomRight: Radius.circular(2.0),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

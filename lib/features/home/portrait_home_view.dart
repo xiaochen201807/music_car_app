@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
 import '../../theme/design_tokens.dart';
@@ -53,6 +54,7 @@ class PortraitHomeView extends StatefulWidget {
 
 class _PortraitHomeViewState extends State<PortraitHomeView> {
   List<String>? _history;
+  bool _showAllTimeline = false;
 
   @override
   void didUpdateWidget(covariant PortraitHomeView oldWidget) {
@@ -63,9 +65,13 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<FreeMusicSong> timelineSongs = widget.queueSongs.isNotEmpty
-        ? widget.queueSongs.take(5).toList(growable: false)
-        : widget.searchResults.take(5).toList(growable: false);
+    final List<FreeMusicSong> allTimeline = widget.queueSongs.isNotEmpty
+        ? widget.queueSongs.take(20).toList(growable: false)
+        : widget.searchResults.take(20).toList(growable: false);
+
+    final List<FreeMusicSong> timelineSongs = _showAllTimeline
+        ? allTimeline
+        : allTimeline.take(5).toList(growable: false);
 
     _history ??= <String>[];
 
@@ -131,10 +137,19 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                               setState(() {
                                 _history!.removeAt(index);
                               });
+                              ScaffoldMessenger.of(context).clearSnackBars();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('已删除历史: $keyword'),
-                                  duration: const Duration(seconds: 1),
+                                  duration: const Duration(seconds: 4),
+                                  action: SnackBarAction(
+                                    label: '撤销',
+                                    onPressed: () {
+                                      setState(() {
+                                        _history!.insert(index, keyword);
+                                      });
+                                    },
+                                  ),
                                 ),
                               );
                             },
@@ -151,6 +166,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                 const SizedBox(height: AppSpace.xl2),
                 PortraitSectionHeader(
                   title: '推荐歌单',
+                  showLoading: widget.recommendationsBusy || widget.playlistSongsBusy,
                   label: widget.recommendationsBusy || widget.playlistSongsBusy
                       ? '同步中'
                       : null,
@@ -190,6 +206,43 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                         child: PortraitTimelineTile(
                           song: timelineSongs[index],
                           index: index,
+                        ),
+                      ),
+                    ),
+                  if (allTimeline.length > 5)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpace.xs, bottom: AppSpace.md),
+                      child: Center(
+                        child: GlassPill(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            setState(() {
+                              _showAllTimeline = !_showAllTimeline;
+                            });
+                          },
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+                          child: Center(
+                            widthFactor: 1.0,
+                            heightFactor: 1.0,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(
+                                  _showAllTimeline ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                                  size: 18,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _showAllTimeline ? '收起时间线' : '查看全部时间线 (${allTimeline.length})',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -235,10 +288,12 @@ class PortraitSearchHero extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onSearch,
+    this.autofocus = false,
   });
 
   final TextEditingController controller;
   final VoidCallback onSearch;
+  final bool autofocus;
 
   @override
   State<PortraitSearchHero> createState() => _PortraitSearchHeroState();
@@ -309,6 +364,8 @@ class _PortraitSearchHeroState extends State<PortraitSearchHero> {
                 child: TextField(
                   controller: widget.controller,
                   focusNode: _focusNode,
+                  autofocus: widget.autofocus,
+                  keyboardType: TextInputType.text,
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => widget.onSearch(),
                   style: theme.textTheme.bodyMedium?.copyWith(

@@ -236,6 +236,8 @@ class NativeAudioController {
 
   int get currentIndex => _currentIndex;
 
+  bool get playing => _player.playing;
+
   Duration get position => _player.position;
 
   Future<void> seek(Duration position) async {

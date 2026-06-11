@@ -87,6 +87,15 @@ class PortraitSongTile extends StatelessWidget {
               ],
             ),
           ),
+          if (onAddToQueue != null)
+            IconButton(
+              tooltip: '加入队列',
+              onPressed: onAddToQueue!,
+              icon: Icon(
+                Icons.playlist_add_rounded,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
           IconButton(
             tooltip: favorite ? '取消收藏' : '收藏',
             onPressed: onToggleFavorite,
