@@ -14,6 +14,7 @@ class DownloadService {
   final FreeMusicApi _api;
   final Map<String, CachedTrack> _cacheMap = <String, CachedTrack>{};
   final Set<String> _downloadingKeys = <String>{};
+  final Map<String, Completer<void>> _downloadLocks = <String, Completer<void>>{};
   late final SharedPreferences _prefs;
   bool _initialized = false;
 
@@ -129,12 +130,22 @@ class DownloadService {
     final StreamController<double> controller = StreamController<double>();
     final String key = _cacheKey(song.source, song.id);
 
+    // 原子性检查并加锁
     if (_downloadingKeys.contains(key)) {
       controller.addError(Exception('该歌曲正在下载中，请勿重复操作'));
       controller.close();
       return controller.stream;
     }
+
+    // 如果有其他下载正在等待，也返回错误
+    if (_downloadLocks.containsKey(key)) {
+      controller.addError(Exception('该歌曲正在下载中，请勿重复操作'));
+      controller.close();
+      return controller.stream;
+    }
+
     _downloadingKeys.add(key);
+    _downloadLocks[key] = Completer<void>();
 
     unawaited(
       () async {
@@ -198,7 +209,8 @@ class DownloadService {
             duration: song.duration,
           );
 
-          _cacheMap[_cacheKey(song.source, song.id)] = track;
+          // 原子性更新缓存
+          _cacheMap[key] = track;
           await _saveToPrefs();
 
           controller.add(1.0);
@@ -208,6 +220,8 @@ class DownloadService {
           await controller.close();
         } finally {
           _downloadingKeys.remove(key);
+          final Completer<void>? lock = _downloadLocks.remove(key);
+          lock?.complete();
         }
       }(),
     );
