@@ -58,7 +58,6 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
   int _selectedSubTab = 0; // 0: 收藏, 1: 离线下载
   bool _isBatchMode = false;
   final Set<FreeMusicSong> _selectedSongs = <FreeMusicSong>{};
-  int? _draggingIndex; // 当前正在拖动的索引
 
   void _toggleBatchSong(FreeMusicSong song) {
     setState(() {
@@ -453,81 +452,44 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                 AppSpace.xl,
                 140,
               ),
-              sliver: SliverList.builder(
+              sliver: SliverReorderableList(
                 itemCount: widget.queueSongs.length,
+                onReorder: (int oldIdx, int newIdx) {
+                  HapticFeedback.lightImpact();
+                  MusicAppStateScope.of(context).reorderQueue(oldIdx, newIdx);
+                },
                 itemBuilder: (BuildContext context, int index) {
                   final FreeMusicSong song = widget.queueSongs[index];
                   final bool isSelected = widget.selectedQueueIndex == index;
-                  final bool isDragging = _draggingIndex == index;
-
-                  return DragTarget<int>(
-                    onAccept: (int draggedIndex) {
-                      if (draggedIndex != index) {
-                        HapticFeedback.lightImpact();
-                        MusicAppStateScope.of(context).reorderQueue(draggedIndex, index);
-                      }
-                      setState(() {
-                        _draggingIndex = null;
-                      });
-                    },
-                    onLeave: (Object? data) {},
-                    onWillAccept: (int? draggedIndex) => draggedIndex != null && draggedIndex != index,
-                    builder: (BuildContext context, List<Object?> candidateData, List<dynamic> rejectedData) {
-                      return LongPressDraggable<int>(
-                        key: ValueKey<String>('queue-item-${song.source}-${song.id}-$index'),
-                        data: index,
-                        axis: Axis.vertical,
-                        onDragStarted: () {
-                          HapticFeedback.mediumImpact();
-                          setState(() {
-                            _draggingIndex = index;
-                          });
-                        },
-                        onDragEnd: (DraggableDetails details) {
-                          setState(() {
-                            _draggingIndex = null;
-                          });
-                        },
-                        feedback: Material(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                            child: PortraitQueueTile(
-                              song: song,
-                              visual: demoQueue[index % demoQueue.length],
-                              selected: isSelected,
-                              onTap: null,
-                            ),
-                          ),
+                  return ReorderableDragStartListener(
+                    key: ValueKey<String>('queue-item-${song.source}-${song.id}-$index'),
+                    index: index,
+                    child: Dismissible(
+                      key: ValueKey<String>('dismiss-queue-item-${song.source}-${song.id}-$index'),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: AppSpace.md),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(AppRadius.panel),
                         ),
-                        childWhenDragging: const SizedBox.shrink(),
-                        child: Dismissible(
-                          key: ValueKey<String>('dismiss-queue-item-${song.source}-${song.id}-$index'),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: AppSpace.md),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(AppRadius.panel),
-                            ),
-                            child: const Icon(Icons.delete_sweep_rounded, color: Colors.red),
-                          ),
-                          onDismissed: (DismissDirection direction) {
-                            HapticFeedback.mediumImpact();
-                            MusicAppStateScope.of(context).removeQueueItem(index);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                            child: PortraitQueueTile(
-                              song: song,
-                              visual: demoQueue[index % demoQueue.length],
-                              selected: isSelected,
-                              onTap: () => _handleQueueItemTap(index, isSelected),
-                            ),
-                          ),
+                        child: const Icon(Icons.delete_sweep_rounded, color: Colors.red),
+                      ),
+                      onDismissed: (DismissDirection direction) {
+                        HapticFeedback.mediumImpact();
+                        MusicAppStateScope.of(context).removeQueueItem(index);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: PortraitQueueTile(
+                          song: song,
+                          visual: demoQueue[index % demoQueue.length],
+                          selected: isSelected,
+                          onTap: () => _handleQueueItemTap(index, isSelected),
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   );
                 },
               ),
