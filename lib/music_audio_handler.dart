@@ -105,7 +105,6 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     String url,
     PlayerProbeSnapshot snapshot,
   ) async {
-    _autoSkippingToNext = false;
     _resetPlaybackStallMonitor();
     final MediaItem item = MediaItem(
       id: url,
@@ -379,10 +378,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @visibleForTesting
   Future<void> autoSkipToNextAfterCompletion() async {
-    if (_autoSkippingToNext) {
-      return;
-    }
-    _autoSkippingToNext = true;
+    // 不再用 _autoSkippingToNext 防重入，允许快速连续切歌
     final bool handled = await onSkipToNextTrack?.call() ?? false;
     if (!handled) {
       await stop();
@@ -411,9 +407,6 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _lastPlaybackProgressAt ??= observedAt;
 
     if (observedAt.difference(stalledSince) < _stallSkipThreshold) {
-      return;
-    }
-    if (_autoSkippingToNext) {
       return;
     }
 

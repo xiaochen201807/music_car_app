@@ -241,10 +241,9 @@ class NativeAudioController {
   Duration get position => _player.position;
 
   Future<void> seek(Duration position) async {
-    int retryCount = 0;
-    while (_player.processingState == ProcessingState.loading && retryCount < 40) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      retryCount++;
+    // 仅给 loading 状态一次极短等待（100ms），避免自旋阻塞 UI
+    if (_player.processingState == ProcessingState.loading) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     }
     try {
       await _player.seek(position);

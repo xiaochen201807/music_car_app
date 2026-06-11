@@ -1675,9 +1675,6 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> _setRepeatModeFromSession(
     AudioServiceRepeatMode repeatMode,
   ) async {
-    if (_syncingSessionPlaybackMode) {
-      return;
-    }
     final NativePlaybackMode mode;
     switch (repeatMode) {
       case AudioServiceRepeatMode.one:
@@ -1690,15 +1687,13 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             ? NativePlaybackMode.shuffle
             : NativePlaybackMode.sequential;
     }
+    // 不再因 _syncingSessionPlaybackMode 静态丢弃；直接应用
     await _applyPlaybackMode(mode, syncSession: false);
   }
 
   Future<void> _setShuffleModeFromSession(
     AudioServiceShuffleMode shuffleMode,
   ) async {
-    if (_syncingSessionPlaybackMode) {
-      return;
-    }
     final NativePlaybackMode mode = shuffleMode == AudioServiceShuffleMode.none
         ? NativePlaybackMode.sequential
         : NativePlaybackMode.shuffle;
