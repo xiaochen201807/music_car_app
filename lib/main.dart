@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -43,7 +45,22 @@ Future<void> main() async {
 
   await _ensureNotificationPermission();
 
+  unawaited(_clearAudioCache());
+
   runApp(MusicCarApp(audioHandler: audioHandler));
+}
+
+Future<void> _clearAudioCache() async {
+  try {
+    final Directory cacheDir = await getTemporaryDirectory();
+    final Directory audioCache = Directory('${cacheDir.path}/just_audio_cache');
+    if (await audioCache.exists()) {
+      await audioCache.delete(recursive: true);
+      debugPrint('[cache] Cleared just_audio cache');
+    }
+  } catch (e) {
+    debugPrint('[cache] Failed to clear audio cache: $e');
+  }
 }
 
 /// Android 13+ (API 33) gates the media-playback notification behind the

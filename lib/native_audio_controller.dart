@@ -142,7 +142,14 @@ abstract class NativeAudioPlayer {
 
 class JustAudioNativePlayer implements NativeAudioPlayer {
   JustAudioNativePlayer({AudioPlayer? player})
-    : _player = player ?? AudioPlayer();
+    : _player = player ?? AudioPlayer(
+        audioLoadConfiguration: AudioLoadConfiguration(
+          androidLoadControl: AndroidLoadControl(
+            maxBufferDuration: const Duration(seconds: 60),
+            targetBufferBytes: 50 * 1024 * 1024, // 50MB
+          ),
+        ),
+      );
 
   final AudioPlayer _player;
 
