@@ -361,6 +361,10 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
           MediaAction.skipToPrevious,
           MediaAction.seekForward,
           MediaAction.seekBackward,
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.playPause,
+          MediaAction.stop,
         },
         androidCompactActionIndices: const <int>[0, 1, 2],
         processingState: _mapProcessingState(event.processingState),
@@ -413,6 +417,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       '[native-audio] playback stalled for '
       '${observedAt.difference(stalledSince).inSeconds}s, skipping next',
     );
+    _resetPlaybackStallMonitor(now: observedAt);
     await autoSkipToNextAfterCompletion();
   }
 

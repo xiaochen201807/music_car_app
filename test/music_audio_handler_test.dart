@@ -76,7 +76,7 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('autoSkipToNextAfterCompletion triggers next once', () async {
+  test('autoSkipToNextAfterCompletion triggers next on each call', () async {
     final MusicAudioHandler handler = MusicAudioHandler();
     int nextCalls = 0;
     handler.onSkipToNextTrack = () async {
@@ -87,7 +87,7 @@ void main() {
     await handler.autoSkipToNextAfterCompletion();
     await handler.autoSkipToNextAfterCompletion();
 
-    expect(nextCalls, 1);
+    expect(nextCalls, 2);
 
     await handler.dispose();
   });
@@ -104,7 +104,6 @@ void main() {
         return false;
       };
 
-      await handler.autoSkipToNextAfterCompletion();
       await handler.autoSkipToNextAfterCompletion();
 
       expect(nextCalls, 1);
