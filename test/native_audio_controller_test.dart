@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -203,6 +205,75 @@ void main() {
       'play',
     ]);
   });
+
+  test(
+    'NativeAudioController keeps playback paused when pause is requested during skip load',
+    () async {
+      final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+      final Completer<void> resolveStarted = Completer<void>();
+      final Completer<void> releaseResolve = Completer<void>();
+      final FreeMusicApi api = FreeMusicApi(
+        client: MockClient((http.Request request) async {
+          final String id = request.url.queryParameters['id'] ?? '';
+          if (id == '2') {
+            resolveStarted.complete();
+            await releaseResolve.future;
+          }
+          return http.Response(
+            '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
+            200,
+          );
+        }),
+      );
+      final NativeAudioController controller = NativeAudioController(
+        player: player,
+        api: api,
+      );
+
+      await controller.syncFromProbe(
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/1.mp3',
+          playing: true,
+          currentIndex: 0,
+          song: FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          playlist: <FreeMusicSong>[
+            FreeMusicSong(
+              id: '1',
+              source: 'kuwo',
+              name: '七里香',
+              artist: '周杰伦',
+              duration: 290,
+            ),
+            FreeMusicSong(
+              id: '2',
+              source: 'kuwo',
+              name: '晴天',
+              artist: '周杰伦',
+              duration: 269,
+            ),
+          ],
+        ),
+      );
+      player.calls.clear();
+
+      final Future<bool> skipFuture = controller.skipToNext();
+      await resolveStarted.future;
+      expect(await controller.pausePlayback(), isTrue);
+      releaseResolve.complete();
+
+      expect(await skipFuture, isTrue);
+      expect(controller.currentIndex, 1);
+      expect(player.isPlaying, isFalse);
+      expect(player.calls, isNot(contains('play')));
+      expect(player.calls.last, 'pause');
+    },
+  );
 
   test('NativeAudioController repeats all from queue boundaries', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
@@ -557,74 +628,77 @@ void main() {
     ]);
   });
 
-  test('NativeAudioController switches source when primary URL fails', () async {
-    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
-    // kuwo song_url is dead; the same track resolves on netease after a
-    // /switch_source lookup. The controller must fall through and still play.
-    final FreeMusicApi api = FreeMusicApi(
-      client: MockClient((http.Request request) async {
-        final String path = request.url.path;
-        final Map<String, String> q = request.url.queryParameters;
-        if (path.endsWith('/sources')) {
-          return http.Response(
-            '{"all_sources":["kuwo","netease"],'
-            '"default_sources":["kuwo","netease"],"descriptions":{}}',
-            200,
-          );
-        }
-        if (path.endsWith('/switch_source')) {
-          expect(q['source'], 'kuwo');
-          expect(q['target'], 'netease');
-          return http.Response(
-            '{"id":"999","source":"netease","name":"晴天",'
-            '"artist":"周杰伦","duration":269,"score":0.92}',
-            200,
-            headers: const <String, String>{
-              'content-type': 'application/json; charset=utf-8',
-            },
-          );
-        }
-        if (path.endsWith('/song_url')) {
-          if (q['source'] == 'netease' && q['id'] == '999') {
+  test(
+    'NativeAudioController switches source when primary URL fails',
+    () async {
+      final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+      // kuwo song_url is dead; the same track resolves on netease after a
+      // /switch_source lookup. The controller must fall through and still play.
+      final FreeMusicApi api = FreeMusicApi(
+        client: MockClient((http.Request request) async {
+          final String path = request.url.path;
+          final Map<String, String> q = request.url.queryParameters;
+          if (path.endsWith('/sources')) {
             return http.Response(
-              '{"direct":true,"source":"netease",'
-              '"url":"https://example.com/netease-999.mp3"}',
+              '{"all_sources":["kuwo","netease"],'
+              '"default_sources":["kuwo","netease"],"descriptions":{}}',
               200,
             );
           }
-          // Primary kuwo source is dead.
-          return http.Response('{"error":"unavailable"}', 502);
-        }
-        return http.Response('{}', 404);
-      }),
-    );
-    final NativeAudioController controller = NativeAudioController(
-      player: player,
-      api: api,
-    );
+          if (path.endsWith('/switch_source')) {
+            expect(q['source'], 'kuwo');
+            expect(q['target'], 'netease');
+            return http.Response(
+              '{"id":"999","source":"netease","name":"晴天",'
+              '"artist":"周杰伦","duration":269,"score":0.92}',
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (path.endsWith('/song_url')) {
+            if (q['source'] == 'netease' && q['id'] == '999') {
+              return http.Response(
+                '{"direct":true,"source":"netease",'
+                '"url":"https://example.com/netease-999.mp3"}',
+                200,
+              );
+            }
+            // Primary kuwo source is dead.
+            return http.Response('{"error":"unavailable"}', 502);
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+      final NativeAudioController controller = NativeAudioController(
+        player: player,
+        api: api,
+      );
 
-    final bool handled = await controller.syncFromProbe(
-      const PlayerProbeSnapshot(
-        audioUrl: '',
-        playing: true,
-        song: FreeMusicSong(
-          id: '1',
-          source: 'kuwo',
-          name: '晴天',
+      final bool handled = await controller.syncFromProbe(
+        const PlayerProbeSnapshot(
+          audioUrl: '',
+          playing: true,
+          song: FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+          title: '晴天',
           artist: '周杰伦',
-          duration: 269,
         ),
-        title: '晴天',
-        artist: '周杰伦',
-      ),
-    );
+      );
 
-    expect(handled, isTrue);
-    expect(player.calls, <String>[
-      'setUrl:https://example.com/netease-999.mp3',
-      'play',
-    ]);
-  });
+      expect(handled, isTrue);
+      expect(player.calls, <String>[
+        'setUrl:https://example.com/netease-999.mp3',
+        'play',
+      ]);
+    },
+  );
 
   test('NativeAudioController gives up when every source fails', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
@@ -689,12 +763,13 @@ FreeMusicApi _resolvingApi() {
 
 class FakeNativeAudioPlayer implements NativeAudioPlayer {
   final List<String> calls = <String>[];
+  bool isPlaying = false;
 
   @override
   Duration get bufferedPosition => Duration.zero;
 
   @override
-  bool get playing => false;
+  bool get playing => isPlaying;
 
   @override
   Stream<PlaybackEvent> get playbackEventStream =>
@@ -727,12 +802,24 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
 
   @override
   Future<void> pause() async {
+    isPlaying = false;
     calls.add('pause');
   }
 
   @override
+  Future<void> pauseDirect() async {
+    await pause();
+  }
+
+  @override
   Future<void> play() async {
+    isPlaying = true;
     calls.add('play');
+  }
+
+  @override
+  Future<void> playDirect() async {
+    await play();
   }
 
   @override
@@ -753,6 +840,7 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
 
   @override
   Future<void> stop() async {
+    isPlaying = false;
     calls.add('stop');
   }
 }

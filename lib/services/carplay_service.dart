@@ -26,20 +26,18 @@ class CarPlayService {
 
   CPTabBarTemplate _buildRootTemplate() {
     return CPTabBarTemplate(
-      templates: [
-        _buildNowPlayingTemplate(),
-        _buildLibraryTemplate(),
-      ],
+      templates: [_buildNowPlayingTemplate(), _buildLibraryTemplate()],
     );
   }
 
   CPListTemplate _buildNowPlayingTemplate() {
+    final String title = _audioHandler.mediaItem.valueOrNull?.title ?? '正在播放';
     return CPListTemplate(
       sections: [
         CPListSection(
           items: [
             CPListItem(
-              text: '正在播放',
+              text: title,
               detailText: '查看播放队列',
               onPress: (complete, self) {
                 complete();
@@ -55,13 +53,14 @@ class CarPlayService {
   }
 
   CPListTemplate _buildLibraryTemplate() {
+    final int queueLength = _nativeAudioController.playlist.length;
     return CPListTemplate(
       sections: [
         CPListSection(
           items: [
             CPListItem(
               text: '我的收藏',
-              detailText: '收藏的歌曲',
+              detailText: queueLength > 0 ? '当前队列 $queueLength 首' : '收藏的歌曲',
               onPress: (complete, self) {
                 complete();
               },

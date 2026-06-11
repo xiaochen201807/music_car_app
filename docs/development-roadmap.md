@@ -29,9 +29,10 @@ native audio foundation:
 6. `[~]` Baidu CarLife package probe, launch bridge, platform SDK initialization,
    and current-queue template callbacks are wired; AppKey, real connection, and
    head-unit validation remain pending.
-7. `[~]` Android media-button plumbing exists through `audio_service`, but real
-   head-unit behavior still needs device validation after the native queue is
-   fully connected.
+7. `[~]` Android media-button plumbing exists through `audio_service`, with ADB
+   fixes for play/pause recursion, busy skip handling, and repeat/shuffle sync;
+   full foreground/background/screen-off validation on the packaged build still
+   remains.
 8. `[~]` iOS Now Playing and remote command behavior are wired through
    background audio/session dependencies, but still need real-device validation.
 
@@ -171,7 +172,9 @@ Exit criteria:
 
 - `[~]` Keep Android Auto media metadata and media-browser service declarations
   valid.
-- `[ ]` Validate Android media buttons by ADB and real device logs.
+- `[~]` Validate Android media buttons by ADB and real device logs. ADB
+  reproduction on `V2284A` found pause/skip command recursion and input latency;
+  the code path is patched and still needs packaged-build retest.
 - `[ ]` Validate compatible car head-unit controls.
 - `[ ]` Validate notification controls while the app is backgrounded.
 

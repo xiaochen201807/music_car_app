@@ -248,6 +248,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _isLoadingQualities = false;
   bool _isLoadingFavorites = false;
   bool _visualAnimationsEnabled = true;
+  bool _syncingAudioSessionPlaybackMode = false;
   int _searchRequestId = 0;
   int _lyricsRequestId = 0;
   int _qualitiesRequestId = 0;
@@ -276,7 +277,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   String _coverSeedUrl = '';
   String _preferredBitrate = '320kmp3';
   bool _isPlayerActionBusy = false;
-  final List<StreamSubscription<double>> _downloadSubscriptions = <StreamSubscription<double>>[];
+  final List<StreamSubscription<double>> _downloadSubscriptions =
+      <StreamSubscription<double>>[];
   Timer? _lyricBroadcastTimer;
 
   PlaybackUiState get playbackState {
@@ -308,8 +310,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     widget.audioHandler?.onSetRepeatMode = _setRepeatModeFromSession;
     widget.audioHandler?.onSetShuffleMode = _setShuffleModeFromSession;
     _carLifeService.setControlHandler(_handleCarLifeControl);
-    if (defaultTargetPlatform == TargetPlatform.iOS && widget.audioHandler != null) {
-      _carPlayService = CarPlayService(widget.audioHandler!, _nativeAudioController);
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        widget.audioHandler != null) {
+      _carPlayService = CarPlayService(
+        widget.audioHandler!,
+        _nativeAudioController,
+      );
       unawaited(_carPlayService!.init());
     }
     WidgetsBinding.instance.addObserver(this);
@@ -428,7 +434,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _pauseNativePlayback() async {
     final now = DateTime.now();
-    if (_lastPauseTime != null && now.difference(_lastPauseTime!) < const Duration(milliseconds: 500)) {
+    if (_lastPauseTime != null &&
+        now.difference(_lastPauseTime!) < const Duration(milliseconds: 500)) {
       debugPrint('[main] _pauseNativePlayback debounced');
       return;
     }
@@ -450,7 +457,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<bool> _skipToPreviousTrack() async {
     final now = DateTime.now();
-    if (_lastSkipPreviousTime != null && now.difference(_lastSkipPreviousTime!) < const Duration(milliseconds: 500)) {
+    if (_lastSkipPreviousTime != null &&
+        now.difference(_lastSkipPreviousTime!) <
+            const Duration(milliseconds: 500)) {
       debugPrint('[main] _skipToPreviousTrack debounced');
       return false;
     }
@@ -467,13 +476,17 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   void _syncSelectedQueueIndexFromAudioController() {
-    final PlaybackQueueContext context = _nativeAudioController.getPlaybackContext();
+    final PlaybackQueueContext context = _nativeAudioController
+        .getPlaybackContext();
     final int index = context.currentIndex;
     final List<FreeMusicSong> controllerQueue = context.playlist;
-    if (index < 0 || controllerQueue.isEmpty || index >= controllerQueue.length) {
+    if (index < 0 ||
+        controllerQueue.isEmpty ||
+        index >= controllerQueue.length) {
       return;
     }
-    final bool needQueueUpdate = _playbackQueue.length != controllerQueue.length;
+    final bool needQueueUpdate =
+        _playbackQueue.length != controllerQueue.length;
     final FreeMusicSong song = controllerQueue[index];
 
     setState(() {
@@ -531,10 +544,18 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> _loadStartupMusicContent() async {
     try {
       await Future.wait(<Future<void>>[
-        _restorePlaybackSession().catchError((Object e) => debugPrint('[startup] restore failed: $e')),
-        _loadFavoriteSongs().catchError((Object e) => debugPrint('[startup] load favorites failed: $e')),
-        _loadApiBootstrap().catchError((Object e) => debugPrint('[startup] load api bootstrap failed: $e')),
-        _loadRecommendations().catchError((Object e) => debugPrint('[startup] load recommendations failed: $e')),
+        _restorePlaybackSession().catchError(
+          (Object e) => debugPrint('[startup] restore failed: $e'),
+        ),
+        _loadFavoriteSongs().catchError(
+          (Object e) => debugPrint('[startup] load favorites failed: $e'),
+        ),
+        _loadApiBootstrap().catchError(
+          (Object e) => debugPrint('[startup] load api bootstrap failed: $e'),
+        ),
+        _loadRecommendations().catchError(
+          (Object e) => debugPrint('[startup] load recommendations failed: $e'),
+        ),
       ]);
     } catch (error) {
       debugPrint('[main] startup loading failed: $error');
@@ -868,9 +889,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _showToast('正在解析 "${song.name}" 的品质...');
       List<FreeMusicQuality> qualities = const <FreeMusicQuality>[];
       try {
-        final FreeMusicQualityResult res = await _freeMusicApi.fetchQualities(
-          song,
-        ).timeout(const Duration(seconds: 5));
+        final FreeMusicQualityResult res = await _freeMusicApi
+            .fetchQualities(song)
+            .timeout(const Duration(seconds: 5));
         qualities = res.qualities;
       } catch (_) {}
       final FreeMusicQuality targetQuality = findBestQuality(
@@ -988,9 +1009,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     ];
     final int currentIdx = isQueueEmpty
         ? 0
-        : (_selectedQueueIndex >= 0 && _selectedQueueIndex < _playbackQueue.length
-            ? _selectedQueueIndex
-            : 0);
+        : (_selectedQueueIndex >= 0 &&
+                  _selectedQueueIndex < _playbackQueue.length
+              ? _selectedQueueIndex
+              : 0);
     final FreeMusicSong? nextCurrentSong = isQueueEmpty ? song : _currentSong;
 
     await _nativeAudioController.syncQueueFromProbe(
@@ -1048,24 +1070,25 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     // 以下为耗时异步操作（网络解析 URL + 音频加载），不再持有全局锁
     try {
       final bool handled = await _nativeAudioController.syncFromProbe(
-          PlayerProbeSnapshot(
-            audioUrl: '',
-            playing: true,
-            song: song,
-            playlist: songs,
-            currentIndex: index,
-            title: song.name,
-            artist: song.artist,
-            coverUrl: song.cover,
-            duration: Duration(seconds: song.duration),
-          ),
-        );
+        PlayerProbeSnapshot(
+          audioUrl: '',
+          playing: true,
+          song: song,
+          playlist: songs,
+          currentIndex: index,
+          title: song.name,
+          artist: song.artist,
+          coverUrl: song.cover,
+          duration: Duration(seconds: song.duration),
+        ),
+      );
       if (!mounted) {
         return;
       }
       if (!handled) {
         _showSnack('暂时无法播放：${song.name}');
-        if (_currentSong?.id == song.id && _currentSong?.source == song.source) {
+        if (_currentSong?.id == song.id &&
+            _currentSong?.source == song.source) {
           setState(() {
             _playbackQueue = oldQueue;
             _selectedQueueIndex = oldIndex;
@@ -1095,7 +1118,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       if (mounted) {
         _showSnack('播放失败：${song.name}');
         // 回滚 UI 状态
-        if (_currentSong?.id == song.id && _currentSong?.source == song.source) {
+        if (_currentSong?.id == song.id &&
+            _currentSong?.source == song.source) {
           setState(() {
             _playbackQueue = oldQueue;
             _selectedQueueIndex = oldIndex;
@@ -1136,7 +1160,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     if (!handled) {
       _showSnack('切歌失败：${targetSong.name}');
-      if (_currentSong?.id == targetSong.id && _currentSong?.source == targetSong.source) {
+      if (_currentSong?.id == targetSong.id &&
+          _currentSong?.source == targetSong.source) {
         setState(() {
           _selectedQueueIndex = oldIndex;
           _currentSong = oldSong;
@@ -1253,9 +1278,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _currentLyrics = null;
     });
     try {
-      final FreeMusicLyrics lyrics = await _freeMusicApi.fetchEnhancedLyrics(
-        song,
-      ).timeout(const Duration(seconds: 5));
+      final FreeMusicLyrics lyrics = await _freeMusicApi
+          .fetchEnhancedLyrics(song)
+          .timeout(const Duration(seconds: 5));
       if (!mounted || requestId != _lyricsRequestId) {
         return;
       }
@@ -1296,9 +1321,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _currentQualities = const <FreeMusicQuality>[];
     });
     try {
-      final FreeMusicQualityResult result = await _freeMusicApi.fetchQualities(
-        song,
-      ).timeout(const Duration(seconds: 5));
+      final FreeMusicQualityResult result = await _freeMusicApi
+          .fetchQualities(song)
+          .timeout(const Duration(seconds: 5));
       if (!mounted || requestId != _qualitiesRequestId) {
         return;
       }
@@ -1726,6 +1751,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> _setRepeatModeFromSession(
     AudioServiceRepeatMode repeatMode,
   ) async {
+    if (_syncingAudioSessionPlaybackMode) {
+      return;
+    }
     final NativePlaybackMode mode;
     switch (repeatMode) {
       case AudioServiceRepeatMode.one:
@@ -1745,6 +1773,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> _setShuffleModeFromSession(
     AudioServiceShuffleMode shuffleMode,
   ) async {
+    if (_syncingAudioSessionPlaybackMode) {
+      return;
+    }
     final NativePlaybackMode mode = shuffleMode == AudioServiceShuffleMode.none
         ? NativePlaybackMode.sequential
         : NativePlaybackMode.shuffle;
@@ -1772,8 +1803,13 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (handler == null) {
       return;
     }
-    await handler.setRepeatMode(_repeatModeForNativeMode(mode));
-    await handler.setShuffleMode(_shuffleModeForNativeMode(mode));
+    _syncingAudioSessionPlaybackMode = true;
+    try {
+      await handler.setRepeatMode(_repeatModeForNativeMode(mode));
+      await handler.setShuffleMode(_shuffleModeForNativeMode(mode));
+    } finally {
+      _syncingAudioSessionPlaybackMode = false;
+    }
   }
 
   Future<void> _togglePlayback(bool playing) async {
@@ -1846,12 +1882,13 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     });
 
     try {
-      final CarLifeSyncResult result = await _carLifeService.syncPlaybackContext(
-        title: context.title,
-        artist: context.artist,
-        playing: context.playing,
-        context: context,
-      );
+      final CarLifeSyncResult result = await _carLifeService
+          .syncPlaybackContext(
+            title: context.title,
+            artist: context.artist,
+            playing: context.playing,
+            context: context,
+          );
       if (!mounted) {
         return;
       }
@@ -1958,17 +1995,19 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       }
     }
 
-    unawaited(_carLifeService.sendLyricBroadcast(
-      lyric: currentLyric,
-      title: song.name,
-      artist: song.artist,
-      album: song.album,
-      duration: song.duration > 0
-          ? Duration(seconds: song.duration)
-          : (state.duration ?? Duration.zero),
-      position: position,
-      playing: state.playing,
-    ));
+    unawaited(
+      _carLifeService.sendLyricBroadcast(
+        lyric: currentLyric,
+        title: song.name,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration > 0
+            ? Duration(seconds: song.duration)
+            : (state.duration ?? Duration.zero),
+        position: position,
+        playing: state.playing,
+      ),
+    );
   }
 
   Future<void> _autoCheckForUpdate() async {
@@ -2166,7 +2205,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
-  Future<void> syncCarLifeManually() => _syncCarLifePlaybackContext(showResult: true);
+  Future<void> syncCarLifeManually() =>
+      _syncCarLifePlaybackContext(showResult: true);
   FreeMusicSources? get musicSources => _musicSources;
   bool get isLoadingApiBootstrap => _isLoadingApiBootstrap;
   String get apiBootstrapError => _apiBootstrapError;
@@ -2212,9 +2252,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     int nextIdx = _selectedQueueIndex;
     if (_selectedQueueIndex == oldIndex) {
       nextIdx = targetNewIndex;
-    } else if (oldIndex < _selectedQueueIndex && targetNewIndex >= _selectedQueueIndex) {
+    } else if (oldIndex < _selectedQueueIndex &&
+        targetNewIndex >= _selectedQueueIndex) {
       nextIdx -= 1;
-    } else if (oldIndex > _selectedQueueIndex && targetNewIndex <= _selectedQueueIndex) {
+    } else if (oldIndex > _selectedQueueIndex &&
+        targetNewIndex <= _selectedQueueIndex) {
       nextIdx += 1;
     }
 
@@ -2380,7 +2422,8 @@ class _ToastWidget extends StatefulWidget {
   State<_ToastWidget> createState() => _ToastWidgetState();
 }
 
-class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderStateMixin {
+class _ToastWidgetState extends State<_ToastWidget>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacity;
 
@@ -2422,7 +2465,10 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   color: Colors.black.withValues(alpha: 0.65),
                   child: Text(
                     widget.message,

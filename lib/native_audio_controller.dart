@@ -133,7 +133,11 @@ abstract class NativeAudioPlayer {
 
   Future<void> play();
 
+  Future<void> playDirect();
+
   Future<void> pause();
+
+  Future<void> pauseDirect();
 
   Future<void> stop();
 
@@ -142,14 +146,16 @@ abstract class NativeAudioPlayer {
 
 class JustAudioNativePlayer implements NativeAudioPlayer {
   JustAudioNativePlayer({AudioPlayer? player})
-    : _player = player ?? AudioPlayer(
-        audioLoadConfiguration: AudioLoadConfiguration(
-          androidLoadControl: AndroidLoadControl(
-            maxBufferDuration: const Duration(seconds: 60),
-            targetBufferBytes: 50 * 1024 * 1024, // 50MB
-          ),
-        ),
-      );
+    : _player =
+          player ??
+          AudioPlayer(
+            audioLoadConfiguration: AudioLoadConfiguration(
+              androidLoadControl: AndroidLoadControl(
+                maxBufferDuration: const Duration(seconds: 60),
+                targetBufferBytes: 50 * 1024 * 1024, // 50MB
+              ),
+            ),
+          );
 
   final AudioPlayer _player;
 
@@ -195,7 +201,13 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
   Future<void> play() => _player.play();
 
   @override
+  Future<void> playDirect() => _player.play();
+
+  @override
   Future<void> pause() => _player.pause();
+
+  @override
+  Future<void> pauseDirect() => _player.pause();
 
   @override
   Future<void> stop() => _player.stop();
@@ -232,6 +244,7 @@ class NativeAudioController {
   NativePlaybackMode _playbackMode = NativePlaybackMode.repeatAll;
   final math.Random _random = math.Random();
   bool _isQueueLoading = false;
+  bool _wantsPlayback = false;
   Timer? _persistTimer;
   late PlaybackQueueContext _currentContext;
 
@@ -299,6 +312,7 @@ class NativeAudioController {
   Future<bool> syncFromProbe(PlayerProbeSnapshot snapshot) async {
     await _restoreFuture;
     _syncQueue(snapshot);
+    _wantsPlayback = snapshot.playing;
     final String audioUrl = await _resolveAudioUrl(snapshot);
     if (audioUrl.isEmpty) {
       debugPrint(
@@ -317,10 +331,10 @@ class NativeAudioController {
       await _persistState(immediate: true);
     }
     if (snapshot.playing) {
-      await _player.play();
+      await _player.playDirect();
       debugPrint('[native-audio] playing ${snapshot.debugTitle}');
     } else {
-      await _player.pause();
+      await _player.pauseDirect();
       debugPrint('[native-audio] paused ${snapshot.debugTitle}');
     }
     return true;
@@ -333,12 +347,17 @@ class NativeAudioController {
 
   Future<bool> resumePlayback() async {
     await _restoreFuture;
+    _wantsPlayback = true;
+    if (_isQueueLoading) {
+      debugPrint('[native-audio] resume queued while track is loading');
+      return true;
+    }
     if (_loadedUrl.isNotEmpty) {
       final PlayerProbeSnapshot? snapshot = _loadedSnapshot;
       if (_player.processingState == ProcessingState.idle && snapshot != null) {
         await _player.loadFromSnapshot(_loadedUrl, snapshot);
       }
-      await _player.play();
+      await _player.playDirect();
       debugPrint(
         '[native-audio] resumed ${snapshot?.debugTitle ?? _loadedUrl}',
       );
@@ -359,11 +378,12 @@ class NativeAudioController {
 
   Future<bool> pausePlayback() async {
     await _restoreFuture;
+    _wantsPlayback = false;
     if (_loadedUrl.isEmpty && _currentIndex < 0) {
       debugPrint('[native-audio] pause ignored: no loaded track or queue');
       return false;
     }
-    await _player.pause();
+    await _player.pauseDirect();
     debugPrint(
       '[native-audio] paused ${_loadedSnapshot?.debugTitle ?? _loadedUrl}',
     );
@@ -403,7 +423,7 @@ class NativeAudioController {
       );
       return false;
     }
-    return _loadQueueIndex(index);
+    return _loadQueueIndex(index, playWhenReady: true);
   }
 
   Future<void> stop() async {
@@ -459,8 +479,9 @@ class NativeAudioController {
     // [_resolveViaSourceSwitch] instead.
     final String preferredBitrate = await getPreferredBitrate();
     try {
-      final FreeMusicResolvedUrl? resolved =
-          await _api.resolveSongUrl(song, bitrate: preferredBitrate).timeout(const Duration(seconds: 5));
+      final FreeMusicResolvedUrl? resolved = await _api
+          .resolveSongUrl(song, bitrate: preferredBitrate)
+          .timeout(const Duration(seconds: 5));
       final String url = resolved?.url ?? '';
       if (url.isNotEmpty) {
         debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
@@ -494,16 +515,15 @@ class NativeAudioController {
         continue;
       }
       try {
-        final FreeMusicSourceSwitch? matched = await _api.switchSource(
-          song,
-          target: target,
-        ).timeout(const Duration(seconds: 5));
+        final FreeMusicSourceSwitch? matched = await _api
+            .switchSource(song, target: target)
+            .timeout(const Duration(seconds: 5));
         if (matched == null) {
           continue;
         }
-        final FreeMusicResolvedUrl? resolved = await _api.resolveSongUrl(
-          matched.song,
-        ).timeout(const Duration(seconds: 5));
+        final FreeMusicResolvedUrl? resolved = await _api
+            .resolveSongUrl(matched.song)
+            .timeout(const Duration(seconds: 5));
         final String url = resolved?.url ?? '';
         if (url.isNotEmpty) {
           debugPrint(
@@ -529,7 +549,9 @@ class NativeAudioController {
     }
     List<String> sources;
     try {
-      final FreeMusicSources fetched = await _api.fetchSources().timeout(const Duration(seconds: 5));
+      final FreeMusicSources fetched = await _api.fetchSources().timeout(
+        const Duration(seconds: 5),
+      );
       sources = fetched.allSources.isNotEmpty
           ? fetched.allSources
           : _fallbackSources;
@@ -582,7 +604,10 @@ class NativeAudioController {
       );
       return false;
     }
-    return _loadQueueIndex(targetIndex);
+    return _loadQueueIndex(
+      targetIndex,
+      playWhenReady: _wantsPlayback || _player.playing,
+    );
   }
 
   int _targetIndexForOffset(int offset) {
@@ -637,11 +662,12 @@ class NativeAudioController {
     }
   }
 
-  Future<bool> _loadQueueIndex(int index) async {
-    if (_isQueueLoading) {
-      debugPrint('[native-audio] skip operation busy, ignored');
+  Future<bool> _loadQueueIndex(int index, {bool? playWhenReady}) async {
+    if (!await _waitForQueueLoadSlot()) {
+      debugPrint('[native-audio] queue load timed out before index=$index');
       return false;
     }
+    _wantsPlayback = playWhenReady ?? _wantsPlayback;
     _isQueueLoading = true;
     try {
       final FreeMusicSong song = _playlist[index];
@@ -665,7 +691,9 @@ class NativeAudioController {
       String audioUrl = '';
       if (_preloadedNextIndex == index && _preloadedNextUrl != null) {
         audioUrl = _preloadedNextUrl!;
-        debugPrint('[native-audio] using preloaded URL for ${snapshot.debugTitle}');
+        debugPrint(
+          '[native-audio] using preloaded URL for ${snapshot.debugTitle}',
+        );
         _preloadedNextUrl = null;
         _preloadedNextIndex = null;
       } else {
@@ -684,18 +712,26 @@ class NativeAudioController {
         await _fadeOut(const Duration(milliseconds: 250));
       }
 
-      await _player.setVolume(0.0);
+      await _player.setVolume(_wantsPlayback ? 0.0 : 1.0);
 
       _currentIndex = index;
       _updatePlaybackContext();
       _loadedUrl = audioUrl;
       _loadedSnapshot = snapshot;
       await _player.loadFromSnapshot(audioUrl, snapshot);
-      await _player.play();
+      if (_wantsPlayback) {
+        await _player.playDirect();
+      } else {
+        await _player.pauseDirect();
+      }
       await _persistState(immediate: true);
       debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
 
-      await _fadeIn(const Duration(milliseconds: 250));
+      if (_wantsPlayback) {
+        await _fadeIn(const Duration(milliseconds: 250));
+      } else {
+        await _player.setVolume(1.0);
+      }
 
       // 预加载下一首歌曲的 URL
       unawaited(_preloadNextSong());
@@ -704,6 +740,20 @@ class NativeAudioController {
     } finally {
       _isQueueLoading = false;
     }
+  }
+
+  Future<bool> _waitForQueueLoadSlot() async {
+    if (!_isQueueLoading) {
+      return true;
+    }
+    debugPrint('[native-audio] queue operation busy, waiting');
+    for (int attempt = 0; attempt < 80; attempt += 1) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (!_isQueueLoading) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// 预加载下一首歌曲的 URL，减少切歌延迟

@@ -3,6 +3,48 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-11 - Android Playback Button And Media Session Control Fix
+
+Implemented in this increment:
+
+- Reproduced the bottom mini-player controls and lock-screen media controls on a
+  connected Android device (`V2284A`) via ADB.
+- Fixed play/pause recursion between `MusicAudioHandler` and
+  `NativeAudioController` by adding direct player control methods for internal
+  controller operations.
+- Made pause requests win over an in-flight track load, so tapping pause during
+  a slow previous/next resolve no longer gets overwritten by the later
+  `play()` call.
+- Changed queued previous/next operations to wait briefly for the current queue
+  load instead of being dropped immediately as "busy".
+- Added a guard around app-initiated repeat/shuffle media-session sync so the
+  loop-mode button no longer flips through two local modes from one tap.
+- Used the injected CarPlay service dependencies in the generated templates,
+  clearing the existing analyzer warnings.
+
+ADB evidence in this increment:
+
+- `adb devices -l` showed the physical device connected.
+- `dumpsys media_session` showed the app media session active but still reporting
+  `PLAYING` after pause commands on the installed build.
+- ADB taps on the bottom controls reproduced pause being accepted in logs and
+  then overwritten when the in-flight skip completed.
+- `dumpsys gfxinfo com.sy110.music_car_app` showed high input latency and janky
+  frames on the installed build, so UI responsiveness still needs post-fix
+  device validation.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart lib/native_audio_controller.dart lib/main.dart lib/services/carplay_service.dart test/music_audio_handler_test.dart test/native_audio_controller_test.dart`
+- `flutter test test/music_audio_handler_test.dart`
+- `flutter test test/native_audio_controller_test.dart`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-10 - Lyric Highlight Lead Timing
 
 Implemented in this increment:

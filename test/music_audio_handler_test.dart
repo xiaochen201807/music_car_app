@@ -47,8 +47,18 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> pauseDirect() async {
+    await pause();
+  }
+
+  @override
   Future<void> play() async {
     isPlaying = true;
+  }
+
+  @override
+  Future<void> playDirect() async {
+    await play();
   }
 
   double volume = 1.0;
@@ -285,6 +295,25 @@ void main() {
       await handler.dispose();
     },
   );
+
+  test('pause callback can pause the same handler without recursion', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+      ..isPlaying = true;
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+    int callbackCalls = 0;
+    handler.onPauseTrack = () async {
+      callbackCalls += 1;
+      await handler.pause();
+    };
+
+    await handler.pause();
+
+    expect(callbackCalls, 1);
+    expect(player.isPlaying, isFalse);
+    expect(handler.playbackState.value.playing, isFalse);
+
+    await handler.dispose();
+  });
 
   test('fastForward and rewind seek within track bounds', () async {
     final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();

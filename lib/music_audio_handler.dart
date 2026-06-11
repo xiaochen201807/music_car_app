@@ -70,6 +70,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> Function(AudioServiceRepeatMode repeatMode)? onSetRepeatMode;
   Future<void> Function(AudioServiceShuffleMode shuffleMode)? onSetShuffleMode;
   bool _handlingPlayCallback = false;
+  bool _handlingPauseCallback = false;
   bool _autoSkippingToNext = false; // 操作级防重入：await 完成后释放
   int? _activeQueueIndex;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
@@ -147,26 +148,47 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       try {
         final bool handled = await onPlayTrack!.call();
         if (handled) {
+          _broadcastPlaybackState(_player.playbackEvent);
           return;
         }
       } catch (error) {
         debugPrint('[audio-handler] onPlayTrack failed: $error');
-        return;
       } finally {
         _handlingPlayCallback = false;
       }
     }
+    await playDirect();
+  }
+
+  @override
+  Future<void> playDirect() async {
     await _player.play();
+    _broadcastPlaybackState(_player.playbackEvent);
   }
 
   @override
   Future<void> pause() async {
     _resetPlaybackStallMonitor();
-    if (onPauseTrack != null) {
-      await onPauseTrack!.call();
-    } else {
-      await _player.pause();
+    if (!_handlingPauseCallback && onPauseTrack != null) {
+      _handlingPauseCallback = true;
+      try {
+        await onPauseTrack!.call();
+        _broadcastPlaybackState(_player.playbackEvent);
+        return;
+      } catch (error) {
+        debugPrint('[audio-handler] onPauseTrack failed: $error');
+      } finally {
+        _handlingPauseCallback = false;
+      }
     }
+    await pauseDirect();
+  }
+
+  @override
+  Future<void> pauseDirect() async {
+    _resetPlaybackStallMonitor();
+    await _player.pause();
+    _broadcastPlaybackState(_player.playbackEvent);
   }
 
   @override
@@ -205,12 +227,24 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @override
   Future<void> skipToNext() async {
-    await onSkipToNextTrack?.call();
+    try {
+      await onSkipToNextTrack?.call();
+    } catch (error) {
+      debugPrint('[audio-handler] onSkipToNextTrack failed: $error');
+    } finally {
+      _broadcastPlaybackState(_player.playbackEvent);
+    }
   }
 
   @override
   Future<void> skipToPrevious() async {
-    await onSkipToPreviousTrack?.call();
+    try {
+      await onSkipToPreviousTrack?.call();
+    } catch (error) {
+      debugPrint('[audio-handler] onSkipToPreviousTrack failed: $error');
+    } finally {
+      _broadcastPlaybackState(_player.playbackEvent);
+    }
   }
 
   @override
