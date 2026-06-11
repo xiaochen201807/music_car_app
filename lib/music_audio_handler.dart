@@ -63,6 +63,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   late final Timer _stallTimer;
   Timer? _continuousSeekTimer;
   Future<bool> Function()? onPlayTrack;
+  Future<void> Function()? onPauseTrack;
   Future<bool> Function()? onSkipToNextTrack;
   Future<bool> Function()? onSkipToPreviousTrack;
   Future<void> Function(int index)? onSkipToQueueItem;
@@ -161,7 +162,11 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   @override
   Future<void> pause() async {
     _resetPlaybackStallMonitor();
-    await _player.pause();
+    if (onPauseTrack != null) {
+      await onPauseTrack!.call();
+    } else {
+      await _player.pause();
+    }
   }
 
   @override

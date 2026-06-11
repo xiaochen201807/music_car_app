@@ -282,6 +282,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       downloadService: _downloadService,
     );
     widget.audioHandler?.onPlayTrack = _resumeNativePlayback;
+    widget.audioHandler?.onPauseTrack = _pauseNativePlayback;
     widget.audioHandler?.onSkipToNextTrack = _skipToNextTrack;
     widget.audioHandler?.onSkipToPreviousTrack = _skipToPreviousTrack;
     widget.audioHandler?.onSkipToQueueItem = _skipToQueueItem;
@@ -317,6 +318,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     if (widget.audioHandler?.onPlayTrack == _resumeNativePlayback) {
       widget.audioHandler?.onPlayTrack = null;
+    }
+    if (widget.audioHandler?.onPauseTrack == _pauseNativePlayback) {
+      widget.audioHandler?.onPauseTrack = null;
     }
     if (widget.audioHandler?.onSkipToQueueItem == _skipToQueueItem) {
       widget.audioHandler?.onSkipToQueueItem = null;
@@ -393,6 +397,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     // 无 setState 操作，不需要全局锁；NativeAudioController 内部自有并发控制
     final bool handled = await _nativeAudioController.resumePlayback();
     return handled;
+  }
+
+  Future<void> _pauseNativePlayback() async {
+    await _nativeAudioController.pausePlayback();
   }
 
   Future<bool> _skipToNextTrack() async {
