@@ -312,38 +312,36 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                     // 禁用 BackdropFilter 以降低 GPU 渲染压力
                     GlassPerformanceMode(
                       enabled: true,
-                      child: SliverToBoxAdapter(
-                        child: Column(
-                          children: List<Widget>.generate(
-                            widget.favoriteSongs.length,
-                            (int index) {
-                              final FreeMusicSong song = widget.favoriteSongs[index];
-                              final Widget songTile = _isBatchMode
-                                  ? _buildBatchTile(song, index)
-                                  : PortraitSongTile(
-                                      song: song,
-                                      visual: demoQueue[index % demoQueue.length],
-                                      favorite: widget.favoriteSongKeys.contains(
-                                        favoriteSongKey(song),
-                                      ),
-                                      downloaded: widget.downloadedSongKeys.contains(
-                                        '${song.source}_${song.id}',
-                                      ),
-                                      onPlay: () => widget.onPlayFavorite(index),
-                                      onAddToQueue: null,
-                                      onToggleFavorite: () => widget.onToggleFavorite(song),
-                                      onDownload: () => widget.onDownload(song),
-                                      onDeleteCache: () => widget.onDeleteCache(song),
-                                    );
-                              // 仅前 6 项启用入场动画
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                                child: index < 6
-                                    ? StaggeredAnimatedItem(index: index, child: songTile)
-                                    : songTile,
-                              );
-                            },
-                          ),
+                      child: Column(
+                        children: List<Widget>.generate(
+                          widget.favoriteSongs.length,
+                          (int index) {
+                            final FreeMusicSong song = widget.favoriteSongs[index];
+                            final Widget songTile = _isBatchMode
+                                ? _buildBatchTile(song, index)
+                                : PortraitSongTile(
+                                    song: song,
+                                    visual: demoQueue[index % demoQueue.length],
+                                    favorite: widget.favoriteSongKeys.contains(
+                                      favoriteSongKey(song),
+                                    ),
+                                    downloaded: widget.downloadedSongKeys.contains(
+                                      '${song.source}_${song.id}',
+                                    ),
+                                    onPlay: () => widget.onPlayFavorite(index),
+                                    onAddToQueue: null,
+                                    onToggleFavorite: () => widget.onToggleFavorite(song),
+                                    onDownload: () => widget.onDownload(song),
+                                    onDeleteCache: () => widget.onDeleteCache(song),
+                                  );
+                            // 仅前 6 项启用入场动画
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                              child: index < 6
+                                  ? StaggeredAnimatedItem(index: index, child: songTile)
+                                  : songTile,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -362,35 +360,33 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                     // 禁用 BackdropFilter 以降低 GPU 渲染压力
                     GlassPerformanceMode(
                       enabled: true,
-                      child: SliverToBoxAdapter(
-                        child: Column(
-                          children: List<Widget>.generate(
-                            widget.downloadedSongs.length,
-                            (int index) {
-                              final FreeMusicSong song = widget.downloadedSongs[index];
-                              final Widget songTile = _isBatchMode
-                                  ? _buildBatchTile(song, index)
-                                  : PortraitSongTile(
-                                      song: song,
-                                      visual: demoQueue[index % demoQueue.length],
-                                      favorite: widget.favoriteSongKeys.contains(
-                                        favoriteSongKey(song),
-                                      ),
-                                      downloaded: true,
-                                      onPlay: () => widget.onPlayDownloaded(index),
-                                      onAddToQueue: null,
-                                      onToggleFavorite: () => widget.onToggleFavorite(song),
-                                      onDeleteCache: () => widget.onDeleteCache(song),
-                                    );
-                              // 仅前 6 项启用入场动画
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                                child: index < 6
-                                    ? StaggeredAnimatedItem(index: index, child: songTile)
-                                    : songTile,
-                              );
-                            },
-                          ),
+                      child: Column(
+                        children: List<Widget>.generate(
+                          widget.downloadedSongs.length,
+                          (int index) {
+                            final FreeMusicSong song = widget.downloadedSongs[index];
+                            final Widget songTile = _isBatchMode
+                                ? _buildBatchTile(song, index)
+                                : PortraitSongTile(
+                                    song: song,
+                                    visual: demoQueue[index % demoQueue.length],
+                                    favorite: widget.favoriteSongKeys.contains(
+                                      favoriteSongKey(song),
+                                    ),
+                                    downloaded: true,
+                                    onPlay: () => widget.onPlayDownloaded(index),
+                                    onAddToQueue: null,
+                                    onToggleFavorite: () => widget.onToggleFavorite(song),
+                                    onDeleteCache: () => widget.onDeleteCache(song),
+                                  );
+                            // 仅前 6 项启用入场动画
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                              child: index < 6
+                                  ? StaggeredAnimatedItem(index: index, child: songTile)
+                                  : songTile,
+                            );
+                          },
                         ),
                       ),
                     ),

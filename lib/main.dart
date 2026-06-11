@@ -800,7 +800,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         return;
       }
       setState(() {
-        _recommendationError = '推荐加载失败：$error';
+        final String msg = error.toString();
+        if (msg.contains('TimeoutException') || msg.contains('timeout')) {
+          _recommendationError = '推荐加载超时，请检查网络后重试';
+        } else {
+          _recommendationError = '推荐加载失败：$error';
+        }
         _isLoadingRecommendations = false;
       });
     }
@@ -999,13 +1004,13 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     final int oldIndex = _selectedQueueIndex;
     final List<FreeMusicSong> oldQueue = _playbackQueue;
 
-    setState(() {
-      _playbackQueue = List<FreeMusicSong>.unmodifiable(songs);
-      _selectedQueueIndex = index;
-      _currentSong = song;
-    });
-
     try {
+      setState(() {
+        _playbackQueue = List<FreeMusicSong>.unmodifiable(songs);
+        _selectedQueueIndex = index;
+        _currentSong = song;
+      });
+
       final bool handled = await _nativeAudioController.syncFromProbe(
         PlayerProbeSnapshot(
           audioUrl: '',
@@ -1067,12 +1072,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     final int oldIndex = _selectedQueueIndex;
     final FreeMusicSong targetSong = _playbackQueue[index];
 
-    setState(() {
-      _selectedQueueIndex = index;
-      _currentSong = targetSong;
-    });
-
     try {
+      setState(() {
+        _selectedQueueIndex = index;
+        _currentSong = targetSong;
+      });
+
       final bool handled = await _nativeAudioController.skipToQueueIndex(index);
       if (!mounted) {
         return false;
