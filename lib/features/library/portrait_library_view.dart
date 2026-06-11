@@ -240,12 +240,13 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
     final Widget mainContent = SafeArea(
       child: CustomScrollView(
         slivers: <Widget>[
+          // 顶部标题栏 + Tab 切换
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
               AppSpace.xl,
               AppSpace.lg,
               AppSpace.xl,
-              0,
+              AppSpace.xl,
             ),
             sliver: SliverList.list(
               children: <Widget>[
@@ -296,110 +297,138 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                     },
                   ),
                 ),
-                const SizedBox(height: AppSpace.xl),
-                if (_selectedSubTab == 0) ...<Widget>[
-                  const PortraitSectionHeader(
-                    title: '收藏',
-                  ),
-                  const SizedBox(height: AppSpace.md),
-                  if (widget.favoriteSongs.isEmpty)
-                    const PortraitMessageCard(
-                      icon: Icons.favorite_border_rounded,
-                      title: '还没有收藏',
-                      message: '在搜索、歌单或播放器点红心即可收藏。',
-                    )
-                  else
-                    // 禁用 BackdropFilter 以降低 GPU 渲染压力
-                    GlassPerformanceMode(
-                      enabled: true,
-                      child: Column(
-                        children: List<Widget>.generate(
-                          widget.favoriteSongs.length,
-                          (int index) {
-                            final FreeMusicSong song = widget.favoriteSongs[index];
-                            final Widget songTile = _isBatchMode
-                                ? _buildBatchTile(song, index)
-                                : PortraitSongTile(
-                                    song: song,
-                                    visual: demoQueue[index % demoQueue.length],
-                                    favorite: widget.favoriteSongKeys.contains(
-                                      favoriteSongKey(song),
-                                    ),
-                                    downloaded: widget.downloadedSongKeys.contains(
-                                      '${song.source}_${song.id}',
-                                    ),
-                                    onPlay: () => widget.onPlayFavorite(index),
-                                    onAddToQueue: null,
-                                    onToggleFavorite: () => widget.onToggleFavorite(song),
-                                    onDownload: () => widget.onDownload(song),
-                                    onDeleteCache: () => widget.onDeleteCache(song),
-                                  );
-                            // 仅前 6 项启用入场动画
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                              child: index < 6
-                                  ? StaggeredAnimatedItem(index: index, child: songTile)
-                                  : songTile,
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                ] else ...<Widget>[
-                  PortraitSectionHeader(
-                    title: '离线下载',
-                  ),
-                  const SizedBox(height: AppSpace.md),
-                  if (widget.downloadedSongs.isEmpty)
-                    const PortraitMessageCard(
-                      icon: Icons.download_done_rounded,
-                      title: '暂无离线歌曲',
-                      message: '在搜索或收藏列表中点击操作菜单可以“下载到本地”。',
-                    )
-                  else
-                    // 禁用 BackdropFilter 以降低 GPU 渲染压力
-                    GlassPerformanceMode(
-                      enabled: true,
-                      child: Column(
-                        children: List<Widget>.generate(
-                          widget.downloadedSongs.length,
-                          (int index) {
-                            final FreeMusicSong song = widget.downloadedSongs[index];
-                            final Widget songTile = _isBatchMode
-                                ? _buildBatchTile(song, index)
-                                : PortraitSongTile(
-                                    song: song,
-                                    visual: demoQueue[index % demoQueue.length],
-                                    favorite: widget.favoriteSongKeys.contains(
-                                      favoriteSongKey(song),
-                                    ),
-                                    downloaded: true,
-                                    onPlay: () => widget.onPlayDownloaded(index),
-                                    onAddToQueue: null,
-                                    onToggleFavorite: () => widget.onToggleFavorite(song),
-                                    onDeleteCache: () => widget.onDeleteCache(song),
-                                  );
-                            // 仅前 6 项启用入场动画
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                              child: index < 6
-                                  ? StaggeredAnimatedItem(index: index, child: songTile)
-                                  : songTile,
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                ],
-                const SizedBox(height: AppSpace.xl2),
-                PortraitSectionHeader(
-                  title: '当前队列',
-                  label: widget.queueSongs.isEmpty ? '空' : null,
-                ),
-                const SizedBox(height: AppSpace.md),
               ],
             ),
           ),
+          // 收藏列表（懒加载）
+          if (_selectedSubTab == 0) ...<Widget>[
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
+              sliver: SliverToBoxAdapter(
+                child: PortraitSectionHeader(title: '收藏'),
+              ),
+            ),
+            if (widget.favoriteSongs.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                sliver: SliverToBoxAdapter(
+                  child: const PortraitMessageCard(
+                    icon: Icons.favorite_border_rounded,
+                    title: '还没有收藏',
+                    message: '在搜索、歌单或播放器点红心即可收藏。',
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                sliver: GlassPerformanceMode(
+                  enabled: true,
+                  child: SliverList.builder(
+                    itemCount: widget.favoriteSongs.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      final FreeMusicSong song = widget.favoriteSongs[index];
+                      final Widget songTile = _isBatchMode
+                          ? _buildBatchTile(song, index)
+                          : PortraitSongTile(
+                              song: song,
+                              visual: demoQueue[index % demoQueue.length],
+                              favorite: widget.favoriteSongKeys.contains(
+                                favoriteSongKey(song),
+                              ),
+                              downloaded: widget.downloadedSongKeys.contains(
+                                '${song.source}_${song.id}',
+                              ),
+                              onPlay: () => widget.onPlayFavorite(index),
+                              onAddToQueue: null,
+                              onToggleFavorite: () => widget.onToggleFavorite(song),
+                              onDownload: () => widget.onDownload(song),
+                              onDeleteCache: () => widget.onDeleteCache(song),
+                            );
+                      // 仅前 6 项启用入场动画
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: index < 6
+                            ? StaggeredAnimatedItem(index: index, child: songTile)
+                            : songTile,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpace.xl2)),
+          ]
+          // 离线下载列表（懒加载）
+          else ...<Widget>[
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
+              sliver: SliverToBoxAdapter(
+                child: PortraitSectionHeader(title: '离线下载'),
+              ),
+            ),
+            if (widget.downloadedSongs.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                sliver: SliverToBoxAdapter(
+                  child: const PortraitMessageCard(
+                    icon: Icons.download_done_rounded,
+                    title: '暂无离线歌曲',
+                    message: '在搜索或收藏列表中点击操作菜单可以"下载到本地"。',
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                sliver: GlassPerformanceMode(
+                  enabled: true,
+                  child: SliverList.builder(
+                    itemCount: widget.downloadedSongs.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      final FreeMusicSong song = widget.downloadedSongs[index];
+                      final Widget songTile = _isBatchMode
+                          ? _buildBatchTile(song, index)
+                          : PortraitSongTile(
+                              song: song,
+                              visual: demoQueue[index % demoQueue.length],
+                              favorite: widget.favoriteSongKeys.contains(
+                                favoriteSongKey(song),
+                              ),
+                              downloaded: true,
+                              onPlay: () => widget.onPlayDownloaded(index),
+                              onAddToQueue: null,
+                              onToggleFavorite: () => widget.onToggleFavorite(song),
+                              onDeleteCache: () => widget.onDeleteCache(song),
+                            );
+                      // 仅前 6 项启用入场动画
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: index < 6
+                            ? StaggeredAnimatedItem(index: index, child: songTile)
+                            : songTile,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpace.xl2)),
+          ],
+          // 当前队列标题
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              0,
+              AppSpace.xl,
+              AppSpace.md,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: PortraitSectionHeader(
+                title: '当前队列',
+                label: widget.queueSongs.isEmpty ? '空' : null,
+              ),
+            ),
+          ),
+          // 当前队列列表
           if (widget.queueSongs.isEmpty)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -536,38 +565,25 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                                 _exitBatchMode();
                               },
                       ),
-                      IconButton(
-                        tooltip: '批量下载',
-                        icon: Icon(Icons.download_rounded, color: colors.primary),
-                        onPressed: _selectedSongs.isEmpty
-                            ? null
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                for (final FreeMusicSong song in _selectedSongs) {
-                                  if (!widget.downloadedSongKeys.contains(
-                                    '${song.source}_${song.id}',
-                                  )) {
-                                    widget.onDownload(song);
-                                  }
-                                }
-                                _exitBatchMode();
-                              },
-                      ),
-                    ] else ...<Widget>[
-                      IconButton(
-                        tooltip: '批量删除本地缓存',
-                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                        onPressed: _selectedSongs.isEmpty
-                            ? null
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                for (final FreeMusicSong song in _selectedSongs) {
-                                  widget.onDeleteCache(song);
-                                }
-                                _exitBatchMode();
-                              },
-                      ),
                     ],
+                    IconButton(
+                      tooltip: '批量下载',
+                      icon: const Icon(Icons.download_rounded),
+                      onPressed: _selectedSongs.isEmpty
+                          ? null
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              for (final FreeMusicSong song in _selectedSongs) {
+                                widget.onDownload(song);
+                              }
+                              _exitBatchMode();
+                            },
+                    ),
+                    IconButton(
+                      tooltip: '关闭',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: _exitBatchMode,
+                    ),
                   ],
                 ),
               ),
