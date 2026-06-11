@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:audio_service/audio_service.dart';
 
@@ -32,10 +34,45 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
   bool _reducePageMotionEffects = false;
   int _lastRegularTab = 0;
 
+  StreamSubscription<PlaybackState>? _playbackStateSub;
+  StreamSubscription<MediaItem?>? _mediaItemSub;
+  final StreamController<PlaybackUiState> _playbackUiStateController =
+      StreamController<PlaybackUiState>.broadcast();
+  AudioHandler? _lastAudioHandler;
+
+  void _initPlaybackUiStateStream(AudioHandler? audioHandler) {
+    _playbackStateSub?.cancel();
+    _mediaItemSub?.cancel();
+    if (audioHandler == null) {
+      return;
+    }
+    _playbackStateSub = audioHandler.playbackState.listen((PlaybackState state) {
+      _emitLatestState(audioHandler);
+    });
+    _mediaItemSub = audioHandler.mediaItem.listen((MediaItem? item) {
+      _emitLatestState(audioHandler);
+    });
+    _emitLatestState(audioHandler);
+  }
+
+  void _emitLatestState(AudioHandler audioHandler) {
+    if (_playbackUiStateController.isClosed) return;
+    final PlaybackState playbackState = audioHandler.playbackState.valueOrNull ?? PlaybackState();
+    final MediaItem? mediaItem = audioHandler.mediaItem.valueOrNull;
+    final PlaybackUiState uiState = PlaybackUiState.fromAudioService(playbackState, mediaItem);
+    _playbackUiStateController.add(uiState);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final NativeMusicHomePageState appState = MusicAppStateScope.of(context);
+    
+    if (appState.widget.audioHandler != _lastAudioHandler) {
+      _lastAudioHandler = appState.widget.audioHandler;
+      _initPlaybackUiStateStream(_lastAudioHandler);
+    }
+    
     final int selectedTab = appState.selectedTab;
     if (_isRegularTab(selectedTab)) {
       _lastRegularTab = selectedTab;
@@ -48,31 +85,27 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
   @override
   void dispose() {
     _pageController?.dispose();
+    _playbackStateSub?.cancel();
+    _mediaItemSub?.cancel();
+    _playbackUiStateController.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final NativeMusicHomePageState appState = MusicAppStateScope.of(context);
+    final AudioHandler? audioHandler = appState.widget.audioHandler;
+    final PlaybackUiState initialUiState = PlaybackUiState.fromAudioService(
+      audioHandler?.playbackState.valueOrNull,
+      audioHandler?.mediaItem.valueOrNull,
+    );
 
-    // 内部直接订阅 audioHandler 上的流，包装出 PlaybackUiState
-    return StreamBuilder<PlaybackState>(
-      stream: appState.widget.audioHandler?.playbackState,
-      initialData: appState.widget.audioHandler?.playbackState.valueOrNull,
-      builder: (BuildContext context, AsyncSnapshot<PlaybackState> snapshot) {
-        return StreamBuilder<MediaItem?>(
-          stream: appState.widget.audioHandler?.mediaItem,
-          initialData: appState.widget.audioHandler?.mediaItem.valueOrNull,
-          builder:
-              (BuildContext context, AsyncSnapshot<MediaItem?> itemSnapshot) {
-                final PlaybackUiState playbackState =
-                    PlaybackUiState.fromAudioService(
-                      snapshot.data,
-                      itemSnapshot.data,
-                    );
-                return _buildScaffold(context, appState, playbackState);
-              },
-        );
+    return StreamBuilder<PlaybackUiState>(
+      stream: _playbackUiStateController.stream,
+      initialData: initialUiState,
+      builder: (BuildContext context, AsyncSnapshot<PlaybackUiState> snapshot) {
+        final PlaybackUiState playbackState = snapshot.data ?? initialUiState;
+        return _buildScaffold(context, appState, playbackState);
       },
     );
   }
@@ -383,12 +416,15 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       themeMode: appState.widget.themeMode,
       preferredBitrate: appState.preferredBitrate,
       updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
+      carLifeStatus: appState.carLifeStatus,
+      carLifeSyncing: appState.isSyncingCarLife,
       onThemeModeChanged:
           appState.widget.onThemeModeChanged ?? (ThemeMode mode) {},
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
       onCheckUpdate: () => appState.checkForUpdate(),
       onOpenDownloads: () => appState.openDownloads(),
+      onSyncCarLife: () => appState.syncCarLifeManually(),
     );
   }
 
@@ -424,6 +460,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onSeek: (Duration position) => appState.seekPlayback(position),
       onPrevious: () => appState.skipToPreviousTrack(),
       onNext: () => appState.skipToNextTrack(),
+      onRetryLyrics: appState.retryLyricsForCurrentSong,
     );
   }
 }

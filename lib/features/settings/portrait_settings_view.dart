@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../services/carlife_service.dart';
 import '../../theme/design_tokens.dart';
 import '../../shared/portrait_surface.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/portrait_segmented_tab.dart';
+import '../../widgets/luxury_loading_indicator.dart';
 
 class PortraitSettingsView extends StatelessWidget {
   const PortraitSettingsView({
@@ -11,19 +13,25 @@ class PortraitSettingsView extends StatelessWidget {
     required this.themeMode,
     required this.preferredBitrate,
     required this.updateBusy,
+    required this.carLifeStatus,
+    required this.carLifeSyncing,
     required this.onThemeModeChanged,
     required this.onPreferredBitrateChanged,
     required this.onCheckUpdate,
     required this.onOpenDownloads,
+    required this.onSyncCarLife,
   });
 
   final ThemeMode themeMode;
   final String preferredBitrate;
   final bool updateBusy;
+  final CarLifeStatus carLifeStatus;
+  final bool carLifeSyncing;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<String> onPreferredBitrateChanged;
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
+  final VoidCallback onSyncCarLife;
 
   @override
   Widget build(BuildContext context) {
@@ -167,6 +175,103 @@ class PortraitSettingsView extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+          PortraitSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('百度 CarLife 车机同步', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  '支持将歌名、歌手名、播放进度与当前队列同步至车机，让出行播放更加无缝智能。',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurface.withValues(alpha: 0.8),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Icon(
+                                carLifeStatus.available
+                                    ? Icons.link_rounded
+                                    : Icons.link_off_rounded,
+                                size: 16,
+                                color: carLifeStatus.available
+                                    ? Colors.green
+                                    : colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: AppSpace.xs),
+                              Text(
+                                carLifeStatus.available ? '连接状态：已连接车机' : '连接状态：未连接',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: carLifeStatus.available
+                                      ? Colors.green
+                                      : colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpace.xs),
+                          Text(
+                            '状态详情：${carLifeStatus.reason}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.md),
+                    GlassPill(
+                      onTap: carLifeSyncing
+                          ? null
+                          : () {
+                              HapticFeedback.lightImpact();
+                              onSyncCarLife();
+                            },
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md,
+                      ),
+                      child: Center(
+                        widthFactor: 1.0,
+                        heightFactor: 1.0,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: <Widget>[
+                            if (carLifeSyncing)
+                              LuxuryLoadingIndicator(size: 14)
+                            else
+                              Icon(
+                                Icons.sync_rounded,
+                                size: 18,
+                                color: colors.primary,
+                              ),
+                            const SizedBox(width: AppSpace.xs),
+                            Text(
+                              carLifeSyncing ? '同步中' : '手动同步',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: colors.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -632,11 +632,6 @@ class NativeAudioController {
         return false;
       }
 
-      final bool wasPlaying = _player.playing;
-      if (wasPlaying) {
-        await _fadeOut(const Duration(milliseconds: 250));
-      }
-
       final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
         audioUrl: '',
         playing: true,
@@ -653,10 +648,12 @@ class NativeAudioController {
         debugPrint(
           '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
         );
-        if (wasPlaying) {
-          await _player.setVolume(1.0);
-        }
         return false;
+      }
+
+      final bool wasPlaying = _player.playing;
+      if (wasPlaying) {
+        await _fadeOut(const Duration(milliseconds: 250));
       }
 
       await _player.setVolume(0.0);

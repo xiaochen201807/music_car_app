@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
@@ -66,6 +67,7 @@ class PortraitPlayerView extends StatelessWidget {
     required this.onSeek,
     required this.onPrevious,
     required this.onNext,
+    required this.onRetryLyrics,
   });
 
   final FreeMusicSong? currentSong;
@@ -89,6 +91,7 @@ class PortraitPlayerView extends StatelessWidget {
   final ValueChanged<Duration> onSeek;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback? onRetryLyrics;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +123,7 @@ class PortraitPlayerView extends StatelessWidget {
         return false;
       },
       child: TweenAnimationBuilder<Color?>(
-        duration: const Duration(milliseconds: 1500),
+        duration: const Duration(milliseconds: 600),
         curve: Curves.easeInOut,
         tween: ColorTween(end: coverSeedColor),
         builder:
@@ -276,6 +279,7 @@ class PortraitPlayerView extends StatelessWidget {
                       lyricsBusy: lyricsBusy,
                       lyricsError: lyricsError,
                       onSeek: onSeek,
+                      onRetry: onRetryLyrics,
                     ),
                     const SizedBox(height: AppSpace.xl2),
                     Padding(
@@ -830,6 +834,7 @@ class PlayerLyricsView extends StatefulWidget {
     required this.lyricsBusy,
     required this.lyricsError,
     this.onSeek,
+    this.onRetry,
   });
 
   final FreeMusicLyrics? lyrics;
@@ -838,12 +843,14 @@ class PlayerLyricsView extends StatefulWidget {
   final bool lyricsBusy;
   final String lyricsError;
   final ValueChanged<Duration>? onSeek;
+  final VoidCallback? onRetry;
 
   @override
   State<PlayerLyricsView> createState() => _PlayerLyricsViewState();
 }
 
-class _PlayerLyricsViewState extends State<PlayerLyricsView> {
+class _PlayerLyricsViewState extends State<PlayerLyricsView>
+    with SingleTickerProviderStateMixin {
   static const double _lyricLineHeight = 48.0;
 
   final ScrollController _scrollController = ScrollController();
@@ -853,7 +860,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   Timer? _userScrollTimer;
 
   late Duration _currentPosition;
-  Timer? _lyricProgressTimer;
+  Ticker? _ticker;
   DateTime? _lastTickTime;
 
   @override
@@ -861,7 +868,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     super.initState();
     _scrollController.addListener(_handleScroll);
     _currentPosition = widget.position;
-    _updateTimer();
+    _updateTicker();
   }
 
   @override
@@ -869,7 +876,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     super.didUpdateWidget(oldWidget);
     if (widget.position != oldWidget.position || widget.playing != oldWidget.playing) {
       _currentPosition = widget.position;
-      _updateTimer();
+      _updateTicker();
     }
 
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
@@ -891,18 +898,20 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _userScrollTimer?.cancel();
-    _lyricProgressTimer?.cancel();
+    _ticker?.stop();
+    _ticker?.dispose();
     super.dispose();
   }
 
-  void _updateTimer() {
-    _lyricProgressTimer?.cancel();
-    _lyricProgressTimer = null;
+  void _updateTicker() {
+    _ticker?.stop();
+    _ticker?.dispose();
+    _ticker = null;
     _lastTickTime = null;
 
     if (widget.playing) {
       _lastTickTime = DateTime.now();
-      _lyricProgressTimer = Timer.periodic(const Duration(milliseconds: 100), (Timer timer) {
+      _ticker = createTicker((Duration elapsed) {
         if (!mounted) return;
         final DateTime now = DateTime.now();
         final Duration delta = _lastTickTime != null ? now.difference(_lastTickTime!) : Duration.zero;
@@ -925,6 +934,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
           }
         }
       });
+      _ticker!.start();
     }
   }
 
@@ -1076,9 +1086,24 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
       return SizedBox(
         height: 120,
         child: Center(
-          child: Text(
-            '歌词加载失败',
-            style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                '歌词加载失败',
+                style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              TextButton.icon(
+                onPressed: widget.onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('重试'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -1317,62 +1342,62 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: <Widget>[
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 460),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            final Animation<double> scale = Tween<double>(
-              begin: 0.92,
-              end: 1.0,
-            ).animate(animation);
-            final Animation<double> turn = Tween<double>(
-              begin: -0.035,
-              end: 0.0,
-            ).animate(animation);
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: scale,
-                child: RotationTransition(turns: turn, child: child),
+        RotationTransition(
+          turns: _ctrl,
+          child: Stack(
+            alignment: Alignment.center,
+            children: <Widget>[
+              Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF090A0E),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
-          child: RotationTransition(
-            key: ValueKey<String>(widget.transitionKey),
-            turns: _ctrl,
-            child: Stack(
-              alignment: Alignment.center,
-              children: <Widget>[
-                Container(
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFF090A0E),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Colors.black54,
-                        blurRadius: 18,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                ),
-                const Positioned.fill(
-                  child: CustomPaint(painter: _VinylTracksPainter()),
-                ),
-                FractionallySizedBox(
-                  widthFactor: 0.68,
-                  heightFactor: 0.68,
-                  child: ClipOval(
+              const Positioned.fill(
+                child: CustomPaint(painter: _VinylTracksPainter()),
+              ),
+              FractionallySizedBox(
+                widthFactor: 0.68,
+                heightFactor: 0.68,
+                child: ClipOval(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 460),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      final Animation<double> scale = Tween<double>(
+                        begin: 0.92,
+                        end: 1.0,
+                      ).animate(animation);
+                      final Animation<double> turn = Tween<double>(
+                        begin: -0.035,
+                        end: 0.0,
+                      ).animate(animation);
+                      return FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(
+                          scale: scale,
+                          child: RotationTransition(turns: turn, child: child),
+                        ),
+                      );
+                    },
                     child: PortraitArtwork(
+                      key: ValueKey<String>(widget.transitionKey),
                       visual: widget.fallbackTrack,
                       imageUrl: widget.imageUrl,
                       icon: Icons.album_rounded,
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         // 静态扫过的高光反射层 (固定光照反射，不随唱片转动而旋转)

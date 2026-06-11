@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
@@ -202,6 +203,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   final FreeMusicApi _freeMusicApi = FreeMusicApi();
   final TextEditingController _searchController = TextEditingController();
   final UpdateCheckService _updateCheckService = UpdateCheckService();
+  OverlayEntry? _activeToastEntry;
+  Timer? _searchDebounceTimer;
+  CarLifePlaybackContext? _pendingSyncContext;
   final AppInstallerService _appInstallerService = const AppInstallerService();
   final CarLifeService _carLifeService = const CarLifeService();
   CarLifeStatus _carLifeStatus = const CarLifeStatus(
@@ -327,6 +331,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _freeMusicApi.close();
     _searchController.dispose();
     _updateCheckService.dispose();
+    _activeToastEntry?.remove();
+    _activeToastEntry = null;
+    _searchDebounceTimer?.cancel();
     for (final StreamSubscription<double> sub in _downloadSubscriptions) {
       unawaited(sub.cancel());
     }
@@ -381,6 +388,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<bool> _resumeNativePlayback() async {
     if (_isPlayerActionBusy) {
+      unawaited(HapticFeedback.lightImpact());
       return false;
     }
     _isPlayerActionBusy = true;
@@ -398,6 +406,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<bool> _skipToNextTrack() async {
     if (_isPlayerActionBusy) {
+      unawaited(HapticFeedback.lightImpact());
       return false;
     }
     _isPlayerActionBusy = true;
@@ -419,6 +428,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<bool> _skipToPreviousTrack() async {
     if (_isPlayerActionBusy) {
+      unawaited(HapticFeedback.lightImpact());
       return false;
     }
     _isPlayerActionBusy = true;
@@ -506,11 +516,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _restorePlaybackSession().catchError((Object e) => debugPrint('[startup] restore failed: $e')),
         _loadFavoriteSongs().catchError((Object e) => debugPrint('[startup] load favorites failed: $e')),
         _loadApiBootstrap().catchError((Object e) => debugPrint('[startup] load api bootstrap failed: $e')),
+        _loadRecommendations().catchError((Object e) => debugPrint('[startup] load recommendations failed: $e')),
       ]);
-      if (!mounted) {
-        return;
-      }
-      await _loadRecommendations().catchError((Object e) => debugPrint('[startup] load recommendations failed: $e'));
     } catch (error) {
       debugPrint('[main] startup loading failed: $error');
     }
@@ -559,17 +566,20 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     setState(() {
       _favoriteSongs = List<FreeMusicSong>.unmodifiable(nextSongs);
     });
+    final List<FreeMusicSong> oldSongs = _favoriteSongs;
     try {
       await _favoriteSongStore.save(nextSongs);
       if (!mounted) {
         return;
       }
-      _showSnack(removing ? '已取消收藏：${song.name}' : '已收藏：${song.name}');
+      _showToast(removing ? '已取消收藏：${song.name}' : '已收藏：${song.name}');
     } catch (error) {
       if (!mounted) {
         return;
       }
-      await _loadFavoriteSongs();
+      setState(() {
+        _favoriteSongs = oldSongs;
+      });
       _showSnack('收藏保存失败：$error');
     }
   }
@@ -643,8 +653,20 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _searchSongs() async {
+    _searchDebounceTimer?.cancel();
     final String query = _searchController.text.trim();
+    if (query.isEmpty) {
+      _runSearchSongs(query, ++_searchRequestId);
+      return;
+    }
+
     final int requestId = ++_searchRequestId;
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _runSearchSongs(query, requestId);
+    });
+  }
+
+  Future<void> _runSearchSongs(String query, int requestId) async {
     if (query.isEmpty) {
       setState(() {
         _lastSearchQuery = '';
@@ -717,8 +739,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (requestId != _searchRequestId || _isSearchingMusic) {
       return;
     }
-    _isLoadingMoreSearchResults = true;
     setState(() {
+      _isLoadingMoreSearchResults = true;
       _searchLoadMoreError = '';
     });
 
@@ -820,7 +842,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _downloadSong(FreeMusicSong song) async {
     try {
-      _showSnack('正在解析 "${song.name}" 的品质...');
+      _showToast('正在解析 "${song.name}" 的品质...');
       List<FreeMusicQuality> qualities = const <FreeMusicQuality>[];
       try {
         final FreeMusicQualityResult res = await _freeMusicApi.fetchQualities(
@@ -833,7 +855,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _preferredBitrate,
       );
 
-      _showSnack('开始下载: ${song.name}');
+      _showToast('开始下载: ${song.name}');
       final Stream<double> progressStream = _downloadService.downloadTrack(
         song,
         targetQuality,
@@ -843,7 +865,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       subscription = progressStream.listen(
         (double progress) {
           if (progress >= 1.0) {
-            _showSnack('下载成功: ${song.name}');
+            _showToast('下载成功: ${song.name}');
             if (mounted) {
               setState(() {});
             }
@@ -871,7 +893,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> _deleteSongCache(FreeMusicSong song) async {
     try {
       await _downloadService.deleteTrack(song.source, song.id);
-      _showSnack('已删除本地缓存: ${song.name}');
+      _showToast('已删除本地缓存: ${song.name}');
       if (mounted) {
         setState(() {});
       }
@@ -933,7 +955,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (_playbackQueue.isNotEmpty &&
         _playbackQueue.last.id == song.id &&
         _playbackQueue.last.source == song.source) {
-      _showSnack('该歌曲已在队列末尾');
+      _showToast('该歌曲已在队列末尾');
       return;
     }
     final bool isQueueEmpty = _playbackQueue.isEmpty;
@@ -967,7 +989,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         _currentSong = song;
       }
     });
-    _showSnack('已加入播放队列：${song.name}');
+    _showToast('已加入播放队列：${song.name}');
     if (isQueueEmpty) {
       unawaited(_updateCoverSeed(song));
       unawaited(_loadLyricsForSong(song));
@@ -980,6 +1002,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     if (_isPlayerActionBusy) {
+      unawaited(HapticFeedback.lightImpact());
       return;
     }
     _isPlayerActionBusy = true;
@@ -1052,6 +1075,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return false;
     }
     if (_isPlayerActionBusy) {
+      unawaited(HapticFeedback.lightImpact());
       return false;
     }
     _isPlayerActionBusy = true;
@@ -1289,6 +1313,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
     if (_isPlayerActionBusy) {
+      unawaited(HapticFeedback.lightImpact());
       return;
     }
     _isPlayerActionBusy = true;
@@ -1301,6 +1326,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         await _nativeAudioController.playSong(current);
         if (!mounted) return;
         if (currentPosition != Duration.zero) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
           await _nativeAudioController.seek(currentPosition);
         }
       }
@@ -1808,9 +1834,6 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _syncCarLifePlaybackContext({required bool showResult}) async {
-    if (_isSyncingCarLife || !mounted) {
-      return;
-    }
     final CarLifePlaybackContext? context = _buildCarLifePlaybackContext();
     if (context == null) {
       if (showResult) {
@@ -1818,34 +1841,48 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       }
       return;
     }
+
+    if (_isSyncingCarLife) {
+      _pendingSyncContext = context;
+      return;
+    }
+    _pendingSyncContext = null;
     setState(() {
       _isSyncingCarLife = true;
     });
-    final CarLifeSyncResult result = await _carLifeService.syncPlaybackContext(
-      title: context.title,
-      artist: context.artist,
-      playing: context.playing,
-      context: context,
-    );
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _isSyncingCarLife = false;
-    });
-    if (!showResult) {
-      return;
-    }
-    if (result.reason == 'sdk_connected') {
-      _showSnack('已同步到 CarLife：${result.syncedTitle}');
-    } else if (result.reason == 'sdk_initialized') {
-      _showSnack('已提交 CarLife 队列模板，等待 CarLife 连接读取。');
-    } else if (result.reason == 'app_key_missing') {
-      _showSnack('CarLife SDK 已接入，请先配置 AppKey。');
-    } else if (result.reason == 'sdk_missing') {
-      _showSnack('已缓存播放上下文，等待 CarLife SDK 接管同步。');
-    } else {
-      _showSnack('CarLife 同步不可用：${result.reason}');
+
+    try {
+      final CarLifeSyncResult result = await _carLifeService.syncPlaybackContext(
+        title: context.title,
+        artist: context.artist,
+        playing: context.playing,
+        context: context,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (showResult) {
+        if (result.reason == 'sdk_connected') {
+          _showToast('已同步到 CarLife：${result.syncedTitle}');
+        } else if (result.reason == 'sdk_initialized') {
+          _showToast('已提交 CarLife 队列模板，等待 CarLife 连接读取。');
+        } else if (result.reason == 'app_key_missing') {
+          _showSnack('CarLife SDK 已接入，请先配置 AppKey。');
+        } else if (result.reason == 'sdk_missing') {
+          _showToast('已缓存播放上下文，等待 CarLife SDK 接管同步。');
+        } else {
+          _showSnack('CarLife 同步不可用：${result.reason}');
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncingCarLife = false;
+        });
+        if (_pendingSyncContext != null) {
+          unawaited(_syncCarLifePlaybackContext(showResult: false));
+        }
+      }
     }
   }
 
@@ -2046,6 +2083,30 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _showToast(String message) {
+    if (!mounted) {
+      return;
+    }
+    _activeToastEntry?.remove();
+    _activeToastEntry = null;
+
+    final OverlayState overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (BuildContext context) => _ToastWidget(
+        message: message,
+        onDismiss: () {
+          if (_activeToastEntry == entry) {
+            _activeToastEntry = null;
+          }
+          entry.remove();
+        },
+      ),
+    );
+    _activeToastEntry = entry;
+    overlay.insert(entry);
+  }
+
   // ==========================================
   // Public Getters for MusicAppStateScope
   // ==========================================
@@ -2065,6 +2126,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   String get searchError => _searchError;
   String get searchLoadMoreError => _searchLoadMoreError;
   String get lastSearchQuery => _lastSearchQuery;
+
+  Future<void> retryLyricsForCurrentSong() async {
+    if (_currentSong != null) {
+      await _loadLyricsForSong(_currentSong!);
+    }
+  }
+
+  Future<void> syncCarLifeManually() => _syncCarLifePlaybackContext(showResult: true);
   FreeMusicSources? get musicSources => _musicSources;
   bool get isLoadingApiBootstrap => _isLoadingApiBootstrap;
   String get apiBootstrapError => _apiBootstrapError;
@@ -2189,4 +2258,79 @@ AudioServiceShuffleMode _shuffleModeForNativeMode(NativePlaybackMode mode) {
   return mode == NativePlaybackMode.shuffle
       ? AudioServiceShuffleMode.all
       : AudioServiceShuffleMode.none;
+}
+
+// ==========================================
+// Toast Widget with Premium Aesthetics
+// ==========================================
+class _ToastWidget extends StatefulWidget {
+  const _ToastWidget({required this.message, required this.onDismiss});
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_ToastWidget> createState() => _ToastWidgetState();
+}
+
+class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(_controller);
+    _controller.forward();
+    Future<void>.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _controller.reverse().then((_) => widget.onDismiss());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 40,
+      left: 24,
+      right: 24,
+      child: Center(
+        child: FadeTransition(
+          opacity: _opacity,
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  color: Colors.black.withValues(alpha: 0.65),
+                  child: Text(
+                    widget.message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
