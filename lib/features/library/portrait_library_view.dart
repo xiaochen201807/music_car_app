@@ -58,7 +58,6 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
   int _selectedSubTab = 0; // 0: 收藏, 1: 离线下载
   bool _isBatchMode = false;
   final Set<FreeMusicSong> _selectedSongs = <FreeMusicSong>{};
-  int? _draggingIndex; // 当前正在拖动的索引
 
   void _toggleBatchSong(FreeMusicSong song) {
     setState(() {
@@ -458,20 +457,17 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                 itemBuilder: (BuildContext context, int index) {
                   final FreeMusicSong song = widget.queueSongs[index];
                   final bool isSelected = widget.selectedQueueIndex == index;
-                  final bool isDragging = _draggingIndex == index;
 
                   return DragTarget<int>(
-                    onAccept: (int draggedIndex) {
+                    onAcceptWithDetails: (DragTargetDetails<int> details) {
+                      final int draggedIndex = details.data;
                       if (draggedIndex != index) {
                         HapticFeedback.lightImpact();
                         MusicAppStateScope.of(context).reorderQueue(draggedIndex, index);
                       }
-                      setState(() {
-                        _draggingIndex = null;
-                      });
                     },
                     onLeave: (Object? data) {},
-                    onWillAccept: (int? draggedIndex) => draggedIndex != null && draggedIndex != index,
+                    onWillAcceptWithDetails: (DragTargetDetails<int> details) => details.data != index,
                     builder: (BuildContext context, List<Object?> candidateData, List<dynamic> rejectedData) {
                       return LongPressDraggable<int>(
                         key: ValueKey<String>('queue-item-${song.source}-${song.id}-$index'),
@@ -479,15 +475,8 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                         axis: Axis.vertical,
                         onDragStarted: () {
                           HapticFeedback.mediumImpact();
-                          setState(() {
-                            _draggingIndex = index;
-                          });
                         },
-                        onDragEnd: (DraggableDetails details) {
-                          setState(() {
-                            _draggingIndex = null;
-                          });
-                        },
+                        onDragEnd: (DraggableDetails details) {},
                         feedback: Material(
                           child: Padding(
                             padding: const EdgeInsets.only(bottom: AppSpace.sm),
@@ -495,7 +484,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                               song: song,
                               visual: demoQueue[index % demoQueue.length],
                               selected: isSelected,
-                              onTap: null,
+                              onTap: () {},
                             ),
                           ),
                         ),
