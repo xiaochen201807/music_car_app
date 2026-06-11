@@ -400,7 +400,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _pauseNativePlayback() async {
-    await _nativeAudioController.pausePlayback();
+    debugPrint('[main] _pauseNativePlayback called');
+    final bool result = await _nativeAudioController.pausePlayback();
+    debugPrint('[main] _pauseNativePlayback result: $result');
   }
 
   Future<bool> _skipToNextTrack() async {
@@ -415,7 +417,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<bool> _skipToPreviousTrack() async {
     // 无需全局锁阻塞，NativeAudioController 内部自有并发控制
+    debugPrint('[main] _skipToPreviousTrack called');
     final bool handled = await _nativeAudioController.skipToPrevious();
+    debugPrint('[main] _skipToPreviousTrack handled: $handled');
     if (!mounted || !handled) {
       return handled;
     }
