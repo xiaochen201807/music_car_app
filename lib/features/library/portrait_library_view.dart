@@ -458,6 +458,8 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                   HapticFeedback.lightImpact();
                   MusicAppStateScope.of(context).reorderQueue(oldIdx, newIdx);
                 },
+                onReorderStart: (int index) => HapticFeedback.mediumImpact(),
+                proxyDecorator: (Widget child, int index, Animation<double> animation) => child,
                 itemBuilder: (BuildContext context, int index) {
                   final FreeMusicSong song = widget.queueSongs[index];
                   final bool isSelected = widget.selectedQueueIndex == index;
