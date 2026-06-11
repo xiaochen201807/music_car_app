@@ -292,7 +292,14 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   void _checkAndUpdateCarLifeLyric() {
-    if (_currentLyricLines.isEmpty || !_player.playing) {
+    if (_currentLyricLines.isEmpty) {
+      if (_lastBroadcastLyric != '暂无歌词') {
+        _lastBroadcastLyric = '暂无歌词';
+        _sendLyricBroadcast('暂无歌词');
+      }
+      return;
+    }
+    if (!_player.playing) {
       return;
     }
     final Duration currentPos = _player.position;

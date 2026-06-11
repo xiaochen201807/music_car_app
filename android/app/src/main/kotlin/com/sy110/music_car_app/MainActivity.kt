@@ -236,8 +236,11 @@ class MainActivity : AudioServiceActivity() {
         position: Long,
         playing: Boolean
     ) {
-        // 1. 发送酷狗/通用媒体广播 com.android.music.metachanged
+        val flagIncludeBackground = 0x01000000 // Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND
+
+        // 1. 通用/系统广播
         val intentKuGou = Intent("com.android.music.metachanged").apply {
+            addFlags(flagIncludeBackground)
             putExtra("lyric", lyric)
             putExtra("track", title)
             putExtra("artist", artist)
@@ -248,19 +251,42 @@ class MainActivity : AudioServiceActivity() {
         }
         sendBroadcast(intentKuGou)
 
-        // 2. 发送QQ音乐广播
-        val intentQQ = Intent("com.tencent.qqmusic.ACTION_LYRIC").apply {
+        // 2. 酷狗专有广播
+        val intentKuGouSpecial = Intent("com.kugou.android.music.metachanged").apply {
+            addFlags(flagIncludeBackground)
             putExtra("lyric", lyric)
             putExtra("track", title)
             putExtra("artist", artist)
+            putExtra("album", album)
+            putExtra("duration", duration)
+            putExtra("position", position)
+            putExtra("playing", playing)
+        }
+        sendBroadcast(intentKuGouSpecial)
+
+        // 3. QQ音乐广播
+        val intentQQ = Intent("com.tencent.qqmusic.ACTION_LYRIC").apply {
+            addFlags(flagIncludeBackground)
+            putExtra("lyric", lyric)
+            putExtra("track", title)
+            putExtra("song_name", title)
+            putExtra("artist", artist)
+            putExtra("singer_name", artist)
+            putExtra("playing", playing)
+            putExtra("position", position)
+            putExtra("lyric_time", position)
         }
         sendBroadcast(intentQQ)
 
-        // 3. 发送网易云广播
+        // 4. 网易云广播
         val intentNetease = Intent("com.netease.cloudmusic.music.lyric").apply {
+            addFlags(flagIncludeBackground)
             putExtra("lyric", lyric)
             putExtra("track", title)
             putExtra("artist", artist)
+            putExtra("playing", playing)
+            putExtra("position", position)
+            putExtra("lyric_time", position)
         }
         sendBroadcast(intentNetease)
     }

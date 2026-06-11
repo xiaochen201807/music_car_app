@@ -383,11 +383,24 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   void _syncSelectedQueueIndexFromAudioController() {
     final int index = _nativeAudioController.currentIndex;
-    if (index < 0 || index >= _playbackQueue.length) {
+    final List<FreeMusicSong> controllerQueue = _nativeAudioController.playlist;
+    final bool needQueueUpdate = controllerQueue.isNotEmpty &&
+        (_playbackQueue.length != controllerQueue.length || index >= _playbackQueue.length);
+
+    if (index < 0 || (index >= _playbackQueue.length && !needQueueUpdate)) {
       return;
     }
-    final FreeMusicSong song = _playbackQueue[index];
+    
+    final List<FreeMusicSong> resolvedQueue = needQueueUpdate ? controllerQueue : _playbackQueue;
+    if (index >= resolvedQueue.length) {
+      return;
+    }
+    final FreeMusicSong song = resolvedQueue[index];
+
     setState(() {
+      if (needQueueUpdate) {
+        _playbackQueue = List<FreeMusicSong>.unmodifiable(controllerQueue);
+      }
       _selectedQueueIndex = index;
       _currentSong = song;
     });
@@ -876,6 +889,16 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     final FreeMusicSong song = songs[index];
+    final FreeMusicSong? oldSong = _currentSong;
+    final int oldIndex = _selectedQueueIndex;
+    final List<FreeMusicSong> oldQueue = _playbackQueue;
+
+    setState(() {
+      _playbackQueue = List<FreeMusicSong>.unmodifiable(songs);
+      _selectedQueueIndex = index;
+      _currentSong = song;
+    });
+
     final bool handled = await _nativeAudioController.syncFromProbe(
       PlayerProbeSnapshot(
         audioUrl: '',
@@ -894,13 +917,17 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     if (!handled) {
       _showSnack('暂时无法播放：${song.name}');
+      setState(() {
+        _playbackQueue = oldQueue;
+        _selectedQueueIndex = oldIndex;
+        _currentSong = oldSong;
+      });
+      if (oldSong != null) {
+        unawaited(_loadLyricsForSong(oldSong));
+        unawaited(_loadQualitiesForSong(oldSong));
+      }
       return;
     }
-    setState(() {
-      _playbackQueue = List<FreeMusicSong>.unmodifiable(songs);
-      _selectedQueueIndex = index;
-      _currentSong = song;
-    });
     unawaited(_updateCoverSeed(song));
     unawaited(_loadLyricsForSong(song));
     unawaited(_loadQualitiesForSong(song));
@@ -908,21 +935,36 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _skipToQueueItem(int index) async {
-    final bool handled = await _nativeAudioController.skipToQueueIndex(index);
-    if (!mounted || !handled) {
+    if (index < 0 || index >= _playbackQueue.length) {
       return;
     }
+    final FreeMusicSong? oldSong = _currentSong;
+    final int oldIndex = _selectedQueueIndex;
+    final FreeMusicSong targetSong = _playbackQueue[index];
+
     setState(() {
       _selectedQueueIndex = index;
-      if (index >= 0 && index < _playbackQueue.length) {
-        _currentSong = _playbackQueue[index];
-      }
+      _currentSong = targetSong;
     });
-    if (index >= 0 && index < _playbackQueue.length) {
-      unawaited(_updateCoverSeed(_playbackQueue[index]));
-      unawaited(_loadLyricsForSong(_playbackQueue[index]));
-      unawaited(_loadQualitiesForSong(_playbackQueue[index]));
+
+    final bool handled = await _nativeAudioController.skipToQueueIndex(index);
+    if (!mounted) {
+      return;
     }
+    if (!handled) {
+      setState(() {
+        _selectedQueueIndex = oldIndex;
+        _currentSong = oldSong;
+      });
+      if (oldSong != null) {
+        unawaited(_loadLyricsForSong(oldSong));
+        unawaited(_loadQualitiesForSong(oldSong));
+      }
+      return;
+    }
+    unawaited(_updateCoverSeed(targetSong));
+    unawaited(_loadLyricsForSong(targetSong));
+    unawaited(_loadQualitiesForSong(targetSong));
     unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 

@@ -62,6 +62,7 @@ void main() {
           body: PlayerLyricsView(
             lyrics: lyrics,
             position: const Duration(seconds: 1),
+            playing: false,
             lyricsBusy: false,
             lyricsError: '',
             onSeek: (Duration duration) {

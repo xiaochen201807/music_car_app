@@ -292,6 +292,7 @@ class PortraitPlayerView extends StatelessWidget {
                     PlayerLyricsView(
                       lyrics: lyrics,
                       position: playbackState.position,
+                      playing: playbackState.playing,
                       lyricsBusy: lyricsBusy,
                       lyricsError: lyricsError,
                       onSeek: onSeek,
@@ -845,6 +846,7 @@ class PlayerLyricsView extends StatefulWidget {
     super.key,
     required this.lyrics,
     required this.position,
+    required this.playing,
     required this.lyricsBusy,
     required this.lyricsError,
     this.onSeek,
@@ -852,6 +854,7 @@ class PlayerLyricsView extends StatefulWidget {
 
   final FreeMusicLyrics? lyrics;
   final Duration position;
+  final bool playing;
   final bool lyricsBusy;
   final String lyricsError;
   final ValueChanged<Duration>? onSeek;
@@ -869,19 +872,30 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
   int _centerIndex = 0;
   Timer? _userScrollTimer;
 
+  late Duration _currentPosition;
+  Timer? _lyricProgressTimer;
+  DateTime? _lastTickTime;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    _currentPosition = widget.position;
+    _updateTimer();
   }
 
   @override
   void didUpdateWidget(PlayerLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.position != oldWidget.position || widget.playing != oldWidget.playing) {
+      _currentPosition = widget.position;
+      _updateTimer();
+    }
+
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
     final int activeIndex = activeLyricLineIndex(
       lines,
-      widget.position,
+      _currentPosition,
       lead: lyricHighlightLead,
     );
     if (activeIndex != _lastIndex && activeIndex >= 0) {
@@ -897,7 +911,41 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _userScrollTimer?.cancel();
+    _lyricProgressTimer?.cancel();
     super.dispose();
+  }
+
+  void _updateTimer() {
+    _lyricProgressTimer?.cancel();
+    _lyricProgressTimer = null;
+    _lastTickTime = null;
+
+    if (widget.playing) {
+      _lastTickTime = DateTime.now();
+      _lyricProgressTimer = Timer.periodic(const Duration(milliseconds: 100), (Timer timer) {
+        if (!mounted) return;
+        final DateTime now = DateTime.now();
+        final Duration delta = _lastTickTime != null ? now.difference(_lastTickTime!) : Duration.zero;
+        _lastTickTime = now;
+
+        setState(() {
+          _currentPosition += delta;
+        });
+
+        final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
+        final int activeIndex = activeLyricLineIndex(
+          lines,
+          _currentPosition,
+          lead: lyricHighlightLead,
+        );
+        if (activeIndex != _lastIndex && activeIndex >= 0) {
+          _lastIndex = activeIndex;
+          if (!_isUserScrolling) {
+            _scrollToIndex(activeIndex);
+          }
+        }
+      });
+    }
   }
 
   void _handleScroll() {
@@ -943,7 +991,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
         final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
         final int activeIndex = activeLyricLineIndex(
           lines,
-          widget.position,
+          _currentPosition,
           lead: lyricHighlightLead,
         );
         if (activeIndex >= 0) {
@@ -978,6 +1026,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
               onTap: () {
                 widget.onSeek?.call(line.time);
                 setState(() {
+                  _currentPosition = line.time;
                   _isUserScrolling = false;
                 });
               },
@@ -1075,7 +1124,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
 
     final int activeIndex = activeLyricLineIndex(
       lines,
-      widget.position,
+      _currentPosition,
       lead: lyricHighlightLead,
     );
 
@@ -1129,6 +1178,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView> {
                       onTap: () {
                         widget.onSeek?.call(line.time);
                         setState(() {
+                          _currentPosition = line.time;
                           _isUserScrolling = false;
                         });
                       },
