@@ -232,6 +232,10 @@ class NativeAudioController {
   List<String>? _cachedSources;
   static const List<String> _fallbackSources = <String>['netease', 'kuwo'];
 
+  /// 预加载缓存：下一首歌曲的 URL
+  String? _preloadedNextUrl;
+  int? _preloadedNextIndex;
+
   List<FreeMusicSong> get playlist => _playlist;
 
   int get currentIndex => _currentIndex;
@@ -601,6 +605,11 @@ class NativeAudioController {
     return -1;
   }
 
+  /// 获取下一首的索引（用于预加载）
+  int _getNextIndex() {
+    return _targetIndexForOffset(1);
+  }
+
   Future<void> _fadeOut(Duration duration) async {
     const int steps = 10;
     final int intervalMs = (duration.inMilliseconds / steps).round();
@@ -644,7 +653,18 @@ class NativeAudioController {
         coverUrl: song.cover,
         duration: Duration(seconds: song.duration),
       );
-      final String audioUrl = await _resolveAudioUrl(snapshot);
+
+      // 检查是否有预加载的 URL
+      String audioUrl = '';
+      if (_preloadedNextIndex == index && _preloadedNextUrl != null) {
+        audioUrl = _preloadedNextUrl!;
+        debugPrint('[native-audio] using preloaded URL for ${snapshot.debugTitle}');
+        _preloadedNextUrl = null;
+        _preloadedNextIndex = null;
+      } else {
+        audioUrl = await _resolveAudioUrl(snapshot);
+      }
+
       if (audioUrl.isEmpty) {
         debugPrint(
           '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
@@ -669,9 +689,48 @@ class NativeAudioController {
       debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
 
       await _fadeIn(const Duration(milliseconds: 250));
+
+      // 预加载下一首歌曲的 URL
+      unawaited(_preloadNextSong());
+
       return true;
     } finally {
       _isQueueLoading = false;
+    }
+  }
+
+  /// 预加载下一首歌曲的 URL，减少切歌延迟
+  Future<void> _preloadNextSong() async {
+    final int nextIndex = _getNextIndex();
+    if (nextIndex < 0 || nextIndex >= _playlist.length) {
+      return;
+    }
+
+    final FreeMusicSong nextSong = _playlist[nextIndex];
+    if (!nextSong.canResolve) {
+      return;
+    }
+
+    try {
+      final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: false,
+        song: nextSong,
+        playlist: _playlist,
+        currentIndex: nextIndex,
+        title: nextSong.name,
+        artist: nextSong.artist,
+        coverUrl: nextSong.cover,
+        duration: Duration(seconds: nextSong.duration),
+      );
+      final String url = await _resolveAudioUrl(snapshot);
+      if (url.isNotEmpty) {
+        _preloadedNextUrl = url;
+        _preloadedNextIndex = nextIndex;
+        debugPrint('[native-audio] preloaded next: ${nextSong.name}');
+      }
+    } catch (e) {
+      debugPrint('[native-audio] preload failed: $e');
     }
   }
 
