@@ -59,15 +59,17 @@ class PortraitArtwork extends StatelessWidget {
         ? CachedNetworkImage(
             imageUrl: imageUrl,
             fit: BoxFit.cover,
-            width: size,
-            height: size,
+            width: size ?? double.infinity,
+            height: size ?? double.infinity,
             placeholder: (_, _) => placeholder,
             errorWidget: (_, _, _) => placeholder,
           )
         : placeholder;
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.card),
-      child: SizedBox(width: size, height: size, child: image),
+      child: size != null
+          ? SizedBox(width: size, height: size, child: image)
+          : image,
     );
   }
 }
