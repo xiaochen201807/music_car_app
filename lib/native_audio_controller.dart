@@ -11,6 +11,8 @@ import 'free_music_api.dart';
 import 'models/cached_track.dart';
 import 'services/app_settings_controller.dart';
 import 'services/download_service.dart';
+import 'services/logger_service.dart';
+import 'services/playback_error_tracker.dart';
 
 enum NativePlaybackMode {
   sequential,
@@ -226,7 +228,9 @@ class NativeAudioController {
   }) : _player = player ?? JustAudioNativePlayer(),
        _api = api ?? FreeMusicApi(),
        _downloadService = downloadService,
-       _preferences = preferences {
+       _preferences = preferences,
+       _logger = Logger(),
+       _errorTracker = PlaybackErrorTracker() {
     _updatePlaybackContext();
     _restoreFuture = _restoreState();
   }
@@ -237,6 +241,8 @@ class NativeAudioController {
   final FreeMusicApi _api;
   final DownloadService? _downloadService;
   final SharedPreferences? _preferences;
+  final Logger _logger;
+  final PlaybackErrorTracker _errorTracker;
   late final Future<void> _restoreFuture;
   String _loadedUrl = '';
   PlayerProbeSnapshot? _loadedSnapshot;
@@ -393,6 +399,8 @@ class NativeAudioController {
 
   Future<bool> playSong(FreeMusicSong song) async {
     await _restoreFuture;
+    _logger.info('Playing: ${song.name} - ${song.artist}');
+
     final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
       audioUrl: '',
       playing: true,
@@ -402,7 +410,21 @@ class NativeAudioController {
       coverUrl: song.cover,
       duration: Duration(seconds: song.duration),
     );
-    return syncFromProbe(snapshot);
+
+    final bool handled = await syncFromProbe(snapshot);
+
+    if (handled) {
+      _errorTracker.recordSuccess();
+    } else {
+      _logger.error('Failed to play: ${song.name}');
+      final bool shouldStop = _errorTracker.recordFailure(song);
+      if (shouldStop) {
+        _logger.warn('Too many failures, skipping to next');
+        unawaited(skipToNext());
+      }
+    }
+
+    return handled;
   }
 
   Future<bool> skipToNext() async {
@@ -489,14 +511,13 @@ class NativeAudioController {
         debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
         return url;
       }
-      debugPrint(
-        '[native-audio] resolve empty for ${snapshot.debugTitle}, '
-        'trying source switch',
+      _logger.warn(
+        'Resolve empty for ${snapshot.debugTitle}, trying source switch',
       );
     } catch (error) {
-      debugPrint(
-        '[native-audio] resolve failed for ${snapshot.debugTitle}: $error, '
-        'trying source switch',
+      _logger.error(
+        'Resolve failed for ${snapshot.debugTitle}',
+        error: error,
       );
     }
     return _resolveViaSourceSwitch(song, snapshot);

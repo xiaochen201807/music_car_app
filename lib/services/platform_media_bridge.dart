@@ -64,7 +64,8 @@ class PlatformMediaBridge {
   }
 
   Future<bool> _handlePlay() async {
-    return _playbackController.resumeNativePlayback();
+    final bool handled = await _playbackController.resumeNativePlayback();
+    return handled;
   }
 
   Future<void> _handlePause() async {

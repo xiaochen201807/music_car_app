@@ -215,6 +215,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   late final MusicSearchController _musicSearchController;
   late final TrackMetadataController _trackMetadataController;
   late final PlatformMediaBridge _mediaBridge;
+  final LyricOffsetStore _lyricOffsetStore = LyricOffsetStore();
   final FreeMusicApi _freeMusicApi = FreeMusicApi();
   final TextEditingController _searchController = TextEditingController();
   final UpdateCheckService _updateCheckService = UpdateCheckService();
@@ -339,6 +340,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(_carPlayService!.init());
     }
     WidgetsBinding.instance.addObserver(this);
+    _playerUiStateController.addListener(_handlePlaybackStateChanged);
     _startLyricBroadcastTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadStartupMusicContent());
@@ -357,6 +359,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   @override
   void dispose() {
+    _playerUiStateController.removeListener(_handlePlaybackStateChanged);
     _carPlayService?.dispose();
     _lyricBroadcastTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -415,6 +418,16 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> setPreferredBitrate(String br) async {
     await widget.settingsController.setPreferredBitrate(br);
+  }
+
+  FreeMusicSong? _lastLoadedLyricsSong;
+
+  void _handlePlaybackStateChanged() {
+    final FreeMusicSong? currentSong = _queueController.currentSong;
+    if (currentSong != null && currentSong != _lastLoadedLyricsSong) {
+      _lastLoadedLyricsSong = currentSong;
+      unawaited(_loadLyricsForSong(currentSong));
+    }
   }
 
   void _handleTrackChangedFromPlatform(FreeMusicSong song) {
