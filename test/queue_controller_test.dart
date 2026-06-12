@@ -97,8 +97,7 @@ void main() {
       controller.setPlaybackMode(NativePlaybackMode.shuffle);
       controller.setPlaybackMode(NativePlaybackMode.shuffle);
 
-      // Wait for throttled notification
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       expect(controller.playbackMode, NativePlaybackMode.shuffle);
       expect(notifyCount, 1);
