@@ -150,6 +150,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
 
   @override
   Future<void> play() async {
+    debugPrint('[audio-handler] play() called');
     if (!_handlingPlayCallback && onPlayTrack != null) {
       _handlingPlayCallback = true;
       try {
@@ -160,6 +161,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         _handlingPlayCallback = false;
       }
     }
+    debugPrint('[audio-handler] calling playDirect()');
     await playDirect();
   }
 

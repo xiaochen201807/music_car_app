@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 
 import '../controllers/playback_controller.dart';
 import '../controllers/queue_controller.dart';
