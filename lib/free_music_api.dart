@@ -180,10 +180,7 @@ class FreeMusicLyrics {
 class FreeMusicApi {
   FreeMusicApi({
     http.Client? client,
-    this.baseUri = const String.fromEnvironment(
-      'FREE_MUSIC_API_BASE',
-      defaultValue: 'http://111.119.212.124:18300/music',
-    ),
+    this.baseUri = 'http://mobilecdn.kugou.com/api/v3',
     this.timeout = const Duration(seconds: 12),
   }) : _client = client ?? http.Client();
 
@@ -249,66 +246,68 @@ class FreeMusicApi {
       );
     }
 
-    final Uri uri = Uri.parse('$baseUri/search').replace(
-      queryParameters: <String, Object>{
-        'q': keyword,
-        'type': 'song',
-        'page': '$page',
-        if (sources != null && sources.isNotEmpty)
-          'sources': sources
-              .map((String source) => source.trim())
-              .where((String source) => source.isNotEmpty)
-              .toList(growable: false),
+    // 使用酷狗API搜索
+    final Uri uri = Uri.parse('$baseUri/search/song').replace(
+      queryParameters: <String, String>{
+        'format': 'json',
+        'keyword': keyword,
+        'page': '${page + 1}', // 酷狗从1开始
+        'pagesize': '20',
       },
     );
+
     final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'search failed with HTTP ${response.statusCode}',
       );
     }
+
     final Object? decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
       throw const FreeMusicApiException('search returned non-object JSON');
     }
-    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": {...} }
-    final Map<String, dynamic> data = decoded['data'] is Map<String, dynamic>
-        ? decoded['data'] as Map<String, dynamic>
-        : decoded;
+
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
+    if (data == null) {
+      return const FreeMusicSearchResult(
+        songs: <FreeMusicSong>[],
+        hasMore: false,
+        page: 0,
+      );
+    }
+
+    final List<dynamic> info = data['info'] as List<dynamic>? ?? <dynamic>[];
+    final int total = data['total'] as int? ?? 0;
+
+    final List<FreeMusicSong> songs = info.map((dynamic item) {
+      if (item is! Map<String, dynamic>) {
+        return null;
+      }
+      return FreeMusicSong(
+        id: '${item['hash'] ?? ''}',
+        source: 'kugou',
+        name: '${item['songname'] ?? item['filename'] ?? ''}',
+        artist: '${item['singername'] ?? ''}',
+        album: '${item['album_name'] ?? ''}',
+        duration: item['duration'] as int? ?? 0,
+      );
+    }).whereType<FreeMusicSong>().toList();
+
     return FreeMusicSearchResult(
-      songs: _songsFromJson(data['songs']),
-      hasMore: data['hasMore'] == true,
-      page: _intValue(data['page']),
+      songs: songs,
+      hasMore: (page + 1) * 20 < total,
+      page: page,
     );
   }
 
   Future<FreeMusicRecommendResult> fetchRecommendations({
     List<String>? sources,
   }) async {
-    final Uri uri = Uri.parse('$baseUri/recommend').replace(
-      queryParameters: <String, Object>{
-        if (sources != null && sources.isNotEmpty)
-          'sources': sources
-              .map((String source) => source.trim())
-              .where((String source) => source.isNotEmpty)
-              .toList(growable: false),
-      },
-    );
-    final http.Response response = await _httpGet(uri);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw FreeMusicApiException(
-        'recommend failed with HTTP ${response.statusCode}',
-      );
-    }
-    final Object? decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FreeMusicApiException('recommend returned non-object JSON');
-    }
-    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": [...] }
-    final Object? data = decoded['data'];
-    final List<dynamic> playlistsData = data is List ? data : (decoded['playlists'] ?? <dynamic>[]);
-    return FreeMusicRecommendResult(
-      playlists: _playlistsFromJson(playlistsData),
+    // 酷狗API暂时返回空推荐列表
+    // 可以后续扩展使用酷狗的歌单接口
+    return const FreeMusicRecommendResult(
+      playlists: <FreeMusicPlaylist>[],
     );
   }
 
@@ -320,34 +319,9 @@ class FreeMusicApi {
     if (!playlist.canLoad) {
       return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
     }
-    final Uri uri = Uri.parse('$baseUri/playlist/page').replace(
-      queryParameters: <String, String>{
-        'id': playlist.id,
-        'source': playlist.source,
-        'offset': '$offset',
-        'size': '$size',
-      },
-    );
-    final http.Response response = await _httpGet(uri);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw FreeMusicApiException(
-        'playlist/page failed with HTTP ${response.statusCode}',
-      );
-    }
-    final Object? decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw const FreeMusicApiException(
-        'playlist/page returned non-object JSON',
-      );
-    }
-    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": {...} }
-    final Map<String, dynamic> data = decoded['data'] is Map<String, dynamic>
-        ? decoded['data'] as Map<String, dynamic>
-        : decoded;
-    return FreeMusicPlaylistPage(
-      songs: _songsFromJson(data['songs']),
-      total: _intValue(data['total']),
-    );
+    // 酷狗API暂时不支持歌单详情
+    // 可以后续扩展
+    return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
   }
 
   Future<FreeMusicResolvedUrl?> resolveSongUrl(
@@ -357,39 +331,62 @@ class FreeMusicApi {
     if (!song.canResolve) {
       return null;
     }
-    final Uri uri = Uri.parse('$baseUri/song_url').replace(
-      queryParameters: <String, String>{
-        'id': song.id,
-        'source': song.source,
-        'name': song.name,
-        'artist': song.artist,
-        if (song.duration > 0) 'duration': '${song.duration}',
-        'br': bitrate,
+
+    // 使用 LX Music API 获取播放地址
+    final String lxSource = _mapToLxSource(song.source);
+    final String lxQuality = bitrate == '320kmp3' ? '320k' : '128k';
+
+    final Uri uri = Uri.parse('https://lxmusicapi.onrender.com/url/$lxSource/${song.id}/$lxQuality');
+
+    final http.Response response = await _httpGet(
+      uri,
+      headers: <String, String>{
+        'X-Request-Key': 'share-v3',
+        'User-Agent': 'lx-music-mobile/1.0.0',
+        'Content-Type': 'application/json',
       },
     );
-    final http.Response response = await _httpGet(uri);
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'song_url failed with HTTP ${response.statusCode}',
       );
     }
+
     final Object? decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
       throw const FreeMusicApiException('song_url returned non-object JSON');
     }
-    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": {...} }
-    final Map<String, dynamic> data = decoded['data'] is Map<String, dynamic>
-        ? decoded['data'] as Map<String, dynamic>
-        : decoded;
-    final String url = '${data['url'] ?? decoded['url'] ?? ''}'.trim();
+
+    if (decoded['code'] != 0) {
+      // LX Music API 错误码
+      final String msg = decoded['msg'] ?? 'unknown error';
+      throw FreeMusicApiException('LX Music API error: $msg');
+    }
+
+    final String url = '${decoded['url'] ?? ''}'.trim();
     if (url.isEmpty) {
       return null;
     }
+
     return FreeMusicResolvedUrl(
       url: url,
-      source: '${decoded['source'] ?? song.source}'.trim(),
-      direct: decoded['direct'] == true,
+      source: song.source,
+      direct: true,
     );
+  }
+
+  /// 将通用音源名称映射到 LX Music API 的音源代码
+  String _mapToLxSource(String source) {
+    const Map<String, String> sourceMap = <String, String>{
+      'netease': 'wy',
+      'qq': 'tx',
+      'tencent': 'tx',
+      'kuwo': 'kw',
+      'kugou': 'kg',
+      'migu': 'mg',
+    };
+    return sourceMap[source.toLowerCase()] ?? 'wy';
   }
 
   /// Finds the same track on a different source when the current source cannot
