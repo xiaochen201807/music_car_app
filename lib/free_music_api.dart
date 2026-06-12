@@ -591,29 +591,32 @@ class FreeMusicApi {
     if (!song.canResolve) {
       return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
     }
-    final Uri uri = Uri.parse('$baseUri/lyric').replace(
+
+    // 使用 bugpk API 获取歌词
+    final Uri uri = Uri.parse('https://api.bugpk.com/api/music').replace(
       queryParameters: <String, String>{
         'id': song.id,
-        'source': song.source,
-        'name': song.name,
-        'artist': song.artist,
+        'media': 'netease',
+        'type': 'song',
       },
     );
-    final http.Response response = await _httpGet(
-      uri,
-      headers: const <String, String>{
-        'Accept': 'text/plain, application/json',
-        'Referer': 'https://music.sy110.eu.org/music',
-        'User-Agent': 'Mozilla/5.0 MusicCarApp',
-      },
-    );
+
+    final http.Response response = await _httpGet(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw FreeMusicApiException(
-        'lyric failed with HTTP ${response.statusCode}',
-      );
+      return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
     }
-    final String raw = response.body.trim();
-    return FreeMusicLyrics(raw: raw, lines: _parseLyricLines(raw));
+
+    final Object? decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
+    }
+
+    final String lrcData = '${decoded['lrc_data'] ?? ''}'.trim();
+    if (lrcData.isEmpty) {
+      return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
+    }
+
+    return FreeMusicLyrics(raw: lrcData, lines: _parseLyricLines(lrcData));
   }
 
   void close() {
