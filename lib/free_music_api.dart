@@ -555,34 +555,7 @@ class FreeMusicApi {
   }
 
   Future<FreeMusicLyrics> fetchEnhancedLyrics(FreeMusicSong song) async {
-    if (!song.canResolve) {
-      return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
-    }
-    final Uri uri = Uri.parse('$baseUri/yrc').replace(
-      queryParameters: <String, String>{'id': song.id, 'source': song.source},
-    );
-    final http.Response response = await _httpGet(uri);
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      final String body = response.body.trim();
-      String raw = body;
-      try {
-        final Object? decoded = jsonDecode(body);
-        if (decoded is Map) {
-          raw = _stringValue(
-            decoded['lrc'] ??
-                decoded['lyric'] ??
-                decoded['yrc'] ??
-                decoded['data'] ??
-                '',
-          );
-        }
-      } on FormatException {
-        raw = body;
-      }
-      if (raw.trim().isNotEmpty) {
-        return FreeMusicLyrics(raw: raw, lines: _parseLyricLines(raw));
-      }
-    }
+    // 网易云音乐暂时不支持逐字歌词，直接调用 fetchLyrics
     return fetchLyrics(song);
   }
 
