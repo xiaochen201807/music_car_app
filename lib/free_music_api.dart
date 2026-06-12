@@ -441,12 +441,6 @@ class FreeMusicApi {
       throw const FreeMusicApiException('song_url returned non-object JSON');
     }
 
-    if (decoded['code'] != 0) {
-      // LX Music API 错误码
-      final String msg = decoded['msg'] ?? 'unknown error';
-      throw FreeMusicApiException('LX Music API error: $msg');
-    }
-
     final String url = '${decoded['url'] ?? ''}'.trim();
     if (url.isEmpty) {
       return null;
