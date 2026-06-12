@@ -182,7 +182,7 @@ class FreeMusicApi {
     http.Client? client,
     this.baseUri = const String.fromEnvironment(
       'FREE_MUSIC_API_BASE',
-      defaultValue: 'https://music.sy110.eu.org/api/v1/freemusic',
+      defaultValue: 'http://111.119.212.124:18300/music',
     ),
     this.timeout = const Duration(seconds: 12),
   }) : _client = client ?? http.Client();
@@ -271,10 +271,14 @@ class FreeMusicApi {
     if (decoded is! Map<String, dynamic>) {
       throw const FreeMusicApiException('search returned non-object JSON');
     }
+    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": {...} }
+    final Map<String, dynamic> data = decoded['data'] is Map<String, dynamic>
+        ? decoded['data'] as Map<String, dynamic>
+        : decoded;
     return FreeMusicSearchResult(
-      songs: _songsFromJson(decoded['songs']),
-      hasMore: decoded['hasMore'] == true,
-      page: _intValue(decoded['page']),
+      songs: _songsFromJson(data['songs']),
+      hasMore: data['hasMore'] == true,
+      page: _intValue(data['page']),
     );
   }
 
@@ -300,8 +304,11 @@ class FreeMusicApi {
     if (decoded is! Map<String, dynamic>) {
       throw const FreeMusicApiException('recommend returned non-object JSON');
     }
+    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": [...] }
+    final Object? data = decoded['data'];
+    final List<dynamic> playlistsData = data is List ? data : (decoded['playlists'] ?? <dynamic>[]);
     return FreeMusicRecommendResult(
-      playlists: _playlistsFromJson(decoded['playlists']),
+      playlists: _playlistsFromJson(playlistsData),
     );
   }
 
@@ -333,9 +340,13 @@ class FreeMusicApi {
         'playlist/page returned non-object JSON',
       );
     }
+    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": {...} }
+    final Map<String, dynamic> data = decoded['data'] is Map<String, dynamic>
+        ? decoded['data'] as Map<String, dynamic>
+        : decoded;
     return FreeMusicPlaylistPage(
-      songs: _songsFromJson(decoded['songs']),
-      total: _intValue(decoded['total']),
+      songs: _songsFromJson(data['songs']),
+      total: _intValue(data['total']),
     );
   }
 
@@ -366,7 +377,11 @@ class FreeMusicApi {
     if (decoded is! Map<String, dynamic>) {
       throw const FreeMusicApiException('song_url returned non-object JSON');
     }
-    final String url = '${decoded['url'] ?? ''}'.trim();
+    // 新 API 返回格式：{ "code": 200, "msg": "success", "data": {...} }
+    final Map<String, dynamic> data = decoded['data'] is Map<String, dynamic>
+        ? decoded['data'] as Map<String, dynamic>
+        : decoded;
+    final String url = '${data['url'] ?? decoded['url'] ?? ''}'.trim();
     if (url.isEmpty) {
       return null;
     }
