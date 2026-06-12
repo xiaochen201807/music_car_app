@@ -103,7 +103,7 @@ void main() {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
     final FreeMusicApi api = FreeMusicApi(
       client: MockClient((http.Request request) async {
-        expect(request.url.path, '/api/v1/freemusic/song_url');
+        expect(request.url.path, '/music/song_url');
         expect(request.url.queryParameters['id'], '228908');
         return http.Response(
           '{"direct":true,"source":"kuwo","url":"https://example.com/resolved.mp3"}',
