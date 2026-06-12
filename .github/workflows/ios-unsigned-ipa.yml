@@ -46,10 +46,15 @@ jobs:
             ${{ runner.os }}-pods-
 
       - name: Flutter Pub Get
-        run: flutter pub get
+        run: |
+          flutter pub cache clean
+          rm -f pubspec.lock
+          flutter pub get
 
       - name: Install iOS Pods
-        run: pod install
+        run: |
+          rm -rf Pods Podfile.lock .symlinks
+          pod install
         working-directory: ios
 
       - name: Build Unsigned iOS Device App
