@@ -303,9 +303,11 @@ class FreeMusicApi {
       final dynamic albumData = item['album'];
       if (albumData is Map<String, dynamic>) {
         album = '${albumData['name'] ?? ''}';
-        final int? picId = albumData['picId'] as int?;
+        final dynamic picId = albumData['picId'];
         if (picId != null) {
-          cover = 'https://p1.music.126.net/$picId.jpg';
+          // 使用 imgproxy 代理网易云图片，避免 403 错误
+          final String originalUrl = 'https://p1.music.126.net/$picId.jpg';
+          cover = 'https://images.weserv.nl/?url=${Uri.encodeComponent(originalUrl)}';
         }
       }
 
