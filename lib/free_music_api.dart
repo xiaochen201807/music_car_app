@@ -298,7 +298,7 @@ class FreeMusicApi {
 
       return FreeMusicSong(
         id: '${item['hash'] ?? ''}',
-        source: 'kugou',
+        source: 'kuwo',  // 使用酷我获取播放地址（LX Music API 对酷我支持更好）
         name: '${item['songname'] ?? item['filename'] ?? ''}',
         artist: '${item['singername'] ?? ''}',
         album: '${item['album_name'] ?? ''}',
