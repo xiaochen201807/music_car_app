@@ -304,11 +304,51 @@ class FreeMusicApi {
   Future<FreeMusicRecommendResult> fetchRecommendations({
     List<String>? sources,
   }) async {
-    // 酷狗API暂时返回空推荐列表
-    // 可以后续扩展使用酷狗的歌单接口
-    return const FreeMusicRecommendResult(
-      playlists: <FreeMusicPlaylist>[],
+    // 使用酷狗歌单列表API
+    final Uri uri = Uri.parse('http://m.kugou.com/plist/index').replace(
+      queryParameters: <String, String>{
+        'json': 'true',
+        'page': '1',
+      },
     );
+
+    final http.Response response = await _httpGet(
+      uri,
+      headers: <String, String>{
+        'User-Agent': 'Mozilla/5.0',
+      },
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        'recommend failed with HTTP ${response.statusCode}',
+      );
+    }
+
+    final Object? decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException('recommend returned non-object JSON');
+    }
+
+    final Map<String, dynamic>? plist = decoded['plist'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? list = plist?['list'] as Map<String, dynamic>?;
+    final List<dynamic> info = list?['info'] as List<dynamic>? ?? <dynamic>[];
+
+    final List<FreeMusicPlaylist> playlists = info.map((dynamic item) {
+      if (item is! Map<String, dynamic>) {
+        return null;
+      }
+      return FreeMusicPlaylist(
+        id: '${item['specialid'] ?? ''}',
+        source: 'kugou',
+        name: '${item['specialname'] ?? item['title'] ?? ''}',
+        cover: '',
+        playCount: item['playcount'] as int? ?? 0,
+        trackCount: item['songcount'] as int? ?? 0,
+      );
+    }).whereType<FreeMusicPlaylist>().toList();
+
+    return FreeMusicRecommendResult(playlists: playlists);
   }
 
   Future<FreeMusicPlaylistPage> fetchPlaylistSongs(
@@ -319,9 +359,52 @@ class FreeMusicApi {
     if (!playlist.canLoad) {
       return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
     }
-    // 酷狗API暂时不支持歌单详情
-    // 可以后续扩展
-    return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
+
+    // 使用酷狗歌单详情API
+    final Uri uri = Uri.parse('http://m.kugou.com/plist/list/${playlist.id}').replace(
+      queryParameters: <String, String>{
+        'json': 'true',
+      },
+    );
+
+    final http.Response response = await _httpGet(
+      uri,
+      headers: <String, String>{
+        'User-Agent': 'Mozilla/5.0',
+      },
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw FreeMusicApiException(
+        'playlist failed with HTTP ${response.statusCode}',
+      );
+    }
+
+    final Object? decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FreeMusicApiException('playlist returned non-object JSON');
+    }
+
+    final Map<String, dynamic>? list = decoded['list'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? listInfo = list?['list'] as Map<String, dynamic>?;
+    final List<dynamic> info = listInfo?['info'] as List<dynamic>? ?? <dynamic>[];
+    final int total = listInfo?['total'] as int? ?? 0;
+
+    final List<FreeMusicSong> songs = info.skip(offset).take(size).map((dynamic item) {
+      if (item is! Map<String, dynamic>) {
+        return null;
+      }
+      return FreeMusicSong(
+        id: '${item['hash'] ?? ''}',
+        source: 'kugou',
+        name: '${item['filename'] ?? item['songname'] ?? ''}',
+        artist: '',
+        album: '',
+        duration: item['duration'] as int? ?? 0,
+      );
+    }).whereType<FreeMusicSong>().toList();
+
+    return FreeMusicPlaylistPage(songs: songs, total: total);
   }
 
   Future<FreeMusicResolvedUrl?> resolveSongUrl(
