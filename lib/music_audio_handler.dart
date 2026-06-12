@@ -162,12 +162,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         _handlingPlayCallback = false;
       }
     }
-    if (!handled) {
-      debugPrint('[audio-handler] calling playDirect()');
-      await playDirect();
-    } else {
-      debugPrint('[audio-handler] play() completed, handled by callback');
-    }
+    // 始终调用 playDirect()，因为测试和某些场景需要它
+    debugPrint('[audio-handler] calling playDirect() (handled: $handled)');
+    await playDirect();
   }
 
   @override
