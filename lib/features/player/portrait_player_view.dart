@@ -1290,6 +1290,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
               _centerIndex < lines.length)
             _buildSeekOverlay(lines[_centerIndex]),
         ],
+        ),
       ),
     );
   }
