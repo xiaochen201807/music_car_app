@@ -1,9 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:audio_service/audio_service.dart';
 
 import '../../app/music_app_state_scope.dart';
+import '../../controllers/player_ui_state_controller.dart';
 import '../../favorite_song_store.dart';
 import '../../models/demo_track.dart';
 import '../../models/playback_ui_state.dart';
@@ -34,45 +32,11 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
   bool _reducePageMotionEffects = false;
   int _lastRegularTab = 0;
 
-  StreamSubscription<PlaybackState>? _playbackStateSub;
-  StreamSubscription<MediaItem?>? _mediaItemSub;
-  final StreamController<PlaybackUiState> _playbackUiStateController =
-      StreamController<PlaybackUiState>.broadcast();
-  AudioHandler? _lastAudioHandler;
-
-  void _initPlaybackUiStateStream(AudioHandler? audioHandler) {
-    _playbackStateSub?.cancel();
-    _mediaItemSub?.cancel();
-    if (audioHandler == null) {
-      return;
-    }
-    _playbackStateSub = audioHandler.playbackState.listen((PlaybackState state) {
-      _emitLatestState(audioHandler);
-    });
-    _mediaItemSub = audioHandler.mediaItem.listen((MediaItem? item) {
-      _emitLatestState(audioHandler);
-    });
-    _emitLatestState(audioHandler);
-  }
-
-  void _emitLatestState(AudioHandler audioHandler) {
-    if (_playbackUiStateController.isClosed) return;
-    final PlaybackState playbackState = audioHandler.playbackState.valueOrNull ?? PlaybackState();
-    final MediaItem? mediaItem = audioHandler.mediaItem.valueOrNull;
-    final PlaybackUiState uiState = PlaybackUiState.fromAudioService(playbackState, mediaItem);
-    _playbackUiStateController.add(uiState);
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final NativeMusicHomePageState appState = MusicAppStateScope.of(context);
-    
-    if (appState.widget.audioHandler != _lastAudioHandler) {
-      _lastAudioHandler = appState.widget.audioHandler;
-      _initPlaybackUiStateStream(_lastAudioHandler);
-    }
-    
+
     final int selectedTab = appState.selectedTab;
     if (_isRegularTab(selectedTab)) {
       _lastRegularTab = selectedTab;
@@ -85,23 +49,18 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
   @override
   void dispose() {
     _pageController?.dispose();
-    _playbackStateSub?.cancel();
-    _mediaItemSub?.cancel();
-    _playbackUiStateController.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final NativeMusicHomePageState appState = MusicAppStateScope.of(context);
-    final AudioHandler? audioHandler = appState.widget.audioHandler;
-    final PlaybackUiState initialUiState = PlaybackUiState.fromAudioService(
-      audioHandler?.playbackState.valueOrNull,
-      audioHandler?.mediaItem.valueOrNull,
-    );
+    final PlayerUiStateController playerUiStateController =
+        appState.playerUiStateController;
+    final PlaybackUiState initialUiState = playerUiStateController.value;
 
     return StreamBuilder<PlaybackUiState>(
-      stream: _playbackUiStateController.stream,
+      stream: playerUiStateController.stream,
       initialData: initialUiState,
       builder: (BuildContext context, AsyncSnapshot<PlaybackUiState> snapshot) {
         final PlaybackUiState playbackState = snapshot.data ?? initialUiState;
@@ -414,13 +373,12 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
 
   Widget _buildSettingsView(NativeMusicHomePageState appState) {
     return PortraitSettingsView(
-      themeMode: appState.widget.themeMode,
+      themeMode: appState.themeMode,
       preferredBitrate: appState.preferredBitrate,
       updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
       carLifeStatus: appState.carLifeStatus,
       carLifeSyncing: appState.isSyncingCarLife,
-      onThemeModeChanged:
-          appState.widget.onThemeModeChanged ?? (ThemeMode mode) {},
+      onThemeModeChanged: appState.setThemeMode,
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
       onCheckUpdate: () => appState.checkForUpdate(),

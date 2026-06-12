@@ -75,6 +75,71 @@ The implementation sequence is now gated as follows:
 4. `[~]` Keep existing CarLife SDK work, but resume CarLife product integration
    only after the core app is usable without projection.
 
+## Musify Reference Optimization Track
+
+The sibling `../Musify-master` checkout is useful as a reference for mature
+Flutter music-app behavior, but it should stay a reference rather than a source
+copy target because Musify is GPL-licensed and its product shape is much larger
+than this car/head-unit app.
+
+Reference items to adapt with local implementations:
+
+- `[x]` Playback-state throttling: reduce redundant `audio_service` state
+  emissions while preserving active-playback heartbeat and meaningful seek or
+  buffering changes.
+- `[x]` Stable queue-entry identity: avoid media-browser selection ambiguity
+  when a queue contains duplicate songs from the same source.
+- `[x]` Completion/error guardrails: track consecutive playback failures and
+  stop or skip deterministically after repeated resolver/player errors.
+- `[ ]` Playlist/offline download queue: add bounded concurrent downloads and
+  cancellable progress for full playlists instead of only per-track cache
+  operations.
+- `[ ]` API cache policy: add short-lived memory caching for search, playlist,
+  lyric, source, and quality calls before adding heavier persistent stores.
+- `[~]` Settings notifiers: move cross-page settings such as quality,
+  repeat/shuffle, update checks, cache behavior, and projection options behind
+  explicit app-level notifiers instead of scattered preference reads. Theme mode
+  and default playback bitrate now live in `AppSettingsController`; repeat,
+  shuffle, update checks, cache behavior, and projection options remain.
+
+## State And UI Separation Order
+
+Current priority is to shrink `main.dart` into composition and event wiring
+only. Keep each extraction behavior-preserving, covered by tests, and small
+enough to review.
+
+1. `[x]` Move theme mode and default bitrate persistence into
+   `AppSettingsController`.
+2. `[x]` Extract `QueueController` as the single owner for queue contents,
+   current index, current song, reorder/remove rules, and playback mode.
+3. `[~]` Extract `PlaybackController` as the single owner for play, pause,
+   skip, seek, volume intent, resolver calls, and coordination with
+   `NativeAudioController` / `MusicAudioHandler`. The first controller now
+   owns basic playback action dispatch, debounce, queue-action busy state,
+   playback mode writes, seek, and volume state; full platform bridge routing
+   remains.
+4. `[~]` Extract `LibraryController` and `SearchController` for search,
+   pagination, recommendations, playlist details, favorites, downloads, lyrics,
+   and quality loading. `LibraryController` now owns favorite songs, loading
+   state, favorite keys, optimistic favorite toggles, persistence, and rollback
+   on save failure. `MusicSearchController` now owns search queries, request-id
+   guards, pagination, search/load-more errors, results, recommendation
+   playlists, recommendation loading state, and recommendation errors.
+   `DownloadController` now owns downloaded-track keys, downloaded-song
+   projection, download quality lookup, download stream subscriptions, cache
+   deletion, and download completion notifications. Playlist details, lyrics,
+   and quality loading still need to move behind controllers.
+5. `[x]` Introduce `PlayerUiState`, a view model that UI subscribes to instead
+   of recomputing player truth from `AudioHandler`, `MediaItem`, queue lists,
+   and page-local fields. `PlayerUiStateController` now owns the
+   `AudioHandler` to `PlaybackUiState` projection for app state and the portrait
+   shell.
+6. `[x]` Extract `PlatformMediaBridge` so lock-screen media buttons, Bluetooth,
+   CarLife, and CarPlay call the unified controllers instead of page methods.
+7. `[x]` After the above chain is stable, compare Musify's local queue model,
+   playback state machine, cache policy, and player-page decomposition for
+   targeted ideas only.
+
 ## Main Risks
 
 - The FreeMusic APIs may change, rate-limit, or return temporary audio URLs.

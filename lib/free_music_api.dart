@@ -12,6 +12,7 @@ class FreeMusicSong {
     required this.duration,
     this.album = '',
     this.cover = '',
+    this.queueEntryId,
   });
 
   final String id;
@@ -21,8 +22,22 @@ class FreeMusicSong {
   final int duration;
   final String album;
   final String cover;
+  final String? queueEntryId;
 
   bool get canResolve => id.isNotEmpty && source.isNotEmpty;
+
+  FreeMusicSong withQueueEntryId(String entryId) {
+    return FreeMusicSong(
+      id: id,
+      source: source,
+      name: name,
+      artist: artist,
+      duration: duration,
+      album: album,
+      cover: cover,
+      queueEntryId: entryId,
+    );
+  }
 }
 
 class FreeMusicSearchResult {

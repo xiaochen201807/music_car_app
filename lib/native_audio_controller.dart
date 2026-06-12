@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'free_music_api.dart';
 import 'models/cached_track.dart';
+import 'services/app_settings_controller.dart';
 import 'services/download_service.dart';
 
 enum NativePlaybackMode {
@@ -440,9 +441,10 @@ class NativeAudioController {
   Future<String> getPreferredBitrate() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      return prefs.getString('preferred_bitrate') ?? '320kmp3';
+      return prefs.getString(preferredBitratePreferenceKey) ??
+          defaultPreferredBitrate;
     } catch (_) {
-      return '320kmp3';
+      return defaultPreferredBitrate;
     }
   }
 

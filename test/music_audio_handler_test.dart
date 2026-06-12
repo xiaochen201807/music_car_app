@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -312,6 +314,34 @@ void main() {
     expect(player.isPlaying, isFalse);
     expect(handler.playbackState.value.playing, isFalse);
 
+    await handler.dispose();
+  });
+
+  test('playback state suppresses unchanged broadcasts', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+    final List<PlaybackState> states = <PlaybackState>[];
+    final StreamSubscription<PlaybackState> subscription = handler.playbackState
+        .listen(states.add);
+    await Future<void>.delayed(Duration.zero);
+
+    final int initialCount = states.length;
+    await handler.playDirect();
+    await Future<void>.delayed(Duration.zero);
+    final int afterPlayCount = states.length;
+    await handler.playDirect();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(afterPlayCount, greaterThan(initialCount));
+    expect(states.length, afterPlayCount);
+
+    player.currentPosition = const Duration(seconds: 2);
+    await handler.playDirect();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(states.length, afterPlayCount + 1);
+
+    await subscription.cancel();
     await handler.dispose();
   });
 

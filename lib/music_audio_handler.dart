@@ -50,6 +50,11 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   static const Duration _stallSkipThreshold = Duration(seconds: 10);
   static const Duration _seekStep = Duration(seconds: 15);
   static const Duration _continuousSeekInterval = Duration(milliseconds: 500);
+  static const Duration _playbackStateHeartbeat = Duration(seconds: 1);
+  static const Duration _playbackPositionDriftThreshold = Duration(
+    milliseconds: 500,
+  );
+  static const Duration _bufferedPositionChangeThreshold = Duration(seconds: 1);
 
   static const MethodChannel _carLifeChannel = MethodChannel(
     'music_car_app/carlife',
@@ -72,6 +77,8 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   bool _handlingPlayCallback = false;
   bool _handlingPauseCallback = false;
   bool _autoSkippingToNext = false; // 操作级防重入：await 完成后释放
+  bool _isBroadcastingPlaybackState = false;
+  bool _pendingPlaybackStateBroadcast = false;
   int? _activeQueueIndex;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
@@ -386,37 +393,54 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       unawaited(autoSkipToNextAfterCompletion());
     }
 
+    if (_isBroadcastingPlaybackState) {
+      _pendingPlaybackStateBroadcast = true;
+      return;
+    }
+    _isBroadcastingPlaybackState = true;
+
     final bool playing = _player.playing;
-    playbackState.add(
-      PlaybackState(
-        controls: <MediaControl>[
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-          MediaControl.stop,
-        ],
-        systemActions: const <MediaAction>{
-          MediaAction.seek,
-          MediaAction.skipToNext,
-          MediaAction.skipToPrevious,
-          MediaAction.seekForward,
-          MediaAction.seekBackward,
-          MediaAction.play,
-          MediaAction.pause,
-          MediaAction.playPause,
-          MediaAction.stop,
-        },
-        androidCompactActionIndices: const <int>[0, 1, 2],
-        processingState: _mapProcessingState(event.processingState),
-        playing: playing,
-        updatePosition: _player.position,
-        bufferedPosition: _player.bufferedPosition,
-        speed: _player.speed,
-        queueIndex: _activeQueueIndex,
-        repeatMode: _repeatMode,
-        shuffleMode: _shuffleMode,
-      ),
+    final PlaybackState nextState = PlaybackState(
+      controls: <MediaControl>[
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+        MediaControl.stop,
+      ],
+      systemActions: const <MediaAction>{
+        MediaAction.seek,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.playPause,
+        MediaAction.stop,
+      },
+      androidCompactActionIndices: const <int>[0, 1, 2],
+      processingState: _mapProcessingState(event.processingState),
+      playing: playing,
+      updatePosition: _player.position,
+      bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
+      queueIndex: _activeQueueIndex,
+      repeatMode: _repeatMode,
+      shuffleMode: _shuffleMode,
+      updateTime: DateTime.now(),
     );
+
+    try {
+      if (_shouldBroadcastPlaybackState(playbackState.valueOrNull, nextState)) {
+        playbackState.add(nextState);
+      }
+    } finally {
+      _isBroadcastingPlaybackState = false;
+      if (_pendingPlaybackStateBroadcast) {
+        _pendingPlaybackStateBroadcast = false;
+        _broadcastPlaybackState(_player.playbackEvent);
+      }
+    }
   }
 
   @visibleForTesting
@@ -629,4 +653,41 @@ AudioProcessingState _mapProcessingState(ProcessingState state) {
     case ProcessingState.completed:
       return AudioProcessingState.completed;
   }
+}
+
+bool _shouldBroadcastPlaybackState(PlaybackState? current, PlaybackState next) {
+  if (current == null) {
+    return true;
+  }
+  if (current.playing != next.playing ||
+      current.processingState != next.processingState ||
+      current.queueIndex != next.queueIndex ||
+      current.speed != next.speed ||
+      current.repeatMode != next.repeatMode ||
+      current.shuffleMode != next.shuffleMode) {
+    return true;
+  }
+  if (_durationDelta(current.bufferedPosition, next.bufferedPosition) >=
+      MusicAudioHandler._bufferedPositionChangeThreshold) {
+    return true;
+  }
+  if (next.playing &&
+      next.updateTime.difference(current.updateTime) >=
+          MusicAudioHandler._playbackStateHeartbeat) {
+    return true;
+  }
+  return _hasSignificantPositionDrift(current, next);
+}
+
+bool _hasSignificantPositionDrift(PlaybackState current, PlaybackState next) {
+  final Duration expectedPosition =
+      current.updatePosition +
+      (next.updateTime.difference(current.updateTime)) * current.speed;
+  return _durationDelta(next.updatePosition, expectedPosition) >
+      MusicAudioHandler._playbackPositionDriftThreshold;
+}
+
+Duration _durationDelta(Duration left, Duration right) {
+  final Duration delta = left - right;
+  return delta.isNegative ? -delta : delta;
 }

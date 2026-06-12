@@ -3,6 +3,267 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-06-11 - DownloadController Cache Split
+
+Implemented in this increment:
+
+- Added `DownloadController` under `lib/controllers` as the downloaded-cache
+  and download-operation state boundary.
+- Added backend adapters around `DownloadService` and `FreeMusicApi`, so
+  download-state behavior can be unit-tested without real file or network work.
+- Moved downloaded-track key derivation, downloaded-song projection, download
+  quality lookup, download stream subscription ownership, cache deletion, and
+  completion notifications out of `main.dart`.
+- Rewired `NativeMusicHomePageState` so downloaded-song getters, download
+  actions, and cache-delete actions go through `DownloadController`.
+- Kept `DownloadService` as the low-level file/cache implementation and kept
+  UI toast/snack feedback in `main.dart`.
+- Added unit coverage for cached-track projection, nearest quality selection,
+  default-quality fallback, download error propagation, and cache-delete
+  notifications.
+
+Verification in this increment:
+
+- `dart format lib/controllers/download_controller.dart test/download_controller_test.dart lib/main.dart`
+- `flutter test test/download_controller_test.dart`
+- `flutter analyze`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - MusicSearchController Search Split
+
+Implemented in this increment:
+
+- Added `MusicSearchController` under `lib/controllers` as the search and
+  recommendation state boundary.
+- Added a `MusicSearchClient` adapter around `FreeMusicApi`, so search-state
+  behavior can be unit-tested without real network calls.
+- Moved search request IDs, stale-result guards, search loading state, load-more
+  loading state, search errors, load-more errors, last query, paging state,
+  search results, recommendation playlists, recommendation loading state, and
+  recommendation errors out of `main.dart`.
+- Rewired `NativeMusicHomePageState` so existing UI getters and
+  `MusicAppStateScope` snapshots read from `MusicSearchController`.
+- Kept the visible UI and page method names unchanged; the text-field debounce
+  timer remains in `main.dart` because it is tied to the widget input lifecycle.
+- Added unit coverage for empty-query reset, loading state, immutable results,
+  stale search suppression, load-more pagination, API error mapping, and
+  recommendation timeout handling.
+
+Verification in this increment:
+
+- `dart format lib/controllers/music_search_controller.dart test/music_search_controller_test.dart lib/main.dart`
+- `flutter test test/music_search_controller_test.dart`
+- `flutter analyze`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - LibraryController Favorites Split
+
+Implemented in this increment:
+
+- Added `LibraryController` under `lib/controllers` as the first library-state
+  boundary.
+- Moved favorite songs, favorite loading state, favorite-key derivation,
+  optimistic favorite toggles, persistence, and save-failure rollback into the
+  controller.
+- Rewired `NativeMusicHomePageState` so favorite getters and UI snapshots read
+  from `LibraryController` instead of page-local fields.
+- Kept UI behavior and page method names unchanged; playing favorites still
+  calls the existing playback queue path, and toast/snack UI feedback remains
+  in `main.dart`.
+- Added unit coverage for favorite loading, immutable state, add/remove toggle
+  behavior, rollback on save failure, and invalid-song rejection.
+
+Verification in this increment:
+
+- `dart format lib/controllers/library_controller.dart test/library_controller_test.dart lib/main.dart`
+- `flutter test test/library_controller_test.dart`
+- `flutter analyze`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - PlayerUiStateController Shell Split
+
+Implemented in this increment:
+
+- Added `PlayerUiStateController` under `lib/controllers` as the first view
+  model boundary for playback UI state.
+- Added a `PlayerUiStateSource` adapter around `AudioHandler`, so UI code can
+  subscribe to `PlaybackUiState` without directly merging playback-state and
+  media-item streams.
+- Rewired `NativeMusicHomePageState` to own the controller and expose its
+  current `PlaybackUiState` to app/platform coordination code.
+- Rewired the portrait shell to subscribe to the same controller while keeping
+  the visible UI and `StreamBuilder` flow unchanged.
+- Removed direct `PlaybackUiState.fromAudioService` calls from `main.dart` and
+  the portrait shell; the projection now lives behind the controller boundary.
+- Added unit coverage for empty initial state, playback updates, media-item
+  updates, null-source reset, and disposal behavior.
+
+Verification in this increment:
+
+- `dart format lib/controllers/player_ui_state_controller.dart lib/features/shell/portrait_music_shell.dart test/player_ui_state_controller_test.dart`
+- `flutter test test/player_ui_state_controller_test.dart`
+- `flutter analyze`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - PlaybackController First Pass
+
+Implemented in this increment:
+
+- Added `PlaybackController` under `lib/controllers` as the first unified owner
+  for playback actions.
+- Moved existing resume, pause, previous, next, queue-item selection, queue
+  action busy state, play-snapshot dispatch, seek, playback mode writes, and
+  volume state into `PlaybackController`.
+- Added a `PlaybackBackend` adapter boundary so controller behavior can be
+  unit-tested without starting the real native audio stack.
+- Updated `NativeMusicHomePageState` so UI actions and CarLife play/pause now
+  call `PlaybackController` instead of directly touching `NativeAudioController`
+  or `MusicAudioHandler` for those basic playback operations.
+- Kept UI layout unchanged and left full `PlatformMediaBridge` extraction for a
+  later step; CarLife/CarPlay still live in existing services and page wiring.
+
+Verification in this increment:
+
+- `dart format lib/controllers/playback_controller.dart lib/main.dart test/playback_controller_test.dart`
+- `flutter test test/playback_controller_test.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart test/native_audio_controller_test.dart test/music_audio_handler_test.dart test/playback_controller_test.dart test/queue_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - QueueController Architecture Split
+
+Implemented in this increment:
+
+- Continued the Musify-style layering cleanup without changing UI layout or
+  visible playback behavior.
+- Added `QueueController` under `lib/controllers`, owning playback queue,
+  current index, current song, queue reorder/remove rules, and native playback
+  mode.
+- Rewired `NativeMusicHomePageState` so queue mutations go through
+  `QueueController` instead of directly assigning `_playbackQueue`,
+  `_selectedQueueIndex`, `_currentSong`, or `_playbackMode`.
+- Kept playback side effects in the existing path for now: `NativeAudioController`
+  still performs actual play/pause/skip/seek/resolution work, and CarLife/CarPlay
+  still call the existing page methods until `PlaybackController` and
+  `PlatformMediaBridge` are extracted.
+- Added unit coverage for queue replacement, append semantics, reorder preview
+  and apply behavior, removal behavior, playback-mode ownership, and duplicate
+  notification avoidance.
+
+Architecture note:
+
+- Target layers are now explicit: `PlaybackController`, `QueueController`,
+  `Library/SearchController`, `PlayerUiState`, and `PlatformMediaBridge`.
+  `QueueController` is the first completed controller in that split.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/controllers/queue_controller.dart test/queue_controller_test.dart`
+- `flutter test test/queue_controller_test.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart test/native_audio_controller_test.dart test/music_audio_handler_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - Settings State Controller Split
+
+Implemented in this increment:
+
+- Started the Musify-style structure cleanup by separating app settings state
+  from UI widgets instead of adding more preference reads to `main.dart`.
+- Added `AppSettingsController` under `lib/services`, owning theme mode,
+  preferred playback bitrate, persistence keys, default values, and listener
+  notifications.
+- Updated `MusicCarApp`, `NativeMusicHomePage`, and the portrait settings page
+  wiring so UI reads settings through the controller and sends changes back as
+  actions.
+- Reused the same preferred-bitrate constants in `NativeAudioController`, so
+  playback URL resolution and settings UI no longer duplicate string keys or
+  defaults.
+- Added unit coverage for loading persisted settings, saving changed settings,
+  and avoiding duplicate listener notifications for unchanged values.
+
+Architecture note:
+
+- This is intentionally the first small split only. The remaining large
+  `main.dart` state groups should be extracted in this order: playback
+  orchestration, search/recommendation loading, favorites/library state, then
+  projection/update coordination.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/native_audio_controller.dart lib/features/shell/portrait_music_shell.dart lib/services/app_settings_controller.dart test/app_settings_controller_test.dart`
+- `flutter test test/app_settings_controller_test.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
+## 2026-06-11 - Musify Reference Pass And Playback State Throttle
+
+Implemented in this increment:
+
+- Audited the sibling `../Musify-master` checkout as a reference implementation
+  for mature Flutter music-app patterns.
+- Kept the comparison as architectural guidance only. Musify is GPL-licensed,
+  so implementation should be written for this project instead of copying source
+  code directly.
+- Applied the first low-risk optimization to `MusicAudioHandler`: repeated
+  playback-state broadcasts are now suppressed when playing state, processing
+  state, queue index, repeat/shuffle modes, speed, buffered position, and
+  effective playback position have not meaningfully changed.
+- Kept a one-second heartbeat for active playback and a position-drift escape
+  hatch so progress updates and seek corrections still reach UI and media
+  sessions.
+- Added regression coverage proving unchanged broadcasts are suppressed while a
+  meaningful position change still emits a new playback state.
+
+Musify reference notes:
+
+- Useful patterns for this project: throttled playback-state publishing,
+  stable queue-entry identity, guarded song-completion handling, bounded
+  concurrent playlist downloads, short-lived in-memory API cache, and explicit
+  settings notifiers.
+- Do not directly import Musify's large app architecture. This project remains a
+  car/head-unit-oriented app with the existing FreeMusic API client, native
+  queue, CarLife/CarPlay work, and repository UI token contract.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart`
+- `flutter test test/music_audio_handler_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-11 - Android Playback Button And Media Session Control Fix
 
 Implemented in this increment:
@@ -38,6 +299,7 @@ Verification in this increment:
 - `dart format lib/music_audio_handler.dart lib/native_audio_controller.dart lib/main.dart lib/services/carplay_service.dart test/music_audio_handler_test.dart test/native_audio_controller_test.dart`
 - `flutter test test/music_audio_handler_test.dart`
 - `flutter test test/native_audio_controller_test.dart`
+- `flutter analyze`
 - `git diff --check`
 
 Packaging note:
