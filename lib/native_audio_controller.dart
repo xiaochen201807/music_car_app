@@ -383,7 +383,7 @@ class NativeAudioController {
     }
     // 尝试从持久化恢复
     debugPrint('[native-audio] attempting to restore from persistence');
-    await _maybeRestore();
+    await _restoreFuture;
     if (_loadedUrl.isNotEmpty) {
       await _player.playDirect();
       debugPrint('[native-audio] resumed from restored state');
