@@ -825,6 +825,7 @@ class PlayerLyricsView extends StatefulWidget {
     required this.playing,
     required this.lyricsBusy,
     required this.lyricsError,
+    required this.currentSong,
     this.onSeek,
     this.onRetry,
   });
@@ -834,6 +835,7 @@ class PlayerLyricsView extends StatefulWidget {
   final bool playing;
   final bool lyricsBusy;
   final String lyricsError;
+  final FreeMusicSong? currentSong;
   final ValueChanged<Duration>? onSeek;
   final VoidCallback? onRetry;
 

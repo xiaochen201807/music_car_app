@@ -216,7 +216,6 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   late final MusicSearchController _musicSearchController;
   late final TrackMetadataController _trackMetadataController;
   late final PlatformMediaBridge _mediaBridge;
-  final LyricOffsetStore _lyricOffsetStore = LyricOffsetStore();
   final FreeMusicApi _freeMusicApi = FreeMusicApi();
   final TextEditingController _searchController = TextEditingController();
   final UpdateCheckService _updateCheckService = UpdateCheckService();
@@ -341,7 +340,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       unawaited(_carPlayService!.init());
     }
     WidgetsBinding.instance.addObserver(this);
-    _playerUiStateController.addListener(_handlePlaybackStateChanged);
+    _queueController.addListener(_handlePlaybackStateChanged);
     _startLyricBroadcastTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadStartupMusicContent());
@@ -360,7 +359,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   @override
   void dispose() {
-    _playerUiStateController.removeListener(_handlePlaybackStateChanged);
+    _queueController.removeListener(_handlePlaybackStateChanged);
     _carPlayService?.dispose();
     _lyricBroadcastTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);

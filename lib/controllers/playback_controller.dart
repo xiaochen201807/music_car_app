@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../free_music_api.dart';
 import '../music_audio_handler.dart';
 import '../native_audio_controller.dart';
-import '../services/logger_service.dart';
-import '../services/playback_error_tracker.dart';
 
 abstract class PlaybackBackend {
   Future<bool> resumePlayback();
