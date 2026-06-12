@@ -381,6 +381,14 @@ class NativeAudioController {
       }
       return handled;
     }
+    // 尝试从持久化恢复
+    debugPrint('[native-audio] attempting to restore from persistence');
+    await _maybeRestore();
+    if (_loadedUrl.isNotEmpty) {
+      await _player.playDirect();
+      debugPrint('[native-audio] resumed from restored state');
+      return true;
+    }
     debugPrint('[native-audio] resume ignored: no loaded track or queue');
     return false;
   }

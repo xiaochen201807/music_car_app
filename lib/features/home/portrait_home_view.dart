@@ -31,6 +31,7 @@ class PortraitHomeView extends StatefulWidget {
     required this.onSearch,
     required this.onHotKeyword,
     required this.onSelectPlaylist,
+    required this.onRefresh,
     this.onRetryRecommendations,
   });
 
@@ -48,6 +49,7 @@ class PortraitHomeView extends StatefulWidget {
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
+  final Future<void> Function() onRefresh;
   final VoidCallback? onRetryRecommendations;
 
   @override
@@ -78,8 +80,10 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
     _history ??= <String>[];
 
     return SafeArea(
-      child: CustomScrollView(
-        slivers: <Widget>[
+      child: RefreshIndicator(
+        onRefresh: widget.onRefresh,
+        child: CustomScrollView(
+          slivers: <Widget>[
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
               AppSpace.xl,
@@ -261,6 +265,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
