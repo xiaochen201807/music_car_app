@@ -64,7 +64,9 @@ class PlatformMediaBridge {
   }
 
   Future<bool> _handlePlay() async {
+    debugPrint('[platform-bridge] play button pressed');
     final bool handled = await _playbackController.resumeNativePlayback();
+    debugPrint('[platform-bridge] play handled: $handled');
     return handled;
   }
 
