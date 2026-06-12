@@ -305,9 +305,8 @@ class FreeMusicApi {
         album = '${albumData['name'] ?? ''}';
         final dynamic picId = albumData['picId'];
         if (picId != null) {
-          // 使用 imgproxy 代理网易云图片，避免 403 错误
-          final String originalUrl = 'https://p1.music.126.net/$picId.jpg';
-          cover = 'https://images.weserv.nl/?url=${Uri.encodeComponent(originalUrl)}';
+          // 直接使用网易云图片，通过 bugpk CDN 代理
+          cover = 'https://api.bugpk.com/api/proxy?url=${Uri.encodeComponent('https://p1.music.126.net/$picId.jpg')}';
         }
       }
 
