@@ -305,8 +305,8 @@ class FreeMusicApi {
         album = '${albumData['name'] ?? ''}';
         final dynamic picId = albumData['picId'];
         if (picId != null) {
-          // 直接使用网易云图片，通过 bugpk CDN 代理
-          cover = 'https://api.bugpk.com/api/proxy?url=${Uri.encodeComponent('https://p1.music.126.net/$picId.jpg')}';
+          // 使用 p3/p4 CDN，这些域名通常不检查 Referer
+          cover = 'https://p3.music.126.net/$picId.jpg';
         }
       }
 
