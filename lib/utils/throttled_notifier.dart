@@ -1,8 +1,5 @@
 import 'dart:async';
 
-import '../free_music_api.dart';
-import '../native_audio_controller.dart';
-
 class ThrottledNotifier {
   Timer? _notifyTimer;
   final void Function() _notify;
