@@ -305,7 +305,7 @@ class FreeMusicApi {
         album = '${albumData['name'] ?? ''}';
         final int? picId = albumData['picId'] as int?;
         if (picId != null) {
-          cover = 'https://p1.music.126.net/${picId}.jpg';
+          cover = 'https://p1.music.126.net/$picId.jpg';
         }
       }
 
@@ -473,19 +473,6 @@ class FreeMusicApi {
       source: song.source,
       direct: true,
     );
-  }
-
-  /// 将通用音源名称映射到 LX Music API 的音源代码
-  String _mapToLxSource(String source) {
-    const Map<String, String> sourceMap = <String, String>{
-      'netease': 'wy',
-      'qq': 'tx',
-      'tencent': 'tx',
-      'kuwo': 'kw',
-      'kugou': 'kg',
-      'migu': 'mg',
-    };
-    return sourceMap[source.toLowerCase()] ?? 'wy';
   }
 
   /// Finds the same track on a different source when the current source cannot
