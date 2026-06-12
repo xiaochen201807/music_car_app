@@ -289,6 +289,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   @override
   void initState() {
     super.initState();
+    debugPrint('════════════════════════════════════════════════════════════');
+    debugPrint('🚀 App Version: 1.0.60 (Build 2024-06-12-v2)');
+    debugPrint('✅ Fixes: 锁屏播放 + 歌词串歌 + 歌词偏移 + CarLife歌词');
+    debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
       client: FreeMusicSearchApiClient(_freeMusicApi),
@@ -422,8 +426,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   FreeMusicSong? _lastLoadedLyricsSong;
 
   void _handlePlaybackStateChanged() {
+    debugPrint('[main] 🔄 QueueController changed, checking song switch');
     final FreeMusicSong? currentSong = _queueController.currentSong;
     if (currentSong != null && currentSong != _lastLoadedLyricsSong) {
+      debugPrint('[main] 🎵 Song switched: ${currentSong.name} - ${currentSong.artist}');
       _lastLoadedLyricsSong = currentSong;
       unawaited(_loadLyricsForSong(currentSong));
     }

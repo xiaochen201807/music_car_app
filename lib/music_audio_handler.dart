@@ -178,8 +178,6 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       _handlingPauseCallback = true;
       try {
         await onPauseTrack!.call();
-        _broadcastPlaybackState(_player.playbackEvent);
-        return;
       } catch (error) {
         debugPrint('[audio-handler] onPauseTrack failed: $error');
       } finally {
@@ -187,6 +185,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       }
     }
     await pauseDirect();
+    _broadcastPlaybackState(_player.playbackEvent);
   }
 
   @override
