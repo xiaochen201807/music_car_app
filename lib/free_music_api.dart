@@ -284,6 +284,18 @@ class FreeMusicApi {
       if (item is! Map<String, dynamic>) {
         return null;
       }
+
+      // 获取封面图片
+      String cover = '';
+      final dynamic transParam = item['trans_param'];
+      if (transParam is Map<String, dynamic>) {
+        final String? unionCover = transParam['union_cover'] as String?;
+        if (unionCover != null && unionCover.isNotEmpty) {
+          // 替换 {size} 为实际尺寸
+          cover = unionCover.replaceAll('{size}', '400');
+        }
+      }
+
       return FreeMusicSong(
         id: '${item['hash'] ?? ''}',
         source: 'kugou',
@@ -291,6 +303,7 @@ class FreeMusicApi {
         artist: '${item['singername'] ?? ''}',
         album: '${item['album_name'] ?? ''}',
         duration: item['duration'] as int? ?? 0,
+        cover: cover,
       );
     }).whereType<FreeMusicSong>().toList();
 
