@@ -881,12 +881,12 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
   void _showOffsetAdjuster() {
     if (widget.currentSong == null) return;
     HapticFeedback.mediumImpact();
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) => LyricOffsetAdjuster(
+      builder: (BuildContext context) => LyricOffsetAdjuster(
         song: widget.currentSong!,
         currentOffset: _offset,
-        onOffsetChanged: (offset) {
+        onOffsetChanged: (Duration offset) {
           setState(() {
             _offset = offset;
           });

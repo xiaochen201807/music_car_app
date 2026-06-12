@@ -65,6 +65,7 @@ void main() {
             playing: false,
             lyricsBusy: false,
             lyricsError: '',
+            currentSong: null,
             onSeek: (Duration duration) {
               seekedDuration = duration;
             },
