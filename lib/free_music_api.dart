@@ -740,40 +740,6 @@ List<FreeMusicLyricLine> _parseLyricLines(String raw) {
   return List<FreeMusicLyricLine>.unmodifiable(lines);
 }
 
-List<FreeMusicPlaylist> _playlistsFromJson(Object? value) {
-  if (value is! Iterable) {
-    return const <FreeMusicPlaylist>[];
-  }
-  return value
-      .whereType<Map>()
-      .map((Map<Object?, Object?> item) {
-        return FreeMusicPlaylist(
-          id: _stringValue(item['id']),
-          source: _stringValue(item['source']),
-          name: _stringValue(item['name'] ?? item['title']),
-          cover: _stringValue(item['cover'] ?? item['picUrl'] ?? item['img']),
-          creator: _stringValue(item['creator'] ?? item['author']),
-          description: _stringValue(item['description']),
-          link: _stringValue(item['link']),
-          trackCount: _intValue(item['track_count'] ?? item['trackCount']),
-          playCount: _intValue(item['play_count'] ?? item['playCount']),
-        );
-      })
-      .where((FreeMusicPlaylist playlist) => playlist.canLoad)
-      .toList(growable: false);
-}
-
-List<FreeMusicSong> _songsFromJson(Object? value) {
-  if (value is! Iterable) {
-    return const <FreeMusicSong>[];
-  }
-  return value
-      .whereType<Map>()
-      .map(_songFromMap)
-      .where((FreeMusicSong song) => song.canResolve)
-      .toList(growable: false);
-}
-
 FreeMusicSong _songFromMap(Map<Object?, Object?> item) {
   return FreeMusicSong(
     id: _stringValue(item['id'] ?? item['songmid'] ?? item['mid']),
