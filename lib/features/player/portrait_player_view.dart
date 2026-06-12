@@ -1153,14 +1153,16 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
 
     final int activeIndex = activeLyricLineIndex(
       lines,
-      _currentPosition,
+      _currentPosition + _offset,
       lead: lyricHighlightLead,
     );
 
     return SizedBox(
       height: 200,
-      child: Stack(
-        children: <Widget>[
+      child: GestureDetector(
+        onLongPress: _showOffsetAdjuster,
+        child: Stack(
+          children: <Widget>[
           ShaderMask(
             shaderCallback: (Rect rect) {
               return const LinearGradient(
