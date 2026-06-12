@@ -299,15 +299,10 @@ class FreeMusicApi {
 
       // 获取专辑信息
       String album = '';
-      String cover = '';
       final dynamic albumData = item['album'];
       if (albumData is Map<String, dynamic>) {
         album = '${albumData['name'] ?? ''}';
-        final dynamic picId = albumData['picId'];
-        if (picId != null) {
-          // 使用 p3/p4 CDN，这些域名通常不检查 Referer
-          cover = 'https://p3.music.126.net/$picId.jpg';
-        }
+        // 搜索时封面留空，播放时从 bugpk API 获取完整封面
       }
 
       return FreeMusicSong(
@@ -317,7 +312,7 @@ class FreeMusicApi {
         artist: artist,
         album: album,
         duration: (item['duration'] as int? ?? 0) ~/ 1000,
-        cover: cover,
+        cover: '', // 搜索时封面留空，播放时从 bugpk API 获取
       );
     }).whereType<FreeMusicSong>().toList();
 
