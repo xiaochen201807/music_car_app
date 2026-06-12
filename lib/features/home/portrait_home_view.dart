@@ -83,6 +83,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
       child: RefreshIndicator(
         onRefresh: widget.onRefresh,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: <Widget>[
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(

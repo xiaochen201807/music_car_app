@@ -107,9 +107,11 @@ class PlaybackController {
 
   double get volume => _volume;
 
-  Future<bool> resumeNativePlayback() {
+  Future<bool> resumeNativePlayback() async {
     debugPrint('[playback-controller] resumeNativePlayback called');
-    return _backend.resumePlayback();
+    final bool handled = await _backend.resumePlayback();
+    debugPrint('[playback-controller] resumeNativePlayback result: $handled');
+    return handled;
   }
 
   Future<bool> pauseNativePlayback({DateTime? now}) async {

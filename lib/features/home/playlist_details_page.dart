@@ -28,7 +28,7 @@ class PlaylistDetailsPage extends StatefulWidget {
   final FreeMusicApi api;
   final Set<String> favoriteSongKeys;
   final Set<String> downloadedSongKeys;
-  final Function(List<FreeMusicSong> songs, int index) onPlay;
+  final Function(List<FreeMusicSong> songs, int index, {bool append}) onPlay;
   final ValueChanged<FreeMusicSong> onToggleFavorite;
   final ValueChanged<FreeMusicSong> onDownload;
   final ValueChanged<FreeMusicSong> onDeleteCache;
@@ -83,6 +83,39 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
         _error = '加载失败：$e';
       });
     }
+  }
+
+  void _showPlayOptions() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.play_arrow_rounded),
+                title: const Text('播放'),
+                subtitle: const Text('替换当前播放队列'),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onPlay(_songs, 0, append: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add_rounded),
+                title: const Text('追加到队列'),
+                subtitle: const Text('添加到播放队列末尾'),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onPlay(_songs, 0, append: true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -210,7 +243,7 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                       children: <Widget>[
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: () => widget.onPlay(_songs, 0),
+                            onPressed: _songs.isEmpty ? null : _showPlayOptions,
                             icon: const Icon(Icons.play_arrow_rounded),
                             label: const Text('播放全部'),
                           ),

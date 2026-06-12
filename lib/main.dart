@@ -713,8 +713,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
           api: _freeMusicApi,
           favoriteSongKeys: _favoriteSongKeys,
           downloadedSongKeys: _downloadedSongKeys,
-          onPlay: (List<FreeMusicSong> songs, int index) {
-            unawaited(_playSongQueue(songs, index));
+          onPlay: (List<FreeMusicSong> songs, int index, {bool append = false}) {
+            if (append) {
+              _appendSongsToQueue(songs);
+            } else {
+              unawaited(_playSongQueue(songs, index));
+            }
           },
           onToggleFavorite: (FreeMusicSong song) {
             unawaited(_toggleFavoriteSong(song));
@@ -852,6 +856,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         }
       }
     }
+  }
+
+  void _appendSongsToQueue(List<FreeMusicSong> songs) {
+    if (songs.isEmpty) return;
+    for (final FreeMusicSong song in songs) {
+      _queueController.appendToEnd(song);
+    }
+    _showToast('已添加 ${songs.length} 首歌曲到队列');
   }
 
   Future<bool> _skipToQueueItem(int index) async {
