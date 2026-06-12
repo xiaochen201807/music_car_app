@@ -246,17 +246,19 @@ class FreeMusicApi {
       );
     }
 
-    // 使用酷狗API搜索
-    final Uri uri = Uri.parse('$baseUri/search/song').replace(
-      queryParameters: <String, String>{
-        'format': 'json',
-        'keyword': keyword,
-        'page': '${page + 1}', // 酷狗从1开始
-        'pagesize': '20',
-      },
-    );
+    // 使用网易云音乐搜索API
+    final Uri uri = Uri.parse('https://music.163.com/api/search/get/web');
 
-    final http.Response response = await _httpGet(uri);
+    final http.Response response = await _client.post(
+      uri,
+      headers: <String, String>{
+        'Referer': 'https://music.163.com/',
+        'User-Agent': 'Mozilla/5.0',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 's=$keyword&type=1&limit=20&offset=${page * 20}',
+    ).timeout(timeout);
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
         'search failed with HTTP ${response.statusCode}',
@@ -268,8 +270,8 @@ class FreeMusicApi {
       throw const FreeMusicApiException('search returned non-object JSON');
     }
 
-    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
-    if (data == null) {
+    final Map<String, dynamic>? result = decoded['result'] as Map<String, dynamic>?;
+    if (result == null) {
       return const FreeMusicSearchResult(
         songs: <FreeMusicSong>[],
         hasMore: false,
@@ -277,39 +279,50 @@ class FreeMusicApi {
       );
     }
 
-    final List<dynamic> info = data['info'] as List<dynamic>? ?? <dynamic>[];
-    final int total = data['total'] as int? ?? 0;
+    final List<dynamic> songs = result['songs'] as List<dynamic>? ?? <dynamic>[];
+    final int songCount = result['songCount'] as int? ?? 0;
 
-    final List<FreeMusicSong> songs = info.map((dynamic item) {
+    final List<FreeMusicSong> songList = songs.map((dynamic item) {
       if (item is! Map<String, dynamic>) {
         return null;
       }
 
-      // 获取封面图片
+      // 获取歌手名
+      String artist = '';
+      final dynamic artists = item['artists'];
+      if (artists is List && artists.isNotEmpty) {
+        final dynamic firstArtist = artists[0];
+        if (firstArtist is Map<String, dynamic>) {
+          artist = '${firstArtist['name'] ?? ''}';
+        }
+      }
+
+      // 获取专辑信息
+      String album = '';
       String cover = '';
-      final dynamic transParam = item['trans_param'];
-      if (transParam is Map<String, dynamic>) {
-        final String? unionCover = transParam['union_cover'] as String?;
-        if (unionCover != null && unionCover.isNotEmpty) {
-          // 替换 {size} 为实际尺寸
-          cover = unionCover.replaceAll('{size}', '400');
+      final dynamic albumData = item['album'];
+      if (albumData is Map<String, dynamic>) {
+        album = '${albumData['name'] ?? ''}';
+        final int? picId = albumData['picId'] as int?;
+        if (picId != null) {
+          cover = 'https://p1.music.126.net/${picId}.jpg';
         }
       }
 
       return FreeMusicSong(
-        id: '${item['hash'] ?? ''}',
-        source: 'kuwo',  // 使用酷我获取播放地址（LX Music API 对酷我支持更好）
-        name: '${item['songname'] ?? item['filename'] ?? ''}',
-        artist: '${item['singername'] ?? ''}',
-        album: '${item['album_name'] ?? ''}',
-        duration: item['duration'] as int? ?? 0,
+        id: '${item['id'] ?? ''}',
+        source: 'netease',
+        name: '${item['name'] ?? ''}',
+        artist: artist,
+        album: album,
+        duration: (item['duration'] as int? ?? 0) ~/ 1000,
         cover: cover,
       );
     }).whereType<FreeMusicSong>().toList();
 
     return FreeMusicSearchResult(
-      songs: songs,
-      hasMore: (page + 1) * 20 < total,
+      songs: songList,
+      hasMore: (page + 1) * 20 < songCount,
       page: page,
     );
   }
@@ -428,20 +441,16 @@ class FreeMusicApi {
       return null;
     }
 
-    // 使用 LX Music API 获取播放地址
-    final String lxSource = _mapToLxSource(song.source);
-    final String lxQuality = bitrate == '320kmp3' ? '320k' : '128k';
-
-    final Uri uri = Uri.parse('https://lxmusicapi.onrender.com/url/$lxSource/${song.id}/$lxQuality');
-
-    final http.Response response = await _httpGet(
-      uri,
-      headers: <String, String>{
-        'X-Request-Key': 'share-v3',
-        'User-Agent': 'lx-music-mobile/1.0.0',
-        'Content-Type': 'application/json',
+    // 使用 bugpk.com API 获取播放地址
+    final Uri uri = Uri.parse('https://api.bugpk.com/api/music').replace(
+      queryParameters: <String, String>{
+        'id': song.id,
+        'media': 'netease',
+        'type': 'song',
       },
     );
+
+    final http.Response response = await _httpGet(uri);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw FreeMusicApiException(
@@ -455,7 +464,7 @@ class FreeMusicApi {
     }
 
     final String url = '${decoded['url'] ?? ''}'.trim();
-    if (url.isEmpty) {
+    if (url.isEmpty || url.contains('版权限制') || url.contains('不存在')) {
       return null;
     }
 
