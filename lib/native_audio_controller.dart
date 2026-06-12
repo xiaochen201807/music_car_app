@@ -353,6 +353,7 @@ class NativeAudioController {
   }
 
   Future<bool> resumePlayback() async {
+    debugPrint('[native-audio] resumePlayback called, _loadedUrl: ${_loadedUrl.isEmpty ? "empty" : "ok"}, _isQueueLoading: $_isQueueLoading');
     await _restoreFuture;
     _wantsPlayback = true;
     if (_isQueueLoading) {
@@ -370,6 +371,7 @@ class NativeAudioController {
       );
       return true;
     }
+    debugPrint('[native-audio] resumePlayback failed: no loaded URL, currentIndex: $_currentIndex, playlist: ${_playlist.length}');
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       final bool handled = await _loadQueueIndex(_currentIndex);
       if (!handled) {
