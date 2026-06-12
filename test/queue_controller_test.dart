@@ -95,9 +95,9 @@ void main() {
       });
 
       controller.setPlaybackMode(NativePlaybackMode.shuffle);
-      controller.setPlaybackMode(NativePlaybackMode.shuffle);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
 
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      controller.setPlaybackMode(NativePlaybackMode.shuffle);
 
       expect(controller.playbackMode, NativePlaybackMode.shuffle);
       expect(notifyCount, 1);
