@@ -108,6 +108,7 @@ class PlaybackController {
   double get volume => _volume;
 
   Future<bool> resumeNativePlayback() {
+    debugPrint('[playback-controller] resumeNativePlayback called');
     return _backend.resumePlayback();
   }
 

@@ -185,6 +185,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       }
     }
     await pauseDirect();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     _broadcastPlaybackState(_player.playbackEvent);
   }
 
