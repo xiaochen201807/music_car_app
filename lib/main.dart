@@ -17,6 +17,7 @@ import 'models/playback_ui_state.dart';
 import 'native_audio_controller.dart';
 import 'services/app_installer_service.dart';
 import 'services/app_settings_controller.dart';
+import 'services/lyric_offset_store.dart';
 import 'controllers/download_controller.dart';
 import 'controllers/library_controller.dart';
 import 'controllers/music_search_controller.dart';

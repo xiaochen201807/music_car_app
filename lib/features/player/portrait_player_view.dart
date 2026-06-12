@@ -17,6 +17,9 @@ import '../../shared/portrait_circle_button.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/luxury_loading_indicator.dart';
 
+import '../../services/lyric_offset_store.dart';
+import '../../widgets/lyric_offset_adjuster.dart';
+
 IconData iconForPlaybackMode(NativePlaybackMode mode) {
   switch (mode) {
     case NativePlaybackMode.sequential:
@@ -262,6 +265,7 @@ class PortraitPlayerView extends StatelessWidget {
                       playing: playbackState.playing,
                       lyricsBusy: lyricsBusy,
                       lyricsError: lyricsError,
+                      currentSong: currentSong,
                       onSeek: onSeek,
                       onRetry: onRetryLyrics,
                     ),
@@ -846,6 +850,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
   bool _isUserScrolling = false;
   int _centerIndex = 0;
   Timer? _userScrollTimer;
+  Duration _offset = Duration.zero;
 
   late Duration _currentPosition;
   Ticker? _ticker;
@@ -857,6 +862,35 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
     _scrollController.addListener(_handleScroll);
     _currentPosition = widget.position;
     _updateTicker();
+    _loadOffset();
+  }
+
+  Future<void> _loadOffset() async {
+    if (widget.currentSong == null) return;
+    final store = LyricOffsetStore();
+    final offset = await store.getOffset(widget.currentSong!);
+    if (mounted) {
+      setState(() {
+        _offset = offset;
+      });
+    }
+  }
+
+  void _showOffsetAdjuster() {
+    if (widget.currentSong == null) return;
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => LyricOffsetAdjuster(
+        song: widget.currentSong!,
+        currentOffset: _offset,
+        onOffsetChanged: (offset) {
+          setState(() {
+            _offset = offset;
+          });
+        },
+      ),
+    );
   }
 
   @override
@@ -870,7 +904,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
     final int activeIndex = activeLyricLineIndex(
       lines,
-      _currentPosition,
+      _currentPosition + _offset,
       lead: lyricHighlightLead,
     );
     if (activeIndex != _lastIndex && activeIndex >= 0) {
