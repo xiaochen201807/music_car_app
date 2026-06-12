@@ -273,7 +273,7 @@ void main() {
     await handler.play();
 
     expect(callbackCalls, 1);
-    expect(player.isPlaying, isFalse);
+    expect(player.isPlaying, isTrue);
 
     await handler.dispose();
   });
