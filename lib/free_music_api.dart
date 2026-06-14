@@ -249,7 +249,7 @@ class FreeMusicApi {
       'Accept': 'application/json',
       'User-Agent': 'Mozilla/5.0 MusicCarApp',
       ...authHeaders,
-      if (additionalHeaders != null) ...additionalHeaders,
+      ...?additionalHeaders,
     };
 
     return _client.get(uri, headers: headers).timeout(timeout);
@@ -267,7 +267,7 @@ class FreeMusicApi {
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 MusicCarApp',
       ...authHeaders,
-      if (additionalHeaders != null) ...additionalHeaders,
+      ...?additionalHeaders,
     };
 
     return _client
