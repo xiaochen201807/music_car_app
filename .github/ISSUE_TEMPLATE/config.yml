@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Work log
+    url: https://github.com/xiaochen201807/music_car_app/blob/main/docs/work-log.md
+    about: Check recent implementation history before filing duplicate maintenance tasks.

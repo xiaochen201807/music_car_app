@@ -3,6 +3,41 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-03 - GitHub Project Workflow Foundation
+
+Implemented in this increment:
+
+- Added Issue templates for bugs, feature requests, and engineering tasks.
+- Added a Pull Request template aligned with the remote-first build policy.
+- Added Dependabot coverage for GitHub Actions, Flutter/Dart, Android Gradle,
+  and iOS CocoaPods dependencies.
+- Added a CodeQL dry-run workflow for the JavaScript Cloudflare Worker surface.
+- Added `CODEOWNERS`, `SECURITY.md`, and `CONTRIBUTING.md`.
+- Added repository workflow documentation and a release runbook under `docs/`.
+- Linked the new workflow documentation from `README.md`.
+- Tightened the Android workflow so `flutter test` failures block packaging
+  instead of being treated as advisory.
+- Created GitHub Issue #1, Milestone `v1.1.0 - GitHub 工程化与稳定发布`,
+  and Project `Music Car Roadmap`.
+- Enabled Dependabot vulnerability alerts; GitHub reports zero alerts at setup
+  time.
+- Updated repository merge settings to delete merged branches, disable merge
+  commits, and allow squash/rebase merges.
+- Branch Rulesets, Branch Protection, and secret scanning were attempted but
+  blocked by the current private-repository GitHub plan; GitHub returned 403
+  for branch protection/rulesets and 422 for secret scanning.
+- Code scanning / Advanced Security was also attempted; GitHub returned 422
+  because Advanced Security has not been purchased, so the CodeQL workflow keeps
+  SARIF upload disabled.
+
+Verification in this increment:
+
+- YAML parse check for workflow, Dependabot, and Issue template files.
+- `node --check scripts/cf.js`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test`
+
 ## 2026-07-03 - Release Stabilization And Proxy Source Tracking
 
 Implemented in this increment:
