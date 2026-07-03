@@ -11,12 +11,19 @@ Implemented in this increment:
   `IPHONEOS_DEPLOYMENT_TARGET` values from 13.0 to 14.0.
 - Kept the existing `ios/Podfile` minimum iOS platform at 14.0, aligning the
   Xcode target with the `flutter-carplay` package requirement.
+- Reworked the iOS unsigned IPA workflow to preserve the committed
+  `pubspec.lock` instead of deleting it before `flutter pub get`; this keeps CI
+  on the repository-tested `flutter_carplay` version instead of unexpectedly
+  upgrading to a newer incompatible package during the build.
 
 Verification in this increment:
 
 - `rg -n "IPHONEOS_DEPLOYMENT_TARGET|platform :ios" ios`
 - `plutil -lint ios/Runner.xcodeproj/project.pbxproj`
 - `flutter analyze lib test`
+- GitHub Actions manual dispatch of `iOS Unsigned IPA` confirmed the original
+  deployment-target error was resolved, then exposed the lockfile deletion issue
+  by pulling `flutter_carplay 1.6.3`.
 - No local iOS release package was built; iOS packaging remains delegated to
   GitHub Actions.
 

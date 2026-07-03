@@ -47,10 +47,7 @@ jobs:
             ${{ runner.os }}-pods-
 
       - name: Flutter Pub Get
-        run: |
-          flutter pub cache clean
-          rm -f pubspec.lock
-          flutter pub get
+        run: flutter pub get
 
       - name: Install iOS Pods
         run: |
