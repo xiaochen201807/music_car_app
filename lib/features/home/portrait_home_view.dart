@@ -22,8 +22,11 @@ class PortraitHomeView extends StatefulWidget {
     required this.recommendationsBusy,
     required this.recommendationError,
     required this.playlistSongsBusy,
+    required this.currentSong,
     required this.queueSongs,
     required this.searchResults,
+    required this.favoriteSongCount,
+    required this.downloadedSongCount,
     required this.hotSearchKeywords,
     required this.musicSources,
     required this.sourceBusy,
@@ -31,6 +34,10 @@ class PortraitHomeView extends StatefulWidget {
     required this.onSearch,
     required this.onHotKeyword,
     required this.onSelectPlaylist,
+    required this.onOpenPlayer,
+    required this.onOpenLibrary,
+    required this.onOpenDownloads,
+    required this.onOpenSettings,
     required this.onRefresh,
     this.onRetryRecommendations,
   });
@@ -40,8 +47,11 @@ class PortraitHomeView extends StatefulWidget {
   final bool recommendationsBusy;
   final String recommendationError;
   final bool playlistSongsBusy;
+  final FreeMusicSong? currentSong;
   final List<FreeMusicSong> queueSongs;
   final List<FreeMusicSong> searchResults;
+  final int favoriteSongCount;
+  final int downloadedSongCount;
   final List<String> hotSearchKeywords;
   final FreeMusicSources? musicSources;
   final bool sourceBusy;
@@ -49,6 +59,10 @@ class PortraitHomeView extends StatefulWidget {
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
+  final VoidCallback onOpenPlayer;
+  final VoidCallback onOpenLibrary;
+  final VoidCallback onOpenDownloads;
+  final VoidCallback onOpenSettings;
   final Future<void> Function() onRefresh;
   final VoidCallback? onRetryRecommendations;
 
@@ -76,6 +90,13 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
     final List<FreeMusicSong> timelineSongs = _showAllTimeline
         ? allTimeline
         : allTimeline.take(5).toList(growable: false);
+    final List<FreeMusicPlaylist> heroPlaylists = widget.recommendedPlaylists
+        .take(3)
+        .toList(growable: false);
+    final List<FreeMusicPlaylist> shelfPlaylists = widget.recommendedPlaylists
+        .skip(heroPlaylists.length)
+        .take(8)
+        .toList(growable: false);
 
     _history ??= <String>[];
 
@@ -85,149 +106,176 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: <Widget>[
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpace.xl,
-              AppSpace.lg,
-              AppSpace.xl,
-              118,
-            ),
-            sliver: SliverList.list(
-              children: <Widget>[
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Music Car',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.xl,
+                AppSpace.lg,
+                AppSpace.xl,
+                118,
+              ),
+              sliver: SliverList.list(
+                children: <Widget>[
+                  _SpotifyHomeHeader(
+                    controller: widget.controller,
+                    onSearch: _runSearch,
+                    onOpenSettings: widget.onOpenSettings,
+                  ),
+                  if (_history != null && _history!.isNotEmpty) ...[
+                    const SizedBox(height: AppSpace.md),
+                    SizedBox(
+                      height: 38,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _history!.length + 1,
+                        itemBuilder: (BuildContext context, int index) {
+                          if (index == _history!.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(left: AppSpace.xs),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _history!.clear();
+                                  });
+                                },
+                                tooltip: '清空历史',
+                              ),
+                            );
+                          }
+                          final String keyword = _history![index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: AppSpace.sm),
+                            child: GestureDetector(
+                              onLongPress: () {
+                                setState(() {
+                                  _history!.removeAt(index);
+                                });
+                                ScaffoldMessenger.of(context).clearSnackBars();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('已删除历史: $keyword'),
+                                    duration: const Duration(seconds: 4),
+                                    action: SnackBarAction(
+                                      label: '撤销',
+                                      onPressed: () {
+                                        setState(() {
+                                          _history!.insert(index, keyword);
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: PortraitChip(
+                                label: keyword,
+                                onTap: () => _useHistory(keyword),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: AppSpace.xl),
-                PortraitSearchHero(
-                  controller: widget.controller,
-                  onSearch: _runSearch,
-                ),
-                if (_history != null && _history!.isNotEmpty) ...[
-                  const SizedBox(height: AppSpace.md),
-                  SizedBox(
-                    height: 38,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _history!.length + 1,
-                      itemBuilder: (BuildContext context, int index) {
-                        if (index == _history!.length) {
-                          return Padding(
-                            padding: const EdgeInsets.only(left: AppSpace.xs),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _history!.clear();
-                                });
-                              },
-                              tooltip: '清空历史',
-                            ),
-                          );
-                        }
-                        final String keyword = _history![index];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: AppSpace.sm),
-                          child: GestureDetector(
-                            onLongPress: () {
-                              setState(() {
-                                _history!.removeAt(index);
-                              });
-                              ScaffoldMessenger.of(context).clearSnackBars();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('已删除历史: $keyword'),
-                                  duration: const Duration(seconds: 4),
-                                  action: SnackBarAction(
-                                    label: '撤销',
-                                    onPressed: () {
-                                      setState(() {
-                                        _history!.insert(index, keyword);
-                                      });
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                            child: PortraitChip(
-                              label: keyword,
-                              onTap: () => _useHistory(keyword),
-                            ),
-                          ),
-                        );
-                      },
+                  const SizedBox(height: AppSpace.lg),
+                  _HomeQuickAccessGrid(
+                    currentSong: widget.currentSong,
+                    favoriteSongCount: widget.favoriteSongCount,
+                    downloadedSongCount: widget.downloadedSongCount,
+                    queueSongCount: widget.queueSongs.length,
+                    onOpenPlayer: widget.onOpenPlayer,
+                    onOpenLibrary: widget.onOpenLibrary,
+                    onOpenDownloads: widget.onOpenDownloads,
+                    onSearch: _focusSearch,
+                  ),
+                  if (widget.hotSearchKeywords.isNotEmpty) ...[
+                    const SizedBox(height: AppSpace.xl),
+                    PortraitSectionHeader(title: '热门搜索'),
+                    const SizedBox(height: AppSpace.md),
+                    _HorizontalKeywordShelf(
+                      keywords: widget.hotSearchKeywords,
+                      onTap: widget.onHotKeyword,
                     ),
-                  ),
-                ],
-                const SizedBox(height: AppSpace.xl2),
-                PortraitSectionHeader(
-                  title: '推荐歌单',
-                  showLoading: widget.recommendationsBusy || widget.playlistSongsBusy,
-                  label: widget.recommendationsBusy || widget.playlistSongsBusy
-                      ? '同步中'
-                      : null,
-                ),
-                const SizedBox(height: AppSpace.md),
-                if (widget.recommendationError.isNotEmpty &&
-                    widget.recommendedPlaylists.isEmpty)
-                  PortraitMessageCard(
-                    icon: Icons.cloud_off_rounded,
-                    title: '推荐加载失败',
-                    message: widget.recommendationError,
-                    action: widget.onRetryRecommendations != null
-                        ? FilledButton.tonal(
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              widget.onRetryRecommendations?.call();
-                            },
-                            child: const Text('重试'),
-                          )
+                  ],
+                  const SizedBox(height: AppSpace.xl2),
+                  PortraitSectionHeader(
+                    title: '为你推荐',
+                    showLoading:
+                        widget.recommendationsBusy || widget.playlistSongsBusy,
+                    label:
+                        widget.recommendationsBusy || widget.playlistSongsBusy
+                        ? '同步中'
                         : null,
-                  )
-                else
-                  PortraitPlaylistGrid(
-                    playlists: widget.recommendedPlaylists,
-                    busy: widget.playlistSongsBusy,
-                    onSelect: widget.onSelectPlaylist,
                   ),
-                const SizedBox(height: AppSpace.xl2),
-                PortraitSectionHeader(
-                  title: '播放时间线',
-                  label: timelineSongs.isEmpty ? '待生成' : null,
-                ),
-                const SizedBox(height: AppSpace.md),
-                if (timelineSongs.isEmpty)
-                  const PortraitMessageCard(
-                    icon: Icons.timeline_rounded,
-                    title: '暂无播放时间线',
-                    message: '搜索并播放歌曲后，这里会显示最近队列。',
-                  )
-                else
-                  for (int index = 0; index < timelineSongs.length; index += 1)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                      child: StaggeredAnimatedItem(
-                        index: index,
-                        child: PortraitTimelineTile(
-                          song: timelineSongs[index],
+                  const SizedBox(height: AppSpace.md),
+                  if (widget.recommendationError.isNotEmpty &&
+                      widget.recommendedPlaylists.isEmpty)
+                    PortraitMessageCard(
+                      icon: Icons.cloud_off_rounded,
+                      title: '推荐加载失败',
+                      message: widget.recommendationError,
+                      action: widget.onRetryRecommendations != null
+                          ? FilledButton.tonal(
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                widget.onRetryRecommendations?.call();
+                              },
+                              child: const Text('重试'),
+                            )
+                          : null,
+                    )
+                  else
+                    PortraitHeroPlaylistShelf(
+                      playlists: heroPlaylists,
+                      busy: widget.playlistSongsBusy,
+                      onSelect: widget.onSelectPlaylist,
+                    ),
+                  if (shelfPlaylists.isNotEmpty) ...[
+                    const SizedBox(height: AppSpace.xl2),
+                    PortraitSectionHeader(title: '更多歌单'),
+                    const SizedBox(height: AppSpace.md),
+                    PortraitPlaylistHorizontalShelf(
+                      playlists: shelfPlaylists,
+                      busy: widget.playlistSongsBusy,
+                      onSelect: widget.onSelectPlaylist,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpace.xl2),
+                  PortraitSectionHeader(
+                    title: '最近播放',
+                    label: timelineSongs.isEmpty ? '待生成' : null,
+                  ),
+                  const SizedBox(height: AppSpace.md),
+                  if (timelineSongs.isEmpty)
+                    const PortraitMessageCard(
+                      icon: Icons.history_rounded,
+                      title: '暂无最近播放',
+                      message: '搜索并播放歌曲后，这里会显示最近听过的内容。',
+                    )
+                  else
+                    for (
+                      int index = 0;
+                      index < timelineSongs.length;
+                      index += 1
+                    )
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: StaggeredAnimatedItem(
                           index: index,
+                          child: PortraitTimelineTile(
+                            song: timelineSongs[index],
+                            index: index,
+                          ),
                         ),
                       ),
-                    ),
                   if (allTimeline.length > 5)
                     Padding(
-                      padding: const EdgeInsets.only(top: AppSpace.xs, bottom: AppSpace.md),
+                      padding: const EdgeInsets.only(
+                        top: AppSpace.xs,
+                        bottom: AppSpace.md,
+                      ),
                       child: Center(
                         child: GlassPill(
                           onTap: () {
@@ -237,7 +285,9 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                             });
                           },
                           height: 36,
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.lg,
+                          ),
                           child: Center(
                             widthFactor: 1.0,
                             heightFactor: 1.0,
@@ -245,13 +295,17 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Icon(
-                                  _showAllTimeline ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                                  _showAllTimeline
+                                      ? Icons.expand_less_rounded
+                                      : Icons.expand_more_rounded,
                                   size: 18,
                                   color: theme.colorScheme.primary,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  _showAllTimeline ? '收起时间线' : '查看全部时间线 (${allTimeline.length})',
+                                  _showAllTimeline
+                                      ? '收起时间线'
+                                      : '查看全部时间线 (${allTimeline.length})',
                                   style: theme.textTheme.labelMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -262,10 +316,10 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                         ),
                       ),
                     ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );
@@ -287,6 +341,11 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
     widget.onHotKeyword(keyword);
   }
 
+  void _focusSearch() {
+    FocusScope.of(context).unfocus();
+    _runSearch();
+  }
+
   void _addHistory(String keyword) {
     setState(() {
       _history ??= <String>[];
@@ -297,6 +356,399 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
         _history!.removeRange(8, _history!.length);
       }
     });
+  }
+}
+
+class _SpotifyHomeHeader extends StatelessWidget {
+  const _SpotifyHomeHeader({
+    required this.controller,
+    required this.onSearch,
+    required this.onOpenSettings,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onSearch;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final int hour = DateTime.now().hour;
+    final String greeting = hour < 11
+        ? '早上好'
+        : hour < 18
+        ? '下午好'
+        : '晚上好';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                greeting,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: '设置',
+              onPressed: onOpenSettings,
+              icon: const Icon(Icons.settings_rounded),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.md),
+        GlassCard(
+          height: 48,
+          radius: AppRadius.pill,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+          shadows: const <BoxShadow>[],
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.search_rounded, size: 22, color: colors.primary),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.text,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => onSearch(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintText: '想听什么？',
+                    hintStyle: TextStyle(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeQuickAccessGrid extends StatelessWidget {
+  const _HomeQuickAccessGrid({
+    required this.currentSong,
+    required this.favoriteSongCount,
+    required this.downloadedSongCount,
+    required this.queueSongCount,
+    required this.onOpenPlayer,
+    required this.onOpenLibrary,
+    required this.onOpenDownloads,
+    required this.onSearch,
+  });
+
+  final FreeMusicSong? currentSong;
+  final int favoriteSongCount;
+  final int downloadedSongCount;
+  final int queueSongCount;
+  final VoidCallback onOpenPlayer;
+  final VoidCallback onOpenLibrary;
+  final VoidCallback onOpenDownloads;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    final FreeMusicSong? song = currentSong;
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: AppSpace.sm,
+      mainAxisSpacing: AppSpace.sm,
+      childAspectRatio: 3.1,
+      children: <Widget>[
+        _QuickAccessTile(
+          icon: Icons.play_circle_fill_rounded,
+          title: song == null ? '继续播放' : song.name,
+          subtitle: song == null ? '打开播放器' : song.artist,
+          onTap: onOpenPlayer,
+        ),
+        _QuickAccessTile(
+          icon: Icons.favorite_rounded,
+          title: '收藏歌曲',
+          subtitle: favoriteSongCount == 0 ? '暂无收藏' : '$favoriteSongCount 首',
+          onTap: onOpenLibrary,
+        ),
+        _QuickAccessTile(
+          icon: Icons.download_done_rounded,
+          title: '离线缓存',
+          subtitle: downloadedSongCount == 0
+              ? '管理下载'
+              : '$downloadedSongCount 首',
+          onTap: onOpenDownloads,
+        ),
+        _QuickAccessTile(
+          icon: Icons.queue_music_rounded,
+          title: '播放队列',
+          subtitle: queueSongCount == 0 ? '从搜索开始' : '$queueSongCount 首',
+          onTap: queueSongCount == 0 ? onSearch : onOpenLibrary,
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickAccessTile extends StatelessWidget {
+  const _QuickAccessTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.tile,
+      padding: EdgeInsets.zero,
+      shadows: const <BoxShadow>[],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                  color: colors.primary.withValues(alpha: 0.14),
+                ),
+                child: Icon(icon, color: colors.primary, size: 22),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HorizontalKeywordShelf extends StatelessWidget {
+  const _HorizontalKeywordShelf({required this.keywords, required this.onTap});
+
+  final List<String> keywords;
+  final ValueChanged<String> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: keywords.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.sm),
+        itemBuilder: (BuildContext context, int index) {
+          final String keyword = keywords[index];
+          return PortraitChip(label: keyword, onTap: () => onTap(keyword));
+        },
+      ),
+    );
+  }
+}
+
+class PortraitHeroPlaylistShelf extends StatelessWidget {
+  const PortraitHeroPlaylistShelf({
+    super.key,
+    required this.playlists,
+    required this.busy,
+    required this.onSelect,
+  });
+
+  final List<FreeMusicPlaylist> playlists;
+  final bool busy;
+  final ValueChanged<FreeMusicPlaylist> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (playlists.isEmpty) {
+      return const PortraitFallbackGrid();
+    }
+    return SizedBox(
+      height: 178,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
+        itemBuilder: (BuildContext context, int index) {
+          final FreeMusicPlaylist playlist = playlists[index];
+          return SizedBox(
+            width: 220,
+            child: PortraitPlaylistHeroCard(
+              playlist: playlist,
+              visual: demoQueue[index % demoQueue.length],
+              onTap: busy ? null : () => onSelect(playlist),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class PortraitPlaylistHeroCard extends StatelessWidget {
+  const PortraitPlaylistHeroCard({
+    super.key,
+    required this.playlist,
+    required this.visual,
+    required this.onTap,
+  });
+
+  final FreeMusicPlaylist playlist;
+  final DemoTrack visual;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: onTap,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: PortraitArtwork(
+              visual: visual,
+              imageUrl: playlist.cover,
+              icon: Icons.queue_music_rounded,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    colors.scrim.withValues(alpha: 0.02),
+                    colors.scrim.withValues(alpha: 0.76),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: AppSpace.md,
+            right: AppSpace.md,
+            bottom: AppSpace.md,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  playlist.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: AppColor.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (playlist.creator.isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    playlist.creator,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColor.textPrimary.withValues(alpha: 0.76),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PortraitPlaylistHorizontalShelf extends StatelessWidget {
+  const PortraitPlaylistHorizontalShelf({
+    super.key,
+    required this.playlists,
+    required this.busy,
+    required this.onSelect,
+  });
+
+  final List<FreeMusicPlaylist> playlists;
+  final bool busy;
+  final ValueChanged<FreeMusicPlaylist> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 172,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
+        itemBuilder: (BuildContext context, int index) {
+          final FreeMusicPlaylist playlist = playlists[index];
+          return SizedBox(
+            width: 118,
+            child: PortraitPlaylistCard(
+              playlist: playlist,
+              visual: demoQueue[index % demoQueue.length],
+              onTap: busy ? null : () => onSelect(playlist),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 

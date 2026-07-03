@@ -307,8 +307,11 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       recommendationsBusy: appState.isLoadingRecommendations,
       recommendationError: appState.recommendationError,
       playlistSongsBusy: false,
+      currentSong: appState.currentSong,
       queueSongs: appState.playbackQueue,
       searchResults: appState.searchResults,
+      favoriteSongCount: appState.favoriteSongs.length,
+      downloadedSongCount: appState.downloadedSongs.length,
       hotSearchKeywords: appState.hotSearchKeywords,
       musicSources: appState.musicSources,
       sourceBusy: appState.isLoadingApiBootstrap,
@@ -319,6 +322,10 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
         runSearchFromHome();
       },
       onSelectPlaylist: appState.openPlaylistDetails,
+      onOpenPlayer: () => appState.selectTab(4),
+      onOpenLibrary: () => appState.selectTab(2),
+      onOpenDownloads: () => appState.openDownloads(),
+      onOpenSettings: () => appState.selectTab(5),
       onRefresh: appState.retryLoadRecommendations,
       onRetryRecommendations: appState.retryLoadRecommendations,
     );

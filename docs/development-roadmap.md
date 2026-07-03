@@ -16,11 +16,12 @@ The current implementation includes a native Flutter shell plus the existing
 native audio foundation:
 
 1. `[x]` Flutter renders the main music experience without WebView.
-2. `[~]` Flutter is being rebuilt as a portrait-first app. The first portrait
-   shell, Material 3 theme switch, recommendation grid, timeline, mini-player,
-   and immersive player are wired. Regular pages now swipe through a kept-alive
-   `PageView`, while the full-screen player opens as an overlay; real-device
-   portrait validation remains.
+2. `[~]` Flutter is being rebuilt as a portrait-first app. The portrait shell,
+   Spotify-inspired home dashboard, compact settings groups, Material 3 theme
+   switch, recommendation shelves, timeline, mini-player, and immersive player
+   are wired. Regular pages now swipe through a kept-alive `PageView`, while
+   the full-screen player opens as an overlay; real-device portrait validation
+   remains.
 3. `[x]` The UI provides home, search entry, recommendation, now-playing, queue,
    favorites, lyrics entry, and mini-player surfaces.
 4. `[x]` In-app update checking and APK installation support remain available.
@@ -69,7 +70,8 @@ The implementation sequence is now gated as follows:
    release.
 2. `[~]` Redesign the page layout around portrait-first real API data,
    loading, empty, error, retry, playlist, queue, lyrics, and playback states.
-   The first Namida-inspired portrait shell is now active.
+   The Spotify-inspired portrait home and compact settings structure are now
+   active.
 3. `[ ]` Harden playback reliability with quality selection, source switching,
    timeouts, and retry behavior.
 4. `[~]` Keep existing CarLife SDK work, but resume CarLife product integration

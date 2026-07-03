@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/carlife_service.dart';
 import '../../theme/design_tokens.dart';
-import '../../shared/portrait_surface.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/portrait_segmented_tab.dart';
 import '../../widgets/luxury_loading_indicator.dart';
@@ -35,8 +34,6 @@ class PortraitSettingsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -46,20 +43,48 @@ class PortraitSettingsView extends StatelessWidget {
           140,
         ),
         children: <Widget>[
-          Text(
-            '设置',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          _SettingsProfileCard(onCheckUpdate: onCheckUpdate, busy: updateBusy),
           const SizedBox(height: AppSpace.xl),
-          PortraitSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('主题模式', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpace.md),
-                PortraitSegmentedTab<ThemeMode>(
+          _SettingsSection(
+            title: '播放',
+            children: <Widget>[
+              _buildQualityOption(
+                context: context,
+                value: '48kaac',
+                title: '标准',
+                subtitle: '低码率，弱网更稳',
+                icon: Icons.network_check_rounded,
+              ),
+              _buildQualityOption(
+                context: context,
+                value: '128kmp3',
+                title: '较高',
+                subtitle: '日常播放均衡选择',
+                icon: Icons.music_note_rounded,
+              ),
+              _buildQualityOption(
+                context: context,
+                value: '320kmp3',
+                title: '极高',
+                subtitle: '优先高品质音源',
+                icon: Icons.high_quality_rounded,
+              ),
+              _buildQualityOption(
+                context: context,
+                value: 'flac',
+                title: '无损',
+                subtitle: '可用时尝试无损',
+                icon: Icons.spatial_audio_off_rounded,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
+            title: '外观',
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+                child: PortraitSegmentedTab<ThemeMode>(
                   tabs: const <PortraitSegmentTabItem<ThemeMode>>[
                     PortraitSegmentTabItem<ThemeMode>(
                       value: ThemeMode.system,
@@ -81,305 +106,59 @@ class PortraitSettingsView extends StatelessWidget {
                   onSelected: onThemeModeChanged,
                   expands: true,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          PortraitSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('默认音质', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpace.md),
-                _buildQualityOption(
-                  context: context,
-                  value: '48kaac',
-                  title: '标准',
-                  subtitle: '较低码率，保证播放与传输极致流畅',
-                  icon: Icons.network_check_rounded,
-                ),
-                const SizedBox(height: AppSpace.xs),
-                _buildQualityOption(
-                  context: context,
-                  value: '128kmp3',
-                  title: '较高',
-                  subtitle: '高清压缩，细节饱满的经典均衡听感',
-                  icon: Icons.music_note_rounded,
-                ),
-                const SizedBox(height: AppSpace.xs),
-                _buildQualityOption(
-                  context: context,
-                  value: '320kmp3',
-                  title: '极高',
-                  subtitle: '极高品质，清晰呈现原声音轨的所有细节',
-                  icon: Icons.high_quality_rounded,
-                ),
-                const SizedBox(height: AppSpace.xs),
-                _buildQualityOption(
-                  context: context,
-                  value: 'flac',
-                  title: '无损',
-                  subtitle: '母带级音质，智能座舱极致纯净震撼声场',
-                  icon: Icons.spatial_audio_off_rounded,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          PortraitSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('离线缓存', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpace.sm),
-                Text(
-                  '播放层会保持优先缓存本地文件，未命中再走在线 URL，支持离线无网播放。',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppSpace.md),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GlassPill(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      onOpenDownloads();
-                    },
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpace.md,
-                    ),
-                    child: Center(
-                      widthFactor: 1.0,
-                      heightFactor: 1.0,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: <Widget>[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 1.0),
-                            child: Icon(
-                              Icons.download_rounded,
-                              size: 18,
-                              color: colors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpace.xs),
-                          Text(
-                            '存储与缓存管理',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: colors.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          PortraitSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('百度 CarLife 车机同步', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpace.sm),
-                Text(
-                  '支持将歌名、歌手名、播放进度与当前队列同步至车机，让出行播放更加无缝智能。',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.8),
-                  ),
-                ),
-                const SizedBox(height: AppSpace.md),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Icon(
-                                carLifeStatus.available
-                                    ? Icons.link_rounded
-                                    : Icons.link_off_rounded,
-                                size: 16,
-                                color: carLifeStatus.available
-                                    ? Colors.green
-                                    : colors.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: AppSpace.xs),
-                              Text(
-                                carLifeStatus.available ? '连接状态：已连接车机' : '连接状态：未连接',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: carLifeStatus.available
-                                      ? Colors.green
-                                      : colors.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpace.xs),
-                          Text(
-                            '状态详情：${carLifeStatus.reason}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant.withValues(alpha: 0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpace.md),
-                    GlassPill(
-                      onTap: carLifeSyncing
-                          ? null
-                          : () {
-                              HapticFeedback.lightImpact();
-                              onSyncCarLife();
-                            },
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpace.md,
-                      ),
-                      child: Center(
-                        widthFactor: 1.0,
-                        heightFactor: 1.0,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: <Widget>[
-                            if (carLifeSyncing)
-                              LuxuryLoadingIndicator(size: 14)
-                            else
-                              Icon(
-                                Icons.sync_rounded,
-                                size: 18,
-                                color: colors.primary,
-                              ),
-                            const SizedBox(width: AppSpace.xs),
-                            Text(
-                              carLifeSyncing ? '同步中' : '手动同步',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: colors.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          PortraitSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('关于', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpace.md),
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppRadius.tile),
-                        gradient: AppColor.accentGradient,
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.music_note_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpace.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            'Music Car 车载系统',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '版本 1.0.0 (Build 20260610)',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpace.md),
-                Text(
-                  '千万级智能车载座舱专属音频系统，为您带来极致物理触感交互与震撼纯净音质体验。',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.7),
-                  ),
-                ),
-                const SizedBox(height: AppSpace.sm),
-                Text(
-                  '© 2026 Music Car Team. 保留所有权利。',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                    color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          GlassCard(
-            height: 46,
-            radius: AppRadius.pill,
-            padding: EdgeInsets.zero,
-            shadows: const <BoxShadow>[],
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              onTap: updateBusy
-                  ? null
-                  : () {
-                      HapticFeedback.lightImpact();
-                      onCheckUpdate();
-                    },
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      Icons.system_update_rounded,
-                      size: 18,
-                      color: updateBusy
-                          ? colors.onSurface.withValues(alpha: 0.38)
-                          : colors.primary,
-                    ),
-                    const SizedBox(width: AppSpace.xs),
-                    Text(
-                      updateBusy ? '检查中' : '检查更新',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: updateBusy
-                            ? colors.onSurface.withValues(alpha: 0.38)
-                            : colors.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
+            title: '存储',
+            children: <Widget>[
+              _SettingsRow(
+                icon: Icons.download_rounded,
+                title: '存储与缓存管理',
+                subtitle: '查看离线歌曲和缓存',
+                onTap: onOpenDownloads,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
+            title: '车机',
+            children: <Widget>[
+              _SettingsRow(
+                icon: carLifeStatus.available
+                    ? Icons.link_rounded
+                    : Icons.link_off_rounded,
+                title: '百度 CarLife',
+                subtitle: carLifeStatus.available
+                    ? '已连接车机'
+                    : '未连接 · ${carLifeStatus.reason}',
+                trailing: carLifeSyncing
+                    ? LuxuryLoadingIndicator(size: 14)
+                    : const Icon(Icons.sync_rounded),
+                onTap: carLifeSyncing ? null : onSyncCarLife,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
+            title: '应用',
+            children: <Widget>[
+              _SettingsRow(
+                icon: Icons.system_update_rounded,
+                title: updateBusy ? '正在检查更新' : '检查更新',
+                subtitle: 'Android APK 由 GitHub Actions 发布',
+                trailing: updateBusy
+                    ? LuxuryLoadingIndicator(size: 14)
+                    : const Icon(Icons.chevron_right_rounded),
+                onTap: updateBusy ? null : onCheckUpdate,
+              ),
+              _SettingsRow(
+                icon: Icons.info_outline_rounded,
+                title: 'Music Car',
+                subtitle: '版本 1.0.0 · 车载音乐播放器',
+              ),
+            ],
           ),
         ],
       ),
@@ -485,5 +264,192 @@ class PortraitSettingsView extends StatelessWidget {
       return '128kmp3';
     }
     return '48kaac';
+  }
+}
+
+class _SettingsProfileCard extends StatelessWidget {
+  const _SettingsProfileCard({required this.onCheckUpdate, required this.busy});
+
+  final VoidCallback onCheckUpdate;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.panel,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      shadows: const <BoxShadow>[],
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.tile),
+              gradient: AppColor.accentGradient,
+            ),
+            child: const Icon(
+              Icons.music_note_rounded,
+              color: AppColor.textPrimary,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Music Car',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '车载音乐播放器',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: busy ? '检查中' : '检查更新',
+            onPressed: busy
+                ? null
+                : () {
+                    HapticFeedback.lightImpact();
+                    onCheckUpdate();
+                  },
+            icon: busy
+                ? LuxuryLoadingIndicator(size: 16)
+                : const Icon(Icons.system_update_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(
+            left: AppSpace.xs,
+            bottom: AppSpace.sm,
+          ),
+          child: Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        GlassCard(
+          radius: AppRadius.panel,
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+          shadows: const <BoxShadow>[],
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final Widget row = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.md,
+        vertical: AppSpace.sm,
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.control),
+              color: colors.primary.withValues(alpha: 0.12),
+            ),
+            child: Icon(icon, color: colors.primary, size: 20),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: AppSpace.sm),
+            IconTheme(
+              data: IconThemeData(color: colors.onSurfaceVariant, size: 20),
+              child: trailing!,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (onTap == null) {
+      return row;
+    }
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap!();
+      },
+      child: row,
+    );
   }
 }
