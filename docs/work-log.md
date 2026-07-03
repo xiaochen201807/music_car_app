@@ -3,6 +3,23 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-04 - iOS Deployment Target CI Fix
+
+Implemented in this increment:
+
+- Raised the Runner Xcode project's Debug, Profile, and Release
+  `IPHONEOS_DEPLOYMENT_TARGET` values from 13.0 to 14.0.
+- Kept the existing `ios/Podfile` minimum iOS platform at 14.0, aligning the
+  Xcode target with the `flutter-carplay` package requirement.
+
+Verification in this increment:
+
+- `rg -n "IPHONEOS_DEPLOYMENT_TARGET|platform :ios" ios`
+- `plutil -lint ios/Runner.xcodeproj/project.pbxproj`
+- `flutter analyze lib test`
+- No local iOS release package was built; iOS packaging remains delegated to
+  GitHub Actions.
+
 ## 2026-07-03 - Spotify-Inspired Home And Settings Layout
 
 Implemented in this increment:
