@@ -3,6 +3,139 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-03 - Release Stabilization And Proxy Source Tracking
+
+Implemented in this increment:
+
+- Brought `scripts/cf.js` into repository-managed source so the Cloudflare
+  Worker proxy deployed for `music.sy110.eu.org` is no longer only local state.
+- Removed unused asset-cache-busting helpers from `scripts/cf.js`; the stable
+  proxy behavior remains unchanged and still avoids rewriting JavaScript source
+  or app asset URLs.
+- Replaced hardcoded Sy110 credentials with `SY110_USERNAME` and
+  `SY110_PASSWORD` `--dart-define` values, and wired Android/iOS GitHub Actions
+  release builds to read those values from repository secrets.
+- Updated Sy110 documentation snippets to use placeholders instead of storing
+  live credentials.
+- Updated `native_audio_controller_test.dart` mocks to match the current Sy110
+  `songs/url` API shape and the current app behavior where cross-source
+  switching is not provided by the Sy110 client.
+- Removed the untracked `lib/free_music_api.dart.backup` file and added backup
+  suffixes to `.gitignore`.
+
+Verification in this increment:
+
+- `dart format lib/services/sy110_auth_service.dart lib/free_music_api.dart test/free_music_api_test.dart test/native_audio_controller_test.dart`
+- `node --check scripts/cf.js`
+- Credential scan for the removed Sy110 plaintext values across source,
+  documentation, workflow, test, and script files.
+- `flutter analyze`
+- `flutter test test/free_music_api_test.dart test/native_audio_controller_test.dart test/music_audio_handler_test.dart`
+- Full `flutter test` exposed a widget-test timeout caused by ongoing page
+  animations; `test/widget_test.dart` now uses bounded pumps for navigation
+  waits, and the full suite now passes.
+- `flutter test`
+
+## 2026-07-03 - Premium Sober UI Palette Pass
+
+Implemented in this increment:
+
+- Reviewed the `awesome-design-md` catalog direction and used the BMW
+  `dark premium surfaces`, HashiCorp `enterprise-clean`, and Linear `precise`
+  design descriptions as the reference style for a calmer car-music UI.
+- Replaced the previous violet/rose AI-style accent values with a low-saturation
+  steel-blue to platinum accent gradient in `AppColor`, while keeping old token
+  names as compatibility aliases to avoid a broad rename.
+- Fixed the dark `ColorScheme` to graphite surfaces and steel-blue accents so
+  Material components no longer inherit high-saturation colors from album art.
+- Stopped the portrait shell from regenerating the global theme from the current
+  cover color; cover sampling now only influences restrained local atmosphere.
+- Dampened dynamic background and full-screen player cover-color overlays by
+  blending sampled artwork colors into the graphite base.
+- Reduced primary button glow intensity and replaced the turntable needle's
+  hardcoded pink detail with the platinum accent.
+- Updated `docs/ui/design-spec.md` so future UI work follows the sober
+  automotive palette instead of the old violet/rose values.
+
+Verification in this increment:
+
+- `dart format lib/theme/design_tokens.dart lib/main.dart lib/widgets/sparkling_stars.dart lib/shared/portrait_play_button.dart lib/shared/portrait_circle_button.dart lib/features/shell/portrait_music_shell.dart lib/features/player/portrait_player_view.dart lib/utils/cover_palette_manager.dart`
+- `flutter analyze`
+- `flutter test test/free_music_api_test.dart test/music_audio_handler_test.dart`
+- A broader run including `test/native_audio_controller_test.dart` still fails
+  because that test file has stale mocks expecting `/music/song_url` while the
+  app now calls `/api/music/songs/url/...`; this is unrelated to the UI palette
+  pass and should be handled in a focused native-audio test maintenance task.
+
+## 2026-07-03 - Cloudflare Music Media Proxy Hardening
+
+Implemented in this increment:
+
+- Hardened `scripts/cf.js` so the Cloudflare Worker proxy handles music-page
+  media resources more completely in networks that block direct access to major
+  music domains.
+- Reworked text rewriting to proxy normal absolute URLs, JSON-escaped URLs, and
+  protocol-relative URLs through `/__media`.
+- Added a runtime HTML injection that patches `fetch`, `XMLHttpRequest`,
+  `setAttribute`, common `src`/`href`/`srcset` setters, and `new Audio(...)` so
+  dynamically created audio and artwork URLs are routed through the Worker.
+- Updated `/__media` to preserve range/cache request headers, use
+  source-specific referers for common music CDNs, support `HEAD`, and keep
+  rewriting text-like proxied responses such as JavaScript, CSS, and JSON.
+- Checked the Flutter app's current `FreeMusicApi` calls against the proxy
+  domain and fixed `resolveSongUrl` to accept current `songs/url` responses
+  that return a usable `url` without a `playable` flag, while still rejecting
+  responses where `playable` is explicitly `false`.
+
+Verification in this increment:
+
+- `node --check scripts/cf.js`
+- Node-based Worker smoke test for main-page HTML rewrite, runtime injection,
+  JSON-escaped URL rewrite, and proxied JavaScript media URL rewrite.
+- Deployed to Cloudflare Worker `nameless-water-131c`, which is bound to
+  `music.sy110.eu.org`; deployed version ID
+  `d7a3e577-c713-4c93-9306-3f51f18ce778`.
+- Verified `https://music.sy110.eu.org/` returns HTTP 200 and includes the
+  runtime proxy marker `__musicCarMediaProxyInstalled`.
+- Verified `https://music.sy110.eu.org/__media?u=...` returns HTTP 200 with
+  permissive media CORS headers.
+- Browser comparison found that rewriting every JavaScript URL corrupted source
+  regex literals in `main-Bp2RcvHu.js` and cached broken chunks on the proxy
+  domain.
+- Updated the Worker to skip broad URL rewriting for JavaScript, add cache-bust
+  query parameters to HTML assets, add the same query parameters to safe Vite
+  chunk references inside JavaScript, and mark proxied app responses `no-store`.
+- Deployed the corrected Worker version
+  `c5e74471-9e31-4449-b08c-3a8dd6ab27e1`.
+- Verified in the browser that both `https://ios.25pan.com/` and
+  `https://music.sy110.eu.org/` leave the loading screen and render the same
+  desktop/home view; the proxy page loads `main-Bp2RcvHu.js` and modulepreload
+  chunks with `__proxy_v=20260703-0920`.
+- The broad chunk cache-busting approach regressed the homepage visually by
+  leaving only the dynamic wallpaper visible. Rolled back and redeployed a
+  narrower version that leaves app JS/CSS URLs in their source shape, keeps
+  JavaScript source unmodified, and only clears stale browser cache for the
+  proxy origin.
+- Deployed stable UI recovery version
+  `150ed44f-4597-4c6b-8538-b3f8da9c74dd`.
+- Browser verification after recovery: `https://music.sy110.eu.org/` renders
+  the desktop/home UI again with `loadingExists=false`, 63 images, and 52
+  clickable/button-like elements.
+- Verified the live app-facing API chain: login, search, playlist category,
+  charts, lyrics, favorites, recent plays, proxied cover loading, and proxied
+  audio range playback all return successful responses from
+  `https://music.sy110.eu.org`.
+- Verified the real `songs/url` response for a playable search result returns a
+  proxied audio URL with no `playable` field; the updated app-side logic accepts
+  that URL and the proxied audio endpoint returns HTTP 206 for range playback.
+- `dart format lib/free_music_api.dart test/free_music_api_test.dart`
+- `flutter test test/free_music_api_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
+
 ## 2026-06-11 - DownloadController Cache Split
 
 Implemented in this increment:

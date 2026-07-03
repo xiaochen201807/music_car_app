@@ -14,6 +14,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    Future<void> pumpUi() async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
     await tester.pumpWidget(const MusicCarApp(autoCheckForUpdates: false));
 
     expect(find.byType(NativeMusicHomePage), findsOneWidget);
@@ -27,12 +33,12 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey<String>('portrait-bottom-chrome-handle')),
     );
-    await tester.pumpAndSettle();
+    await pumpUi();
     // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
 
     await tester.drag(find.byType(PageView), const Offset(-390, 0));
-    await tester.pumpAndSettle();
+    await pumpUi();
     expect(find.text('搜索'), findsWidgets);
 
     await tester.tap(
@@ -41,11 +47,11 @@ void main() {
         matching: find.text('首页'),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi();
     expect(find.text('Music Car'), findsOneWidget);
 
     await tester.ensureVisible(find.text('播放时间线'));
-    await tester.pumpAndSettle();
+    await pumpUi();
     expect(find.text('播放时间线'), findsOneWidget);
 
     await tester.tap(
@@ -54,7 +60,7 @@ void main() {
         matching: find.text('音乐库'),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi();
 
     expect(find.text('音乐库'), findsWidgets);
     expect(find.text('收藏'), findsWidgets);
@@ -64,14 +70,14 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey<String>('portrait-mini-player-open-area')),
     );
-    await tester.pumpAndSettle();
+    await pumpUi();
 
     expect(find.text('Highway Morning - Native Radio'), findsOneWidget);
     expect(find.text('等待歌词同步'), findsOneWidget);
     expect(find.text('音乐库'), findsWidgets);
 
     await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded).first);
-    await tester.pumpAndSettle();
+    await pumpUi();
     expect(find.text('音乐库'), findsWidgets);
 
     await tester.drag(
@@ -83,14 +89,14 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey<String>('portrait-bottom-chrome-handle')),
     );
-    await tester.pumpAndSettle();
+    await pumpUi();
     await tester.tap(
       find.descendant(
         of: find.byType(NavigationBar),
         matching: find.text('设置'),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUi();
 
     expect(find.text('设置'), findsWidgets);
     expect(find.text('主题模式'), findsOneWidget);

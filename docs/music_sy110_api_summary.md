@@ -9,8 +9,8 @@
 - **请求体**:
 ```json
 {
-  "username": "xiaochen",
-  "password": "guan5952"
+  "username": "<SY110_USERNAME>",
+  "password": "<SY110_PASSWORD>"
 }
 ```
 - **返回**:

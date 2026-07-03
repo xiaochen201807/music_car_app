@@ -59,7 +59,19 @@ jobs:
         working-directory: ios
 
       - name: Build Unsigned iOS Device App
-        run: flutter build ios --release --no-codesign
+        shell: bash
+        run: |
+          build_args="--release --no-codesign"
+          if [ -n "${SY110_USERNAME:-}" ]; then
+            build_args="$build_args --dart-define=SY110_USERNAME=$SY110_USERNAME"
+          fi
+          if [ -n "${SY110_PASSWORD:-}" ]; then
+            build_args="$build_args --dart-define=SY110_PASSWORD=$SY110_PASSWORD"
+          fi
+          flutter build ios $build_args
+        env:
+          SY110_USERNAME: ${{ secrets.SY110_USERNAME }}
+          SY110_PASSWORD: ${{ secrets.SY110_PASSWORD }}
 
       - name: Package Unsigned IPA
         id: package

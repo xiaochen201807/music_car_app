@@ -18,7 +18,6 @@ class PortraitDynamicBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
     if (Theme.of(context).brightness == Brightness.light) {
       return DecoratedBox(
         decoration: const BoxDecoration(
@@ -46,17 +45,20 @@ class PortraitDynamicBackground extends StatelessWidget {
       builder:
           (BuildContext context, Color? animatedColor, Widget? childWidget) {
             final Color currentSeed = animatedColor ?? seedColor;
+            final Color restrainedSeed =
+                Color.lerp(currentSeed, AppColor.bgBase, 0.72) ??
+                AppColor.glowViolet;
             return DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: <Color>[
-                    currentSeed.withValues(alpha: 0.32),
-                    colors.surface,
-                    colors.surface,
+                    restrainedSeed.withValues(alpha: 0.22),
+                    AppColor.bgBase,
+                    AppColor.bgDeep,
                   ],
-                  stops: const <double>[0, 0.38, 1],
+                  stops: const <double>[0, 0.46, 1],
                 ),
               ),
               child: childWidget ?? const SizedBox.shrink(),

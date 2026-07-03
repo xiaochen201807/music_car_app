@@ -229,8 +229,14 @@ class FreeMusicApi {
     http.Client? client,
     this.baseUri = 'https://music.sy110.eu.org',
     this.timeout = const Duration(seconds: 12),
-  })  : _client = client ?? http.Client(),
-        _authService = Sy110AuthService(client: client);
+    String? authUsername,
+    String? authPassword,
+  }) : _client = client ?? http.Client(),
+       _authService = Sy110AuthService(
+         client: client,
+         username: authUsername,
+         password: authPassword,
+       );
 
   final http.Client _client;
   final String baseUri;
@@ -341,8 +347,7 @@ class FreeMusicApi {
       );
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     if (data == null) {
       return const FreeMusicSearchResult(
         songs: <FreeMusicSong>[],
@@ -353,22 +358,21 @@ class FreeMusicApi {
 
     final List<dynamic> list = data['list'] as List<dynamic>? ?? <dynamic>[];
 
-    final List<FreeMusicSong> songs = list.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    final List<FreeMusicSong> songs = list
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      return _songFromSy110Map(item);
-    }).whereType<FreeMusicSong>().toList();
+          return _songFromSy110Map(item);
+        })
+        .whereType<FreeMusicSong>()
+        .toList();
 
     // sy110 暂时没有返回总数，默认有更多
     final bool hasMore = songs.length >= 20;
 
-    return FreeMusicSearchResult(
-      songs: songs,
-      hasMore: hasMore,
-      page: page,
-    );
+    return FreeMusicSearchResult(songs: songs, hasMore: hasMore, page: page);
   }
 
   Future<FreeMusicRecommendResult> fetchRecommendations({
@@ -381,11 +385,8 @@ class FreeMusicApi {
 
     final Uri uri =
         Uri.parse('$baseUri/api/music/playlists/category/$source/全部').replace(
-      queryParameters: <String, String>{
-        'page': '1',
-        'page_size': '20',
-      },
-    );
+          queryParameters: <String, String>{'page': '1', 'page_size': '20'},
+        );
 
     final http.Response response = await _httpGet(uri);
 
@@ -404,26 +405,28 @@ class FreeMusicApi {
       return const FreeMusicRecommendResult(playlists: <FreeMusicPlaylist>[]);
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     final List<dynamic> list = data?['list'] as List<dynamic>? ?? <dynamic>[];
 
-    final List<FreeMusicPlaylist> playlists = list.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    final List<FreeMusicPlaylist> playlists = list
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      return FreeMusicPlaylist(
-        id: _stringValue(item['id']),
-        source: _stringValue(item['source']),
-        name: _stringValue(item['name']),
-        cover: _stringValue(item['cover']),
-        creator: _stringValue(item['creator']),
-        description: _stringValue(item['description']),
-        trackCount: _intValue(item['trackCount']),
-        playCount: _intValue(item['playCount']),
-      );
-    }).whereType<FreeMusicPlaylist>().toList();
+          return FreeMusicPlaylist(
+            id: _stringValue(item['id']),
+            source: _stringValue(item['source']),
+            name: _stringValue(item['name']),
+            cover: _stringValue(item['cover']),
+            creator: _stringValue(item['creator']),
+            description: _stringValue(item['description']),
+            trackCount: _intValue(item['trackCount']),
+            playCount: _intValue(item['playCount']),
+          );
+        })
+        .whereType<FreeMusicPlaylist>()
+        .toList();
 
     return FreeMusicRecommendResult(playlists: playlists);
   }
@@ -439,14 +442,15 @@ class FreeMusicApi {
 
     final int page = (offset ~/ size) + 1;
 
-    final Uri uri = Uri.parse(
-      '$baseUri/api/music/playlists/songs/${playlist.source}/${playlist.id}',
-    ).replace(
-      queryParameters: <String, String>{
-        'page': '$page',
-        'page_size': '$size',
-      },
-    );
+    final Uri uri =
+        Uri.parse(
+          '$baseUri/api/music/playlists/songs/${playlist.source}/${playlist.id}',
+        ).replace(
+          queryParameters: <String, String>{
+            'page': '$page',
+            'page_size': '$size',
+          },
+        );
 
     final http.Response response = await _httpGet(uri);
 
@@ -465,8 +469,7 @@ class FreeMusicApi {
       return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     final List<dynamic> list = data?['list'] as List<dynamic>? ?? <dynamic>[];
 
     final List<FreeMusicSong> songs = list
@@ -492,16 +495,17 @@ class FreeMusicApi {
       return null;
     }
 
-    final Uri uri = Uri.parse(
-      '$baseUri/api/music/songs/url/${song.source}/${song.id}',
-    ).replace(
-      queryParameters: <String, String>{
-        'name': song.name,
-        'artist': song.artist,
-        'duration_ms': '${song.duration * 1000}',
-        if (bitrate.isNotEmpty) 'quality': bitrate,
-      },
-    );
+    final Uri uri =
+        Uri.parse(
+          '$baseUri/api/music/songs/url/${song.source}/${song.id}',
+        ).replace(
+          queryParameters: <String, String>{
+            'name': song.name,
+            'artist': song.artist,
+            'duration_ms': '${song.duration * 1000}',
+            if (bitrate.isNotEmpty) 'quality': bitrate,
+          },
+        );
 
     final http.Response response = await _httpGet(uri);
 
@@ -520,24 +524,19 @@ class FreeMusicApi {
       return null;
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     if (data == null) {
       return null;
     }
 
     final String url = _stringValue(data['url']);
-    final bool playable = data['playable'] as bool? ?? false;
+    final bool playable = data['playable'] as bool? ?? url.isNotEmpty;
 
     if (url.isEmpty || !playable) {
       return null;
     }
 
-    return FreeMusicResolvedUrl(
-      url: url,
-      source: song.source,
-      direct: true,
-    );
+    return FreeMusicResolvedUrl(url: url, source: song.source, direct: true);
   }
 
   Future<FreeMusicSourceSwitch?> switchSource(
@@ -597,8 +596,7 @@ class FreeMusicApi {
       return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     if (data == null) {
       return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
     }
@@ -617,56 +615,61 @@ class FreeMusicApi {
     final List<dynamic> linesData =
         selected['lines'] as List<dynamic>? ?? <dynamic>[];
 
-    final List<FreeMusicLyricLine> lines = linesData.map((dynamic lineItem) {
-      if (lineItem is! Map<String, dynamic>) {
-        return null;
-      }
-
-      final int startMs = _intValue(lineItem['startMs']);
-      final String text = _stringValue(lineItem['text']);
-
-      List<FreeMusicLyricWord>? words;
-      if (needWord && lineItem.containsKey('words')) {
-        final List<dynamic> wordsData =
-            lineItem['words'] as List<dynamic>? ?? <dynamic>[];
-        words = wordsData.map((dynamic wordItem) {
-          if (wordItem is! Map<String, dynamic>) {
+    final List<FreeMusicLyricLine> lines = linesData
+        .map((dynamic lineItem) {
+          if (lineItem is! Map<String, dynamic>) {
             return null;
           }
 
-          final int wordStartMs = _intValue(wordItem['startMs']);
-          final int wordEndMs = _intValue(wordItem['endMs']);
-          final String wordText = _stringValue(wordItem['text']);
+          final int startMs = _intValue(lineItem['startMs']);
+          final String text = _stringValue(lineItem['text']);
 
-          return FreeMusicLyricWord(
-            time: Duration(milliseconds: wordStartMs),
-            text: wordText,
-            duration: Duration(milliseconds: wordEndMs - wordStartMs),
+          List<FreeMusicLyricWord>? words;
+          if (needWord && lineItem.containsKey('words')) {
+            final List<dynamic> wordsData =
+                lineItem['words'] as List<dynamic>? ?? <dynamic>[];
+            words = wordsData
+                .map((dynamic wordItem) {
+                  if (wordItem is! Map<String, dynamic>) {
+                    return null;
+                  }
+
+                  final int wordStartMs = _intValue(wordItem['startMs']);
+                  final int wordEndMs = _intValue(wordItem['endMs']);
+                  final String wordText = _stringValue(wordItem['text']);
+
+                  return FreeMusicLyricWord(
+                    time: Duration(milliseconds: wordStartMs),
+                    text: wordText,
+                    duration: Duration(milliseconds: wordEndMs - wordStartMs),
+                  );
+                })
+                .whereType<FreeMusicLyricWord>()
+                .toList();
+          }
+
+          return FreeMusicLyricLine(
+            time: Duration(milliseconds: startMs),
+            text: text,
+            words: words,
           );
-        }).whereType<FreeMusicLyricWord>().toList();
-      }
-
-      return FreeMusicLyricLine(
-        time: Duration(milliseconds: startMs),
-        text: text,
-        words: words,
-      );
-    }).whereType<FreeMusicLyricLine>().toList();
+        })
+        .whereType<FreeMusicLyricLine>()
+        .toList();
 
     return FreeMusicLyrics(
       raw: raw,
       lines: lines,
-      hasWordTimestamps: needWord && lines.any((FreeMusicLyricLine l) => l.words != null),
+      hasWordTimestamps:
+          needWord && lines.any((FreeMusicLyricLine l) => l.words != null),
     );
   }
 
   /// 获取榜单列表
   Future<List<FreeMusicChart>> fetchCharts({String source = 'kuwo'}) async {
-    final Uri uri = Uri.parse('$baseUri/api/music/charts').replace(
-      queryParameters: <String, String>{
-        'source': source,
-      },
-    );
+    final Uri uri = Uri.parse(
+      '$baseUri/api/music/charts',
+    ).replace(queryParameters: <String, String>{'source': source});
 
     final http.Response response = await _httpGet(uri);
 
@@ -687,29 +690,33 @@ class FreeMusicApi {
 
     final List<dynamic> data = decoded['data'] as List<dynamic>? ?? <dynamic>[];
 
-    return data.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    return data
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      return FreeMusicChart(
-        id: _stringValue(item['id']),
-        source: _stringValue(item['source']),
-        name: _stringValue(item['name']),
-        description: _stringValue(item['description']),
-        cover: _stringValue(item['cover']),
-        group: _stringValue(item['group']),
-        official: item['official'] as bool? ?? false,
-      );
-    }).whereType<FreeMusicChart>().toList();
+          return FreeMusicChart(
+            id: _stringValue(item['id']),
+            source: _stringValue(item['source']),
+            name: _stringValue(item['name']),
+            description: _stringValue(item['description']),
+            cover: _stringValue(item['cover']),
+            group: _stringValue(item['group']),
+            official: item['official'] as bool? ?? false,
+          );
+        })
+        .whereType<FreeMusicChart>()
+        .toList();
   }
 
   /// 获取歌单分类列表
   Future<List<FreeMusicCategory>> fetchPlaylistCategories({
     String source = 'kuwo',
   }) async {
-    final Uri uri =
-        Uri.parse('$baseUri/api/music/playlists/categories/$source');
+    final Uri uri = Uri.parse(
+      '$baseUri/api/music/playlists/categories/$source',
+    );
 
     final http.Response response = await _httpGet(uri);
 
@@ -730,17 +737,20 @@ class FreeMusicApi {
 
     final List<dynamic> data = decoded['data'] as List<dynamic>? ?? <dynamic>[];
 
-    return data.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    return data
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      return FreeMusicCategory(
-        id: _stringValue(item['id']),
-        name: _stringValue(item['name']),
-        parentId: _stringValue(item['parentId']),
-      );
-    }).whereType<FreeMusicCategory>().toList();
+          return FreeMusicCategory(
+            id: _stringValue(item['id']),
+            name: _stringValue(item['name']),
+            parentId: _stringValue(item['parentId']),
+          );
+        })
+        .whereType<FreeMusicCategory>()
+        .toList();
   }
 
   /// 获取指定分类下的歌单列表
@@ -750,14 +760,15 @@ class FreeMusicApi {
     int page = 1,
     int pageSize = 20,
   }) async {
-    final Uri uri = Uri.parse(
-      '$baseUri/api/music/playlists/category/$source/$categoryId',
-    ).replace(
-      queryParameters: <String, String>{
-        'page': '$page',
-        'page_size': '$pageSize',
-      },
-    );
+    final Uri uri =
+        Uri.parse(
+          '$baseUri/api/music/playlists/category/$source/$categoryId',
+        ).replace(
+          queryParameters: <String, String>{
+            'page': '$page',
+            'page_size': '$pageSize',
+          },
+        );
 
     final http.Response response = await _httpGet(uri);
 
@@ -778,26 +789,28 @@ class FreeMusicApi {
       return const <FreeMusicPlaylist>[];
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     final List<dynamic> list = data?['list'] as List<dynamic>? ?? <dynamic>[];
 
-    return list.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    return list
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      return FreeMusicPlaylist(
-        id: _stringValue(item['id']),
-        source: _stringValue(item['source']),
-        name: _stringValue(item['name']),
-        cover: _stringValue(item['cover']),
-        creator: _stringValue(item['creator']),
-        description: _stringValue(item['description']),
-        trackCount: _intValue(item['trackCount']),
-        playCount: _intValue(item['playCount']),
-      );
-    }).whereType<FreeMusicPlaylist>().toList();
+          return FreeMusicPlaylist(
+            id: _stringValue(item['id']),
+            source: _stringValue(item['source']),
+            name: _stringValue(item['name']),
+            cover: _stringValue(item['cover']),
+            creator: _stringValue(item['creator']),
+            description: _stringValue(item['description']),
+            trackCount: _intValue(item['trackCount']),
+            playCount: _intValue(item['playCount']),
+          );
+        })
+        .whereType<FreeMusicPlaylist>()
+        .toList();
   }
 
   /// 获取收藏列表
@@ -821,26 +834,28 @@ class FreeMusicApi {
       return const <FreeMusicSong>[];
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     final List<dynamic> songs = data?['songs'] as List<dynamic>? ?? <dynamic>[];
 
-    return songs.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    return songs
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      // 收藏列表返回的格式可能与搜索不同，需要适配
-      return FreeMusicSong(
-        id: _stringValue(item['id']),
-        source: _stringValue(item['source']),
-        name: _stringValue(item['name']),
-        artist: _stringValue(item['artist']),
-        album: _stringValue(item['album']),
-        duration: _intValue(item['duration']),
-        cover: _stringValue(item['cover']),
-      );
-    }).whereType<FreeMusicSong>().toList();
+          // 收藏列表返回的格式可能与搜索不同，需要适配
+          return FreeMusicSong(
+            id: _stringValue(item['id']),
+            source: _stringValue(item['source']),
+            name: _stringValue(item['name']),
+            artist: _stringValue(item['artist']),
+            album: _stringValue(item['album']),
+            duration: _intValue(item['duration']),
+            cover: _stringValue(item['cover']),
+          );
+        })
+        .whereType<FreeMusicSong>()
+        .toList();
   }
 
   /// 添加到收藏
@@ -876,16 +891,11 @@ class FreeMusicApi {
   Future<bool> removeFromFavorites(FreeMusicSong song) async {
     final Uri uri = Uri.parse(
       '$baseUri/api/v1/music/favorites/${song.id}',
-    ).replace(
-      queryParameters: <String, String>{
-        'source': song.source,
-      },
-    );
+    ).replace(queryParameters: <String, String>{'source': song.source});
 
-    final http.Response response = await _client.delete(
-      uri,
-      headers: await _authService.getAuthHeaders(),
-    ).timeout(timeout);
+    final http.Response response = await _client
+        .delete(uri, headers: await _authService.getAuthHeaders())
+        .timeout(timeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return false;
@@ -922,25 +932,27 @@ class FreeMusicApi {
       return const <FreeMusicSong>[];
     }
 
-    final Map<String, dynamic>? data =
-        decoded['data'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     final List<dynamic> plays = data?['plays'] as List<dynamic>? ?? <dynamic>[];
 
-    return plays.map((dynamic item) {
-      if (item is! Map<String, dynamic>) {
-        return null;
-      }
+    return plays
+        .map((dynamic item) {
+          if (item is! Map<String, dynamic>) {
+            return null;
+          }
 
-      return FreeMusicSong(
-        id: _stringValue(item['id']),
-        source: _stringValue(item['source']),
-        name: _stringValue(item['name']),
-        artist: _stringValue(item['artist']),
-        album: _stringValue(item['album']),
-        duration: _intValue(item['duration']),
-        cover: _stringValue(item['cover']),
-      );
-    }).whereType<FreeMusicSong>().toList();
+          return FreeMusicSong(
+            id: _stringValue(item['id']),
+            source: _stringValue(item['source']),
+            name: _stringValue(item['name']),
+            artist: _stringValue(item['artist']),
+            album: _stringValue(item['album']),
+            duration: _intValue(item['duration']),
+            cover: _stringValue(item['cover']),
+          );
+        })
+        .whereType<FreeMusicSong>()
+        .toList();
   }
 
   /// 添加播放记录
@@ -1051,4 +1063,3 @@ class FreeMusicApiException implements Exception {
   @override
   String toString() => 'FreeMusicApiException: $message';
 }
-

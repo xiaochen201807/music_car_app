@@ -11,7 +11,8 @@ import '../theme/design_tokens.dart';
 class CoverPaletteManager {
   CoverPaletteManager._privateConstructor();
 
-  static final CoverPaletteManager instance = CoverPaletteManager._privateConstructor();
+  static final CoverPaletteManager instance =
+      CoverPaletteManager._privateConstructor();
 
   // 内存中缓存已采样过封面的 URL -> Color 的映射
   final Map<String, Color> _paletteCache = <String, Color>{};
@@ -21,7 +22,7 @@ class CoverPaletteManager {
   Future<Color> getColor(String imageUrl) async {
     final String cleanUrl = imageUrl.trim();
     if (cleanUrl.isEmpty) {
-      return AppColor.accentVioletStart;
+      return AppColor.accentSteelStart;
     }
 
     if (_paletteCache.containsKey(cleanUrl)) {
@@ -35,7 +36,7 @@ class CoverPaletteManager {
       return color;
     } catch (_) {
       // 失败则不写入缓存，下一次仍可重试，但本次返回安全 fallback 颜色
-      return AppColor.accentVioletStart;
+      return AppColor.accentSteelStart;
     }
   }
 
@@ -91,7 +92,7 @@ class CoverPaletteManager {
       );
 
       if (byteData == null || byteData.lengthInBytes < 4) {
-        return AppColor.accentVioletStart;
+        return AppColor.accentSteelStart;
       }
 
       final int r = byteData.getUint8(0);
@@ -99,8 +100,8 @@ class CoverPaletteManager {
       final int b = byteData.getUint8(2);
 
       final HSLColor hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
-      final double s = hsl.saturation.clamp(0.24, 0.48);
-      final double l = hsl.lightness.clamp(0.32, 0.62);
+      final double s = hsl.saturation.clamp(0.12, 0.34);
+      final double l = hsl.lightness.clamp(0.28, 0.56);
       return hsl.withSaturation(s).withLightness(l).toColor();
     } finally {
       stream.removeListener(listener);

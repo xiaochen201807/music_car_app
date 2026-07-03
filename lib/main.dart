@@ -132,11 +132,11 @@ class _MusicCarAppState extends State<MusicCarApp> {
     final ThemeMode themeMode = _settingsController.themeMode;
     final ThemeData lightTheme = _buildAppTheme(
       brightness: Brightness.light,
-      seedColor: AppColor.accentVioletStart,
+      seedColor: AppColor.accentSteelStart,
     );
     final ThemeData darkTheme = _buildAppTheme(
       brightness: Brightness.dark,
-      seedColor: AppColor.accentVioletStart,
+      seedColor: AppColor.accentSteelStart,
     );
     return MaterialApp(
       title: '车载音乐',
@@ -168,6 +168,8 @@ ThemeData _buildAppTheme({
           surface: AppColor.paperBase,
           surfaceContainer: AppColor.paperWarm,
           surfaceContainerHighest: AppColor.paperCool,
+          primary: AppColor.accentSteelStart,
+          secondary: AppColor.accentPlatinumEnd,
           onSurface: AppColor.paperInk,
           onSurfaceVariant: AppColor.paperMuted,
           primaryContainer: AppColor.paperAccentContainer,
@@ -175,7 +177,20 @@ ThemeData _buildAppTheme({
           outline: AppColor.paperStrokeHairline,
           shadow: AppColor.paperShadow,
         )
-      : baseColorScheme;
+      : baseColorScheme.copyWith(
+          surface: AppColor.bgBase,
+          surfaceContainer: AppColor.glassTint,
+          surfaceContainerHighest: AppColor.fillNeutralHover,
+          primary: AppColor.accentSteelStart,
+          secondary: AppColor.accentPlatinumEnd,
+          primaryContainer: AppColor.fillNeutralHover,
+          onPrimaryContainer: AppColor.textPrimary,
+          onSurface: AppColor.textPrimary,
+          onSurfaceVariant: AppColor.textSecondary,
+          outline: AppColor.strokeHairline,
+          shadow: Colors.black,
+          error: AppColor.error,
+        );
   return ThemeData(
     fontFamily: 'sans',
     colorScheme: colorScheme,
@@ -246,7 +261,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   final PlayerUiStateController _playerUiStateController =
       PlayerUiStateController();
   final QueueController _queueController = QueueController();
-  Color _coverSeedColor = AppColor.accentVioletStart;
+  Color _coverSeedColor = AppColor.accentSteelStart;
   String _coverSeedUrl = '';
   Timer? _lyricBroadcastTimer;
 
@@ -429,7 +444,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     debugPrint('[main] 🔄 QueueController changed, checking song switch');
     final FreeMusicSong? currentSong = _queueController.currentSong;
     if (currentSong != null && currentSong != _lastLoadedLyricsSong) {
-      debugPrint('[main] 🎵 Song switched: ${currentSong.name} - ${currentSong.artist}');
+      debugPrint(
+        '[main] 🎵 Song switched: ${currentSong.name} - ${currentSong.artist}',
+      );
       _lastLoadedLyricsSong = currentSong;
       unawaited(_loadLyricsForSong(currentSong));
     }
@@ -596,7 +613,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         return;
       }
       setState(() {
-        _coverSeedColor = AppColor.accentVioletStart;
+        _coverSeedColor = AppColor.accentSteelStart;
       });
     }
   }
@@ -713,13 +730,14 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
           api: _freeMusicApi,
           favoriteSongKeys: _favoriteSongKeys,
           downloadedSongKeys: _downloadedSongKeys,
-          onPlay: (List<FreeMusicSong> songs, int index, {bool append = false}) {
-            if (append) {
-              _appendSongsToQueue(songs);
-            } else {
-              unawaited(_playSongQueue(songs, index));
-            }
-          },
+          onPlay:
+              (List<FreeMusicSong> songs, int index, {bool append = false}) {
+                if (append) {
+                  _appendSongsToQueue(songs);
+                } else {
+                  unawaited(_playSongQueue(songs, index));
+                }
+              },
           onToggleFavorite: (FreeMusicSong song) {
             unawaited(_toggleFavoriteSong(song));
           },

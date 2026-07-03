@@ -152,14 +152,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
     PlaybackUiState playbackState,
   ) {
     final ThemeData baseTheme = Theme.of(context);
-    final ThemeData theme = baseTheme.brightness == Brightness.light
-        ? baseTheme
-        : baseTheme.copyWith(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: appState.coverSeedColor,
-              brightness: baseTheme.brightness,
-            ),
-          );
+    final ThemeData theme = baseTheme;
     final bool visualEffectsPaused =
         _reducePageMotionEffects || !appState.visualAnimationsEnabled;
 

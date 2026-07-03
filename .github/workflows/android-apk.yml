@@ -100,6 +100,12 @@ jobs:
           if [ -n "$update_manifest_url" ]; then
             build_args="$build_args --dart-define=MUSIC_CAR_UPDATE_MANIFEST_URL=$update_manifest_url"
           fi
+          if [ -n "${SY110_USERNAME:-}" ]; then
+            build_args="$build_args --dart-define=SY110_USERNAME=$SY110_USERNAME"
+          fi
+          if [ -n "${SY110_PASSWORD:-}" ]; then
+            build_args="$build_args --dart-define=SY110_PASSWORD=$SY110_PASSWORD"
+          fi
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             version_name="${GITHUB_REF_NAME#v}"
             # Derive a monotonic versionCode as major*10000 + minor*100 + patch
@@ -119,6 +125,8 @@ jobs:
           MUSIC_CAR_UPDATE_MANIFEST_URL: ${{ vars.MUSIC_CAR_UPDATE_MANIFEST_URL }}
           CLOUDFLARE_R2_UPDATE_MANIFEST_URL: ${{ secrets.CLOUDFLARE_R2_UPDATE_MANIFEST_URL }}
           CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
+          SY110_USERNAME: ${{ secrets.SY110_USERNAME }}
+          SY110_PASSWORD: ${{ secrets.SY110_PASSWORD }}
 
       - name: List APK Outputs
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'

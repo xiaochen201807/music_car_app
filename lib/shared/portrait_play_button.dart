@@ -21,13 +21,8 @@ class PortraitPlayButton extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: AppColor.accentGradient,
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColor.accentVioletStart.withValues(alpha: 0.35),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: AppColor.strokeStrong),
+        boxShadow: <BoxShadow>[AppShadow.controlPrimary],
       ),
       child: Icon(
         playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -36,9 +31,6 @@ class PortraitPlayButton extends StatelessWidget {
       ),
     );
 
-    return BounceTouchable(
-      onTap: onTap,
-      child: button,
-    );
+    return BounceTouchable(onTap: onTap, child: button);
   }
 }

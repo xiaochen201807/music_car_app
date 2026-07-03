@@ -12,7 +12,9 @@ void main() {
   });
 
   // Helper function to create a mock client that handles auth and API requests
-  MockClient createMockClient(Map<String, http.Response Function(http.Request)> handlers) {
+  MockClient createMockClient(
+    Map<String, http.Response Function(http.Request)> handlers,
+  ) {
     return MockClient((http.Request request) async {
       final String path = request.url.path;
 
@@ -34,7 +36,8 @@ void main() {
       }
 
       // Route to specific handlers
-      for (final MapEntry<String, http.Response Function(http.Request)> entry in handlers.entries) {
+      for (final MapEntry<String, http.Response Function(http.Request)> entry
+          in handlers.entries) {
         if (path.contains(entry.key)) {
           return entry.value(request);
         }
@@ -47,7 +50,9 @@ void main() {
   test('FreeMusicApi fetches source metadata', () async {
     final FreeMusicApi api = FreeMusicApi(
       baseUri: 'https://music.sy110.eu.org',
-      client: createMockClient(<String, http.Response Function(http.Request)>{}),
+      client: createMockClient(
+        <String, http.Response Function(http.Request)>{},
+      ),
     );
 
     final FreeMusicSources sources = await api.fetchSources();
@@ -61,7 +66,9 @@ void main() {
 
   test('FreeMusicApi fetches hot search keywords (returns empty)', () async {
     final FreeMusicApi api = FreeMusicApi(
-      client: createMockClient(<String, http.Response Function(http.Request)>{}),
+      client: createMockClient(
+        <String, http.Response Function(http.Request)>{},
+      ),
     );
 
     final List<String> keywords = await api.fetchHotSearchKeywords();
@@ -75,6 +82,8 @@ void main() {
     late Map<String, String> requestedHeaders;
     final FreeMusicApi api = FreeMusicApi(
       baseUri: 'https://music.sy110.eu.org',
+      authUsername: 'mock_user',
+      authPassword: 'mock_password',
       client: createMockClient(<String, http.Response Function(http.Request)>{
         'search/songs': (http.Request request) {
           requestedUri = request.url;
@@ -181,7 +190,10 @@ void main() {
       sources: <String>['kugou'],
     );
 
-    expect(requestedUri.path, '/api/music/playlists/category/kugou/%E5%85%A8%E9%83%A8');
+    expect(
+      requestedUri.path,
+      '/api/music/playlists/category/kugou/%E5%85%A8%E9%83%A8',
+    );
     expect(result.playlists, hasLength(1));
     expect(result.playlists.single.id, '636158');
     expect(result.playlists.single.source, 'kugou');
@@ -244,22 +256,25 @@ void main() {
     expect(page.songs.single.artist, '卢巧音/王力宏');
   });
 
-  test('FreeMusicApi returns empty playlist page for incomplete playlists', () async {
-    final FreeMusicApi api = FreeMusicApi(
-      client: createMockClient(<String, http.Response Function(http.Request)>{
-        'playlists/songs': (http.Request request) {
-          fail('Request should not be sent for incomplete playlists');
-        },
-      }),
-    );
+  test(
+    'FreeMusicApi returns empty playlist page for incomplete playlists',
+    () async {
+      final FreeMusicApi api = FreeMusicApi(
+        client: createMockClient(<String, http.Response Function(http.Request)>{
+          'playlists/songs': (http.Request request) {
+            fail('Request should not be sent for incomplete playlists');
+          },
+        }),
+      );
 
-    final FreeMusicPlaylistPage page = await api.fetchPlaylistSongs(
-      const FreeMusicPlaylist(id: '', source: '', name: ''),
-    );
+      final FreeMusicPlaylistPage page = await api.fetchPlaylistSongs(
+        const FreeMusicPlaylist(id: '', source: '', name: ''),
+      );
 
-    expect(page.songs, isEmpty);
-    expect(page.total, 0);
-  });
+      expect(page.songs, isEmpty);
+      expect(page.total, 0);
+    },
+  );
 
   test('FreeMusicApi resolves song_url with sy110 API format', () async {
     late Uri requestedUri;
@@ -302,6 +317,78 @@ void main() {
     expect(resolved?.source, 'kuwo');
     expect(resolved?.direct, isTrue);
   });
+
+  test('FreeMusicApi accepts song_url when playable flag is omitted', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org',
+      client: createMockClient(<String, http.Response Function(http.Request)>{
+        'songs/url': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 0,
+              'message': 'success',
+              'data': <String, dynamic>{
+                'url':
+                    'https://music.sy110.eu.org/__media?u=https%3A%2F%2Fexample.com%2Fsong.mp3',
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+      }),
+    );
+
+    final FreeMusicResolvedUrl? resolved = await api.resolveSongUrl(
+      const FreeMusicSong(
+        id: '5257138',
+        source: 'netease',
+        name: '屋顶',
+        artist: '周杰伦/温岚/吴宗宪',
+        duration: 319,
+      ),
+    );
+
+    expect(resolved?.url, contains('/__media?u='));
+    expect(resolved?.direct, isTrue);
+  });
+
+  test(
+    'FreeMusicApi rejects song_url when playable is explicitly false',
+    () async {
+      final FreeMusicApi api = FreeMusicApi(
+        baseUri: 'https://music.sy110.eu.org',
+        client: createMockClient(<String, http.Response Function(http.Request)>{
+          'songs/url': (http.Request request) {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'code': 0,
+                'message': 'success',
+                'data': <String, dynamic>{
+                  'url': 'https://example.com/song.mp3',
+                  'playable': false,
+                },
+              }),
+              200,
+              headers: <String, String>{'content-type': 'application/json'},
+            );
+          },
+        }),
+      );
+
+      final FreeMusicResolvedUrl? resolved = await api.resolveSongUrl(
+        const FreeMusicSong(
+          id: '5257138',
+          source: 'netease',
+          name: '屋顶',
+          artist: '周杰伦/温岚/吴宗宪',
+          duration: 319,
+        ),
+      );
+
+      expect(resolved, isNull);
+    },
+  );
 
   test('FreeMusicApi fetches lyrics with word timestamps', () async {
     late Uri requestedUri;
@@ -468,11 +555,7 @@ void main() {
               'code': 0,
               'message': 'success',
               'data': <Map<String, dynamic>>[
-                <String, dynamic>{
-                  'id': '流行',
-                  'name': '流行',
-                  'parentId': '风格',
-                },
+                <String, dynamic>{'id': '流行', 'name': '流行', 'parentId': '风格'},
               ],
             }),
             200,
@@ -482,7 +565,8 @@ void main() {
       }),
     );
 
-    final List<FreeMusicCategory> categories = await api.fetchPlaylistCategories(source: 'netease');
+    final List<FreeMusicCategory> categories = await api
+        .fetchPlaylistCategories(source: 'netease');
 
     expect(categories, hasLength(1));
     expect(categories.single.name, '流行');
@@ -519,12 +603,13 @@ void main() {
       }),
     );
 
-    final List<FreeMusicPlaylist> playlists = await api.fetchPlaylistsByCategory(
-      source: 'kugou',
-      categoryId: '全部',
-      page: 1,
-      pageSize: 20,
-    );
+    final List<FreeMusicPlaylist> playlists = await api
+        .fetchPlaylistsByCategory(
+          source: 'kugou',
+          categoryId: '全部',
+          page: 1,
+          pageSize: 20,
+        );
 
     expect(playlists, hasLength(1));
     expect(playlists.single.name, '测试歌单');
@@ -538,10 +623,7 @@ void main() {
         'music/favorites': (http.Request request) {
           requestMade = true;
           return http.Response(
-            jsonEncode(<String, dynamic>{
-              'code': 0,
-              'message': 'success',
-            }),
+            jsonEncode(<String, dynamic>{'code': 0, 'message': 'success'}),
             200,
             headers: <String, String>{'content-type': 'application/json'},
           );
@@ -571,10 +653,7 @@ void main() {
         'recent_plays': (http.Request request) {
           requestMade = true;
           return http.Response(
-            jsonEncode(<String, dynamic>{
-              'code': 0,
-              'message': 'success',
-            }),
+            jsonEncode(<String, dynamic>{'code': 0, 'message': 'success'}),
             200,
             headers: <String, String>{'content-type': 'application/json'},
           );

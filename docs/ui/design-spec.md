@@ -4,7 +4,7 @@
 > 原型是图,本文件是**可执行的数值契约**。所有 UI 实现必须引用本文件的 token，不允许在
 > widget 里手写颜色 / 圆角 / 间距字面量。
 >
-> 设计目标关键词:**深、冷、克制、电影感玻璃拟态**。
+> 设计目标关键词:**深、冷、克制、豪华车机、精密玻璃拟态**。
 > 当前实现的主要偏差:① 全屏热粉、② 无玻璃模糊、③ 首页推荐网格丢失、④ 底部控制栏重影、
 > ⑤ 圆角/间距随手填、⑥ 封面无缓存占位。本文件逐项给出目标值。
 
@@ -12,9 +12,9 @@
 
 ## 0. 设计原则 (出现分歧时按此裁决)
 
-1. **冷底 + 克制点缀**:屏幕 95% 面积是深冷色(近黑靛蓝)与中性玻璃。高饱和色(粉/紫渐变)
-   **只允许**出现在:主播放按钮、进度条已播放段、当前导航项指示、收藏(红心)激活态。
-   其余一律用"白色低透明度"中性玻璃。这是修复"全屏热粉"的核心规则。
+1. **石墨冷底 + 钢蓝点缀**:屏幕 95% 面积是石墨黑、深冷灰与中性玻璃。高饱和粉/紫不再作为产品主风格；
+   主播放按钮、进度条已播放段、当前导航项指示等强调位统一使用低饱和钢蓝→铂银渐变。
+   其余一律用"白色低透明度"中性玻璃。这是修复"AI 味配色"和"全屏热粉"的核心规则。
 2. **一个 GlassCard 统治所有卡片**:任何卡片/面板/药丸背景都来自同一个 `GlassCard` 组件,
    不允许各处自己拼 `Container + 半透明 color`。玻璃必须含 `BackdropFilter` 模糊。
 3. **token 化**:颜色、间距、圆角、字阶、阴影全部来自 `lib/theme/design_tokens.dart`(见 §8)。
@@ -31,11 +31,11 @@
 
 | Token | Hex / 值 | 用途 |
 | --- | --- | --- |
-| `bgBase` | `#0B1020` | 主背景基色(深靛蓝近黑) |
-| `bgDeep` | `#04060D` | 背景最深角(径向渐变外圈) |
-| `glowViolet` | `#5B4B8A` | 环境光晕主色,使用时 alpha ≈ 0.40 |
-| `glowCyan` | `#2E6F9E` | 环境光晕副色(右下),alpha ≈ 0.22(可选) |
-| `glassTint` | `#0E1426` | 玻璃卡片暗底色,使用时 alpha ≈ 0.35(`0x590E1426`) |
+| `bgBase` | `#0A0D12` | 主背景基色(石墨黑) |
+| `bgDeep` | `#030507` | 背景最深角(近黑) |
+| `glowViolet` | `#263647` | 环境光晕主色(保留旧 token 名,实际为低饱和钢灰) |
+| `glowCyan` | `#365167` | 环境光晕副色,alpha ≈ 0.16(可选) |
+| `glassTint` | `#111820` | 玻璃卡片暗底色,使用时 alpha ≈ 0.48 |
 
 ### 1.2 描边 / 分隔
 
@@ -49,10 +49,11 @@
 
 | Token | 值 | **仅允许用于** |
 | --- | --- | --- |
-| `accentVioletStart` | `#7C5CFF` | 主播放按钮渐变起点、进度条渐变起点、激活导航指示 |
-| `accentRoseEnd` | `#FF5C9E` | 上述渐变终点、收藏激活 |
-| `accentGradient` | `LinearGradient(topLeft→bottomRight, [accentVioletStart, accentRoseEnd])` | 同上 |
-| `carlife` | `#2D7DFF` | 仅 CarLife 入口/状态 |
+| `accentSteelStart` | `#5E7FA4` | 主播放按钮渐变起点、进度条渐变起点、激活导航指示 |
+| `accentPlatinumEnd` | `#B8C2CC` | 上述渐变终点、金属高光 |
+| `accentVioletStart` / `accentRoseEnd` | 兼容别名 | 旧字段保留,实际指向钢蓝/铂银 |
+| `accentGradient` | `LinearGradient(topLeft→bottomRight, [accentSteelStart, accentPlatinumEnd])` | 同上 |
+| `carlife` | `#3D6F9F` | 仅 CarLife 入口/状态 |
 
 > ⚠️ 删除当前的 `primary = #FF5C93` / `accent = #FFB86B` 全局暖色。Logo 方块、搜索"搜索"按钮、
 > 模式药丸、歌词药丸**不得**使用点缀渐变——它们用中性玻璃 `fillNeutral`。
@@ -156,7 +157,7 @@ ClipRRect(borderRadius: radius.card)
 | Token | 值 |
 | --- | --- |
 | `shadow.card` | `BoxShadow(color: #000 @ 0.35, blurRadius: 40, offset: (0, 20))` |
-| `shadow.controlPrimary` | `BoxShadow(color: accentVioletStart @ 0.30, blurRadius: 24, offset: (0, 10))` —— 仅主播放键 |
+| `shadow.controlPrimary` | `BoxShadow(color: accentSteelStart @ 0.22, blurRadius: 18, offset: (0, 8))` —— 仅主播放键 |
 
 > ⚠️ **关于底部重影 bug**:阴影/发光不得叠加在带半透明背景的圆按钮"下面又一层圆"。
 > 详见 playbook 的 Bug #0,根因在 `_MiniTransportButton`。
@@ -171,7 +172,7 @@ ClipRRect(borderRadius: radius.card)
 RadialGradient(
   center: Alignment(-0.62, -0.74),   // 左上
   radius: 1.35,
-  colors: [ glowViolet @ 0.42, bgBase, bgDeep ],
+  colors: [ glowViolet @ 0.30, bgBase, bgDeep ],
   stops: [0, 0.52, 1],
 )
 ```
@@ -222,7 +223,7 @@ RadialGradient(
 
 ### 7.4 正在播放(全屏 `_NowPlayingFullScreenPanel`)
 
-参考原型 panel 2。居中大封面 + `type.display` 歌名 + 歌词预览(当前行高亮用 `accentRoseEnd`,
+参考原型 panel 2。居中大封面 + `type.display` 歌名 + 歌词预览(当前行高亮用 `accentPlatinumEnd`,
 其余 `textSecondary`)+ 大进度条 + 一排 5 个控件(随机/上一首/播放/下一首/循环)。
 
 ### 7.5 播放队列 `_QueuePanel`
@@ -264,14 +265,16 @@ import 'package:flutter/material.dart';
 class AppColor {
   static const bgBase = Color(0xFF0B1020);
   static const bgDeep = Color(0xFF04060D);
-  static const glowViolet = Color(0xFF5B4B8A);
-  static const glowCyan = Color(0xFF2E6F9E);
+  static const glowViolet = Color(0xFF263647);
+  static const glowCyan = Color(0xFF365167);
   static const glassTint = Color(0xFF0E1426);          // 用时 .withValues(alpha: .35)
   static const strokeHairline = Color(0x1FFFFFFF);
   static const strokeStrong = Color(0x2EFFFFFF);
   static const sheenTop = Color(0x1AFFFFFF);
-  static const accentVioletStart = Color(0xFF7C5CFF);
-  static const accentRoseEnd = Color(0xFFFF5C9E);
+  static const accentSteelStart = Color(0xFF5E7FA4);
+  static const accentPlatinumEnd = Color(0xFFB8C2CC);
+  static const accentVioletStart = accentSteelStart;
+  static const accentRoseEnd = accentPlatinumEnd;
   static const carlife = Color(0xFF2D7DFF);
   static const fillNeutral = Color(0x14FFFFFF);
   static const fillNeutralHover = Color(0x24FFFFFF);
@@ -281,7 +284,7 @@ class AppColor {
 
   static const accentGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,
-    colors: [accentVioletStart, accentRoseEnd],
+    colors: [accentSteelStart, accentPlatinumEnd],
   );
 }
 
@@ -307,7 +310,7 @@ class AppType {
 class AppShadow {
   static const card = BoxShadow(color: Color(0x59000000), blurRadius: 40, offset: Offset(0, 20));
   static BoxShadow get controlPrimary => BoxShadow(
-    color: AppColor.accentVioletStart.withValues(alpha: 0.30), blurRadius: 24, offset: const Offset(0, 10));
+    color: AppColor.accentSteelStart.withValues(alpha: 0.22), blurRadius: 18, offset: const Offset(0, 8));
 }
 ```
 

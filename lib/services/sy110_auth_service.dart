@@ -4,17 +4,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Sy110 认证服务
 ///
-/// 自动管理登录状态和 token，使用固定的用户凭证。
+/// 自动管理登录状态和 token。凭据通过构建参数注入，避免在源码中保存明文账号密码。
+///
+/// Release builds can pass:
+/// `--dart-define=SY110_USERNAME=... --dart-define=SY110_PASSWORD=...`
 /// Token 存储在本地，自动刷新过期的 token。
 class Sy110AuthService {
-  Sy110AuthService({http.Client? client})
-      : _client = client ?? http.Client();
+  Sy110AuthService({http.Client? client, String? username, String? password})
+    : _client = client ?? http.Client(),
+      _username = username ?? _defaultUsername,
+      _password = password ?? _defaultPassword;
 
   final http.Client _client;
+  final String _username;
+  final String _password;
 
   static const String _baseUrl = 'https://music.sy110.eu.org';
-  static const String _username = 'xiaochen';
-  static const String _password = 'guan5952';
+  static const String _defaultUsername = String.fromEnvironment(
+    'SY110_USERNAME',
+  );
+  static const String _defaultPassword = String.fromEnvironment(
+    'SY110_PASSWORD',
+  );
 
   // SharedPreferences keys
   static const String _keyAccessToken = 'sy110_access_token';
@@ -71,18 +82,22 @@ class Sy110AuthService {
 
   /// 执行登录
   Future<bool> _login() async {
+    if (_username.isEmpty || _password.isEmpty) {
+      return false;
+    }
+
     try {
       final Uri uri = Uri.parse('$_baseUrl/api/v1/auth/login');
-      final http.Response response = await _client.post(
-        uri,
-        headers: <String, String>{
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(<String, String>{
-          'username': _username,
-          'password': _password,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final http.Response response = await _client
+          .post(
+            uri,
+            headers: <String, String>{'Content-Type': 'application/json'},
+            body: jsonEncode(<String, String>{
+              'username': _username,
+              'password': _password,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final Object? decoded = jsonDecode(response.body);
@@ -117,15 +132,13 @@ class Sy110AuthService {
 
     try {
       final Uri uri = Uri.parse('$_baseUrl/api/v1/auth/refresh');
-      final http.Response response = await _client.post(
-        uri,
-        headers: <String, String>{
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(<String, String>{
-          'refresh_token': _refreshToken!,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final http.Response response = await _client
+          .post(
+            uri,
+            headers: <String, String>{'Content-Type': 'application/json'},
+            body: jsonEncode(<String, String>{'refresh_token': _refreshToken!}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final Object? decoded = jsonDecode(response.body);
@@ -231,9 +244,7 @@ class Sy110AuthService {
 
     cookie.write('; session_id=1004');
 
-    return <String, String>{
-      'Cookie': cookie.toString(),
-    };
+    return <String, String>{'Cookie': cookie.toString()};
   }
 
   void close() {

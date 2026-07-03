@@ -108,7 +108,6 @@ class PortraitPlayerView extends StatelessWidget {
         : playbackState.artist;
     final Duration duration = playbackState.duration ?? fallbackTrack.duration;
 
-
     // lyric calculation handled inside PlayerLyricsView
 
     return NotificationListener<ScrollNotification>(
@@ -129,7 +128,13 @@ class PortraitPlayerView extends StatelessWidget {
         tween: ColorTween(end: coverSeedColor),
         builder:
             (BuildContext context, Color? animatedColor, Widget? childWidget) {
-              final Color seed = animatedColor ?? coverSeedColor;
+              final Color seed =
+                  Color.lerp(
+                    animatedColor ?? coverSeedColor,
+                    AppColor.bgBase,
+                    0.68,
+                  ) ??
+                  AppColor.glowViolet;
               return Stack(
                 children: <Widget>[
                   Positioned.fill(
@@ -144,9 +149,9 @@ class PortraitPlayerView extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: <Color>[
-                            seed.withValues(alpha: 0.40),
-                            colors.surface.withValues(alpha: 0.8),
-                            colors.surface,
+                            seed.withValues(alpha: 0.28),
+                            AppColor.bgBase.withValues(alpha: 0.88),
+                            AppColor.bgDeep,
                           ],
                           stops: const <double>[0, 0.5, 1],
                         ),
@@ -898,7 +903,8 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
   @override
   void didUpdateWidget(PlayerLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.position != oldWidget.position || widget.playing != oldWidget.playing) {
+    if (widget.position != oldWidget.position ||
+        widget.playing != oldWidget.playing) {
       _currentPosition = widget.position;
       _updateTicker();
     }
@@ -938,7 +944,9 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
       _ticker = createTicker((Duration elapsed) {
         if (!mounted) return;
         final DateTime now = DateTime.now();
-        final Duration delta = _lastTickTime != null ? now.difference(_lastTickTime!) : Duration.zero;
+        final Duration delta = _lastTickTime != null
+            ? now.difference(_lastTickTime!)
+            : Duration.zero;
         _lastTickTime = now;
 
         setState(() {
@@ -1116,7 +1124,9 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
             children: <Widget>[
               Text(
                 '歌词加载失败',
-                style: theme.textTheme.bodyMedium?.copyWith(color: colors.error),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.error,
+                ),
               ),
               const SizedBox(height: AppSpace.xs),
               TextButton.icon(
@@ -1163,133 +1173,133 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
         onLongPress: _showOffsetAdjuster,
         child: Stack(
           children: <Widget>[
-          ShaderMask(
-            shaderCallback: (Rect rect) {
-              return const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Colors.transparent,
-                  Colors.white,
-                  Colors.white,
-                  Colors.transparent,
-                ],
-                stops: <double>[0, 0.25, 0.75, 1],
-              ).createShader(rect);
-            },
-            blendMode: BlendMode.dstIn,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (ScrollNotification notification) {
-                if (notification is ScrollStartNotification) {
-                  if (notification.dragDetails != null) {
-                    setState(() {
-                      _isUserScrolling = true;
-                    });
-                    _userScrollTimer?.cancel();
-                  }
-                } else if (notification is ScrollEndNotification) {
-                  _startRestoreAutoScrollTimer();
-                }
-                return false;
+            ShaderMask(
+              shaderCallback: (Rect rect) {
+                return const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.transparent,
+                    Colors.white,
+                    Colors.white,
+                    Colors.transparent,
+                  ],
+                  stops: <double>[0, 0.25, 0.75, 1],
+                ).createShader(rect);
               },
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: lines.length,
-                itemExtent: _lyricLineHeight,
-                padding: const EdgeInsets.symmetric(vertical: 76.0),
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                itemBuilder: (BuildContext context, int index) {
-                  final bool active = index == activeIndex;
-                  final FreeMusicLyricLine line = lines[index];
-                  return Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        widget.onSeek?.call(line.time);
-                        setState(() {
-                          _currentPosition = line.time;
-                          _isUserScrolling = false;
-                        });
-                      },
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 300),
-                          style: active
-                              ? theme.textTheme.titleLarge!.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  letterSpacing: -0.3,
-                                  shadows: <Shadow>[
-                                    Shadow(
-                                      color: AppColor.accentRoseEnd.withValues(
-                                        alpha: 0.35,
+              blendMode: BlendMode.dstIn,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (ScrollNotification notification) {
+                  if (notification is ScrollStartNotification) {
+                    if (notification.dragDetails != null) {
+                      setState(() {
+                        _isUserScrolling = true;
+                      });
+                      _userScrollTimer?.cancel();
+                    }
+                  } else if (notification is ScrollEndNotification) {
+                    _startRestoreAutoScrollTimer();
+                  }
+                  return false;
+                },
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: lines.length,
+                  itemExtent: _lyricLineHeight,
+                  padding: const EdgeInsets.symmetric(vertical: 76.0),
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  itemBuilder: (BuildContext context, int index) {
+                    final bool active = index == activeIndex;
+                    final FreeMusicLyricLine line = lines[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          widget.onSeek?.call(line.time);
+                          setState(() {
+                            _currentPosition = line.time;
+                            _isUserScrolling = false;
+                          });
+                        },
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 300),
+                            style: active
+                                ? theme.textTheme.titleLarge!.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    letterSpacing: -0.3,
+                                    shadows: <Shadow>[
+                                      Shadow(
+                                        color: AppColor.accentRoseEnd
+                                            .withValues(alpha: 0.35),
+                                        offset: Offset.zero,
+                                        blurRadius: 14,
                                       ),
-                                      offset: Offset.zero,
-                                      blurRadius: 14,
+                                    ],
+                                  )
+                                : theme.textTheme.titleMedium!.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    color: colors.onSurface.withValues(
+                                      alpha: 0.20,
                                     ),
-                                  ],
-                                )
-                              : theme.textTheme.titleMedium!.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color: colors.onSurface.withValues(
-                                    alpha: 0.20,
+                                    fontSize: 15,
                                   ),
-                                  fontSize: 15,
-                                ),
-                          child: active
-                              ? ShaderMask(
-                                  shaderCallback: (Rect bounds) {
-                                    return AppColor.accentGradient.createShader(
-                                      Rect.fromLTWH(
-                                        0,
-                                        0,
-                                        bounds.width,
-                                        bounds.height,
-                                      ),
-                                    );
-                                  },
-                                  blendMode: BlendMode.srcIn,
-                                  child: MarqueeText(
-                                    text: line.text,
-                                    style: theme.textTheme.titleLarge!.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                      letterSpacing: -0.3,
-                                      shadows: <Shadow>[
-                                        Shadow(
-                                          color: AppColor.accentRoseEnd.withValues(
-                                            alpha: 0.35,
+                            child: active
+                                ? ShaderMask(
+                                    shaderCallback: (Rect bounds) {
+                                      return AppColor.accentGradient
+                                          .createShader(
+                                            Rect.fromLTWH(
+                                              0,
+                                              0,
+                                              bounds.width,
+                                              bounds.height,
+                                            ),
+                                          );
+                                    },
+                                    blendMode: BlendMode.srcIn,
+                                    child: MarqueeText(
+                                      text: line.text,
+                                      style: theme.textTheme.titleLarge!
+                                          .copyWith(
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.white,
+                                            letterSpacing: -0.3,
+                                            shadows: <Shadow>[
+                                              Shadow(
+                                                color: AppColor.accentRoseEnd
+                                                    .withValues(alpha: 0.35),
+                                                offset: Offset.zero,
+                                                blurRadius: 14,
+                                              ),
+                                            ],
                                           ),
-                                          offset: Offset.zero,
-                                          blurRadius: 14,
-                                        ),
-                                      ],
                                     ),
+                                  )
+                                : Text(
+                                    line.text,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
                                   ),
-                                )
-                              : Text(
-                                  line.text,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-          if (_isUserScrolling &&
-              lines.isNotEmpty &&
-              _centerIndex >= 0 &&
-              _centerIndex < lines.length)
-            _buildSeekOverlay(lines[_centerIndex]),
-        ],
+            if (_isUserScrolling &&
+                lines.isNotEmpty &&
+                _centerIndex >= 0 &&
+                _centerIndex < lines.length)
+              _buildSeekOverlay(lines[_centerIndex]),
+          ],
         ),
       ),
     );
@@ -1410,23 +1420,27 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
                     duration: const Duration(milliseconds: 460),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (Widget child, Animation<double> animation) {
-                      final Animation<double> scale = Tween<double>(
-                        begin: 0.92,
-                        end: 1.0,
-                      ).animate(animation);
-                      final Animation<double> turn = Tween<double>(
-                        begin: -0.035,
-                        end: 0.0,
-                      ).animate(animation);
-                      return FadeTransition(
-                        opacity: animation,
-                        child: ScaleTransition(
-                          scale: scale,
-                          child: RotationTransition(turns: turn, child: child),
-                        ),
-                      );
-                    },
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          final Animation<double> scale = Tween<double>(
+                            begin: 0.92,
+                            end: 1.0,
+                          ).animate(animation);
+                          final Animation<double> turn = Tween<double>(
+                            begin: -0.035,
+                            end: 0.0,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: scale,
+                              child: RotationTransition(
+                                turns: turn,
+                                child: child,
+                              ),
+                            ),
+                          );
+                        },
                     child: PortraitArtwork(
                       key: ValueKey<String>(widget.transitionKey),
                       visual: widget.fallbackTrack,
@@ -1540,7 +1554,7 @@ class _ToneArmPainter extends CustomPainter {
       ..lineTo(size.width * 0.25, size.height * 0.9);
     canvas.drawPath(path, armPaint);
 
-    // 3. 针头 (带有粉红色彩装饰点缀)
+    // 3. 针头 (低饱和金属色装饰点缀)
     final Offset headOffset = Offset(size.width * 0.25, size.height * 0.9);
     canvas.save();
     canvas.translate(headOffset.dx, headOffset.dy);
@@ -1551,7 +1565,7 @@ class _ToneArmPainter extends CustomPainter {
     );
     canvas.drawRect(
       Rect.fromCenter(center: const Offset(0, 3), width: 6, height: 3),
-      Paint()..color = const Color(0xFFFF5C9E),
+      Paint()..color = AppColor.accentPlatinumEnd,
     );
     canvas.restore();
   }
@@ -1712,7 +1726,7 @@ class _MarqueeTextState extends State<MarqueeText> {
 
   void _checkLayout() {
     if (!mounted || !_scrollController.hasClients) return;
-    
+
     final double maxScroll = _scrollController.position.maxScrollExtent;
     if (maxScroll > 0.0) {
       _startScroll(maxScroll);
@@ -1721,32 +1735,34 @@ class _MarqueeTextState extends State<MarqueeText> {
 
   void _startScroll(double maxScroll) {
     _timer?.cancel();
-    
+
     final double scrollDurationMs = (maxScroll / widget.speed) * 1000;
-    
+
     void scrollLoop() {
       if (!mounted || !_scrollController.hasClients) return;
-      
+
       _timer = Timer(const Duration(seconds: 2), () {
         if (!mounted || !_scrollController.hasClients) return;
-        
-        _scrollController.animateTo(
-          maxScroll,
-          duration: Duration(milliseconds: scrollDurationMs.round()),
-          curve: Curves.linear,
-        ).then((_) {
-          if (!mounted || !_scrollController.hasClients) return;
-          
-          _timer = Timer(const Duration(seconds: 2), () {
-            if (!mounted || !_scrollController.hasClients) return;
-            
-            _scrollController.jumpTo(0.0);
-            scrollLoop();
-          });
-        });
+
+        _scrollController
+            .animateTo(
+              maxScroll,
+              duration: Duration(milliseconds: scrollDurationMs.round()),
+              curve: Curves.linear,
+            )
+            .then((_) {
+              if (!mounted || !_scrollController.hasClients) return;
+
+              _timer = Timer(const Duration(seconds: 2), () {
+                if (!mounted || !_scrollController.hasClients) return;
+
+                _scrollController.jumpTo(0.0);
+                scrollLoop();
+              });
+            });
       });
     }
-    
+
     scrollLoop();
   }
 
@@ -1755,15 +1771,15 @@ class _MarqueeTextState extends State<MarqueeText> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double maxWidth = constraints.maxWidth;
-        
+
         final TextPainter textPainter = TextPainter(
           text: TextSpan(text: widget.text, style: widget.style),
           maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: double.infinity);
-        
+
         final double textWidth = textPainter.width;
-        
+
         if (textWidth <= maxWidth) {
           return Center(
             child: Text(
@@ -1780,11 +1796,7 @@ class _MarqueeTextState extends State<MarqueeText> {
               controller: _scrollController,
               scrollDirection: Axis.horizontal,
               physics: const NeverScrollableScrollPhysics(),
-              child: Text(
-                widget.text,
-                style: widget.style,
-                maxLines: 1,
-              ),
+              child: Text(widget.text, style: widget.style, maxLines: 1),
             ),
           );
         }
@@ -1814,9 +1826,10 @@ class _VinylTouchWrapperState extends State<_VinylTouchWrapper>
       vsync: this,
       duration: const Duration(milliseconds: 100),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
   }
 
   @override
@@ -1838,10 +1851,7 @@ class _VinylTouchWrapperState extends State<_VinylTouchWrapper>
       onTapCancel: () {
         _controller.reverse();
       },
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: widget.child,
-      ),
+      child: ScaleTransition(scale: _scaleAnimation, child: widget.child),
     );
   }
 }
@@ -1862,8 +1872,7 @@ class _FullWidthTrackShape extends SliderTrackShape with BaseSliderTrackShape {
     bool isEnabled = false,
     bool isDiscrete = false,
     double additionalActiveTrackHeight = 0,
-  }) {
-  }
+  }) {}
 
   @override
   Rect getPreferredRect({
@@ -1875,7 +1884,8 @@ class _FullWidthTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   }) {
     final double trackHeight = sliderTheme.trackHeight ?? 4.0;
     final double trackLeft = offset.dx;
-    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackTop =
+        offset.dy + (parentBox.size.height - trackHeight) / 2;
     final double trackWidth = parentBox.size.width;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }

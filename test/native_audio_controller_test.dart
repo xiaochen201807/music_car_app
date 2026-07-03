@@ -103,12 +103,12 @@ void main() {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
     final FreeMusicApi api = FreeMusicApi(
       client: MockClient((http.Request request) async {
-        expect(request.url.path, '/music/song_url');
-        expect(request.url.queryParameters['id'], '228908');
-        return http.Response(
-          '{"direct":true,"source":"kuwo","url":"https://example.com/resolved.mp3"}',
-          200,
-        );
+        if (_isAuthRequest(request)) {
+          return _authResponse();
+        }
+        expect(request.url.path, '/api/music/songs/url/kuwo/228908');
+        expect(request.url.queryParameters['name'], '晴天');
+        return _songUrlResponse('https://example.com/resolved.mp3');
       }),
     );
     final NativeAudioController controller = NativeAudioController(
@@ -141,15 +141,7 @@ void main() {
 
   test('NativeAudioController skips tracks from synced page queue', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
-    final FreeMusicApi api = FreeMusicApi(
-      client: MockClient((http.Request request) async {
-        final String id = request.url.queryParameters['id'] ?? '';
-        return http.Response(
-          '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
-          200,
-        );
-      }),
-    );
+    final FreeMusicApi api = _resolvingApi();
     final NativeAudioController controller = NativeAudioController(
       player: player,
       api: api,
@@ -212,18 +204,13 @@ void main() {
       final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
       final Completer<void> resolveStarted = Completer<void>();
       final Completer<void> releaseResolve = Completer<void>();
-      final FreeMusicApi api = FreeMusicApi(
-        client: MockClient((http.Request request) async {
-          final String id = request.url.queryParameters['id'] ?? '';
-          if (id == '2') {
+      final FreeMusicApi api = _resolvingApi(
+        beforeResolve: (String id) async {
+          if (id == '2' && !resolveStarted.isCompleted) {
             resolveStarted.complete();
             await releaseResolve.future;
           }
-          return http.Response(
-            '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
-            200,
-          );
-        }),
+        },
       );
       final NativeAudioController controller = NativeAudioController(
         player: player,
@@ -441,15 +428,7 @@ void main() {
 
   test('NativeAudioController plays a selected queue index directly', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
-    final FreeMusicApi api = FreeMusicApi(
-      client: MockClient((http.Request request) async {
-        final String id = request.url.queryParameters['id'] ?? '';
-        return http.Response(
-          '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
-          200,
-        );
-      }),
-    );
+    final FreeMusicApi api = _resolvingApi();
     final NativeAudioController controller = NativeAudioController(
       player: player,
       api: api,
@@ -511,15 +490,7 @@ void main() {
 
   test('NativeAudioController resumes from synced queue', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
-    final FreeMusicApi api = FreeMusicApi(
-      client: MockClient((http.Request request) async {
-        expect(request.url.queryParameters['id'], '2');
-        return http.Response(
-          '{"direct":true,"source":"kuwo","url":"https://example.com/2.mp3"}',
-          200,
-        );
-      }),
-    );
+    final FreeMusicApi api = _resolvingApi();
     final NativeAudioController controller = NativeAudioController(
       player: player,
       api: api,
@@ -598,15 +569,7 @@ void main() {
     );
 
     final FakeNativeAudioPlayer restoredPlayer = FakeNativeAudioPlayer();
-    final FreeMusicApi api = FreeMusicApi(
-      client: MockClient((http.Request request) async {
-        expect(request.url.queryParameters['id'], '2');
-        return http.Response(
-          '{"direct":true,"source":"kuwo","url":"https://example.com/2.mp3"}',
-          200,
-        );
-      }),
-    );
+    final FreeMusicApi api = _resolvingApi();
     final NativeAudioController restoredController = NativeAudioController(
       player: restoredPlayer,
       api: api,
@@ -629,48 +592,10 @@ void main() {
   });
 
   test(
-    'NativeAudioController switches source when primary URL fails',
+    'NativeAudioController returns false when primary URL fails without source switch support',
     () async {
       final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
-      // kuwo song_url is dead; the same track resolves on netease after a
-      // /switch_source lookup. The controller must fall through and still play.
-      final FreeMusicApi api = FreeMusicApi(
-        client: MockClient((http.Request request) async {
-          final String path = request.url.path;
-          final Map<String, String> q = request.url.queryParameters;
-          if (path.endsWith('/sources')) {
-            return http.Response(
-              '{"all_sources":["kuwo","netease"],'
-              '"default_sources":["kuwo","netease"],"descriptions":{}}',
-              200,
-            );
-          }
-          if (path.endsWith('/switch_source')) {
-            expect(q['source'], 'kuwo');
-            expect(q['target'], 'netease');
-            return http.Response(
-              '{"id":"999","source":"netease","name":"晴天",'
-              '"artist":"周杰伦","duration":269,"score":0.92}',
-              200,
-              headers: const <String, String>{
-                'content-type': 'application/json; charset=utf-8',
-              },
-            );
-          }
-          if (path.endsWith('/song_url')) {
-            if (q['source'] == 'netease' && q['id'] == '999') {
-              return http.Response(
-                '{"direct":true,"source":"netease",'
-                '"url":"https://example.com/netease-999.mp3"}',
-                200,
-              );
-            }
-            // Primary kuwo source is dead.
-            return http.Response('{"error":"unavailable"}', 502);
-          }
-          return http.Response('{}', 404);
-        }),
-      );
+      final FreeMusicApi api = _resolvingApi(failingIds: <String>{'1'});
       final NativeAudioController controller = NativeAudioController(
         player: player,
         api: api,
@@ -692,37 +617,14 @@ void main() {
         ),
       );
 
-      expect(handled, isTrue);
-      expect(player.calls, <String>[
-        'setUrl:https://example.com/netease-999.mp3',
-        'play',
-      ]);
+      expect(handled, isFalse);
+      expect(player.calls, isEmpty);
     },
   );
 
   test('NativeAudioController gives up when every source fails', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
-    // Every source is dead and /switch_source has no match: the controller must
-    // return false rather than throw an unhandled exception.
-    final FreeMusicApi api = FreeMusicApi(
-      client: MockClient((http.Request request) async {
-        final String path = request.url.path;
-        if (path.endsWith('/sources')) {
-          return http.Response(
-            '{"all_sources":["kuwo","netease"],'
-            '"default_sources":["kuwo","netease"],"descriptions":{}}',
-            200,
-          );
-        }
-        if (path.endsWith('/switch_source')) {
-          return http.Response('{"error":"not found"}', 404);
-        }
-        if (path.endsWith('/song_url')) {
-          return http.Response('{"error":"unavailable"}', 502);
-        }
-        return http.Response('{}', 404);
-      }),
-    );
+    final FreeMusicApi api = _resolvingApi(failingIds: <String>{'1'});
     final NativeAudioController controller = NativeAudioController(
       player: player,
       api: api,
@@ -749,15 +651,53 @@ void main() {
   });
 }
 
-FreeMusicApi _resolvingApi() {
+FreeMusicApi _resolvingApi({
+  Set<String> failingIds = const <String>{},
+  Future<void> Function(String id)? beforeResolve,
+}) {
   return FreeMusicApi(
     client: MockClient((http.Request request) async {
-      final String id = request.url.queryParameters['id'] ?? '';
-      return http.Response(
-        '{"direct":true,"source":"kuwo","url":"https://example.com/$id.mp3"}',
-        200,
-      );
+      if (_isAuthRequest(request)) {
+        return _authResponse();
+      }
+      final List<String> segments = request.url.pathSegments;
+      if (segments.length >= 5 &&
+          request.url.path.startsWith('/api/music/songs/url/')) {
+        final String id = segments.last;
+        if (beforeResolve != null) {
+          await beforeResolve(id);
+        }
+        if (failingIds.contains(id)) {
+          return http.Response('{"code":500,"message":"unavailable"}', 502);
+        }
+        return _songUrlResponse('https://example.com/$id.mp3');
+      }
+      return http.Response('Not Found', 404);
     }),
+  );
+}
+
+bool _isAuthRequest(http.Request request) {
+  return request.url.path == '/api/v1/auth/login' ||
+      request.url.path == '/api/v1/auth/refresh';
+}
+
+http.Response _authResponse() {
+  return http.Response(
+    '{"code":0,"message":"success","data":{'
+    '"access_token":"mock_access_token",'
+    '"refresh_token":"mock_refresh_token",'
+    '"expires_in":7200}}',
+    200,
+    headers: const <String, String>{'content-type': 'application/json'},
+  );
+}
+
+http.Response _songUrlResponse(String url) {
+  return http.Response(
+    '{"code":0,"message":"success","data":{"url":"$url"}}',
+    200,
+    headers: const <String, String>{'content-type': 'application/json'},
   );
 }
 

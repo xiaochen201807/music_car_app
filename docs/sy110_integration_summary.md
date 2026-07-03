@@ -6,7 +6,7 @@
 **文件**: `lib/services/sy110_auth_service.dart`
 
 **功能**:
-- ✅ 自动登录（使用固定用户名密码：xiaochen/guan5952）
+- ✅ 自动登录（通过 `SY110_USERNAME` / `SY110_PASSWORD` 构建参数注入）
 - ✅ Token 本地存储（使用 SharedPreferences）
 - ✅ Token 自动刷新（过期前自动刷新）
 - ✅ 提供认证请求头（Cookie 格式）

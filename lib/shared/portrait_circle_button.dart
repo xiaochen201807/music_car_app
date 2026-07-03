@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/design_tokens.dart';
+
 /// 具有物理阻尼回弹效果的交互包装组件
 class BounceTouchable extends StatefulWidget {
   const BounceTouchable({super.key, required this.child, required this.onTap});
@@ -95,12 +97,10 @@ class PortraitCircleButton extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected
-            ? colors.primaryContainer.withValues(alpha: 0.35)
-            : colors.onSurface.withValues(alpha: 0.06),
+        color: selected ? AppColor.fillNeutralHover : AppColor.fillNeutral,
         border: Border.all(
           color: selected
-              ? colors.primary.withValues(alpha: 0.3)
+              ? AppColor.strokeStrong
               : colors.outline.withValues(alpha: 0.7),
           width: 1.0,
         ),
