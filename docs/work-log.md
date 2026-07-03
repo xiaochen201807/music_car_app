@@ -17,6 +17,15 @@ Implemented in this increment:
 - Linked the new workflow documentation from `README.md`.
 - Tightened the Android workflow so `flutter test` failures block packaging
   instead of being treated as advisory.
+- Created GitHub Issue #1, Milestone `v1.1.0 - GitHub 工程化与稳定发布`,
+  and Project `Music Car Roadmap`.
+- Enabled Dependabot vulnerability alerts; GitHub reports zero alerts at setup
+  time.
+- Updated repository merge settings to delete merged branches, disable merge
+  commits, and allow squash/rebase merges.
+- Branch Rulesets, Branch Protection, and secret scanning were attempted but
+  blocked by the current private-repository GitHub plan; GitHub returned 403
+  for branch protection/rulesets and 422 for secret scanning.
 
 Verification in this increment:
 

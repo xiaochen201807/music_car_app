@@ -77,6 +77,10 @@ These settings should remain enabled:
 - Projects
 - Dependabot alerts
 - Secret scanning / push protection where available
-- Branch ruleset for `main`
+- Branch ruleset or Branch Protection for `main` when the GitHub account plan
+  supports it. For a private repository without GitHub Pro, GitHub returns 403
+  for both repository Rulesets and Branch Protection APIs; until that is
+  available, keep all changes flowing through PRs and require Actions review
+  manually before merge.
 
 Wiki and Discussions stay disabled until there is a real maintenance need.
