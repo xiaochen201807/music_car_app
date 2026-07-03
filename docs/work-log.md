@@ -3,6 +3,30 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-03 - Spotify-Inspired Home And Settings Layout
+
+Implemented in this increment:
+
+- Reworked the portrait home page away from a single recommendation grid into
+  a Spotify-inspired music dashboard: greeting/search header, quick access
+  tiles for player/favorites/offline/queue, hot search shelf, hero playlist
+  shelf, secondary playlist shelf, and recent-play timeline.
+- Kept the app on native Flutter API-backed content only; no source-site
+  browsing surface was added.
+- Rewired the portrait shell to pass current song, favorite count, downloaded
+  count, and navigation callbacks into the home view.
+- Rebuilt the settings page as compact grouped rows for playback quality,
+  appearance, storage, car integration, update checking, and app information.
+- Updated widget tests to assert the new home/settings structure.
+
+Verification in this increment:
+
+- `dart format lib/features/home/portrait_home_view.dart lib/features/settings/portrait_settings_view.dart lib/features/shell/portrait_music_shell.dart test/widget_test.dart`
+- `flutter test test/widget_test.dart`
+- `flutter analyze lib test`
+- No local release package was built; release packaging remains delegated to
+  GitHub Actions.
+
 ## 2026-07-03 - Public Repository Security Enablement
 
 Implemented in this increment:

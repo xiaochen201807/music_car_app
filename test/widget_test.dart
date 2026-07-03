@@ -23,9 +23,10 @@ void main() {
     await tester.pumpWidget(const MusicCarApp(autoCheckForUpdates: false));
 
     expect(find.byType(NativeMusicHomePage), findsOneWidget);
-    expect(find.text('Music Car'), findsOneWidget);
+    expect(find.text('想听什么？'), findsOneWidget);
+    expect(find.text('继续播放'), findsOneWidget);
     expect(find.text('Portrait streaming deck'), findsNothing);
-    expect(find.text('推荐歌单'), findsOneWidget);
+    expect(find.text('为你推荐'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsNothing);
     expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
@@ -35,7 +36,13 @@ void main() {
     );
     await pumpUi();
     // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
-    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.byIcon(Icons.settings_rounded),
+      ),
+      findsOneWidget,
+    );
 
     await tester.drag(find.byType(PageView), const Offset(-390, 0));
     await pumpUi();
@@ -48,11 +55,16 @@ void main() {
       ),
     );
     await pumpUi();
-    expect(find.text('Music Car'), findsOneWidget);
+    expect(find.text('想听什么？'), findsOneWidget);
+    expect(find.text('为你推荐'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('播放时间线'));
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -520),
+      warnIfMissed: false,
+    );
     await pumpUi();
-    expect(find.text('播放时间线'), findsOneWidget);
+    expect(find.text('最近播放'), findsOneWidget);
 
     await tester.tap(
       find.descendant(
@@ -99,16 +111,16 @@ void main() {
     await pumpUi();
 
     expect(find.text('设置'), findsWidgets);
-    expect(find.text('主题模式'), findsOneWidget);
+    expect(find.text('外观'), findsOneWidget);
     await tester.drag(
-      find.text('默认音质'),
+      find.text('标准'),
       const Offset(0, -520),
       warnIfMissed: false,
     );
     await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text('关于'), findsOneWidget);
+    expect(find.text('应用'), findsOneWidget);
     expect(find.text('检查更新'), findsOneWidget);
-    expect(find.text('百度 CarLife'), findsNothing);
+    expect(find.text('百度 CarLife'), findsOneWidget);
   });
 
   testWidgets('search history starts empty and records user queries', (
