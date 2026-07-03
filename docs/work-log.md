@@ -3,6 +3,31 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-03 - Public Repository Security Enablement
+
+Implemented in this increment:
+
+- Converted the `xiaochen201807/music_car_app` repository to public after the
+  maintainer requested public-project security settings.
+- Restored CodeQL from dry-run mode to normal SARIF upload mode so GitHub code
+  scanning can record results.
+- Updated the GitHub project workflow documentation to reflect the public
+  repository settings: secret scanning, push protection, CodeQL code scanning,
+  and `main` Branch Protection.
+
+Verification in this increment:
+
+- GitHub API confirmed repository visibility is `PUBLIC`.
+- GitHub API confirmed `main` Branch Protection requires
+  `build-android-apk` and `CodeQL JavaScript`.
+- GitHub API confirmed secret scanning alerts are accessible and currently
+  report zero alerts.
+- YAML parse check for `.github/workflows/codeql.yml`.
+- `git diff --check`
+- `node --check scripts/cf.js`
+- Flutter checks are delegated to the PR `Android APK` workflow because this
+  increment only changes GitHub workflow/docs.
+
 ## 2026-07-03 - GitHub Project Workflow Foundation
 
 Implemented in this increment:

@@ -76,14 +76,9 @@ These settings should remain enabled:
 - Issues
 - Projects
 - Dependabot alerts
-- CodeQL code scanning when GitHub Advanced Security is available. The current
-  private repository plan does not include code scanning, so the workflow runs
-  CodeQL with SARIF upload disabled as a dry-run extraction/query check.
-- Secret scanning / push protection where available
-- Branch ruleset or Branch Protection for `main` when the GitHub account plan
-  supports it. For a private repository without GitHub Pro, GitHub returns 403
-  for both repository Rulesets and Branch Protection APIs; until that is
-  available, keep all changes flowing through PRs and require Actions review
-  manually before merge.
+- CodeQL code scanning for the JavaScript Cloudflare Worker surface
+- Secret scanning and push protection
+- Branch Protection for `main`, requiring a PR plus successful
+  `build-android-apk` and `CodeQL JavaScript` checks before merge
 
 Wiki and Discussions stay disabled until there is a real maintenance need.
