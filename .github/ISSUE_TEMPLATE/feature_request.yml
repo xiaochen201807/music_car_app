@@ -1,0 +1,46 @@
+name: Feature request
+description: Request a new app, playback, source, projection, or release capability.
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: User Goal
+      description: What should the driver/listener/maintainer be able to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Behavior
+      description: Describe the expected UI, API behavior, workflow, or release result.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Native music UI
+        - Search / playlist / lyrics API
+        - Playback / media buttons
+        - CarLife / car projection
+        - Android release
+        - iOS unsigned IPA
+        - Cloudflare proxy / update delivery
+        - Documentation / project workflow
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Acceptance Criteria
+      description: What checks or real-device validation should prove this is done?
+      placeholder: |
+        - `flutter analyze`
+        - `flutter test`
+        - GitHub Actions run ...
+        - Real device/head-unit validation ...
+    validations:
+      required: true

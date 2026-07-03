@@ -37,6 +37,11 @@ docs/ui/native-ios-music-app-design.png
 
 Push this project to GitHub and use the Actions tab for cloud builds.
 
+Project workflow and release operations are documented in:
+
+- [GitHub Project Workflow](docs/github-project-workflow.md)
+- [Release Runbook](docs/release-runbook.md)
+
 ### Android APK
 
 The `Android APK` workflow runs automatically on pushes to `main`, pull

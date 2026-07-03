@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible app, API, playback, or release workflow problem.
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem
+      description: What failed, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction Steps
+      description: Include device, build version, route/page, and exact actions.
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, screenshots, GitHub Actions run URLs, API response shape, or device output.
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope Notes
+      description: Does this affect Android, iOS, CarLife, media buttons, search, playback, update delivery, or Cloudflare proxy?
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-checks
+      options:
+        - label: I checked the latest `main` workflow status when this is a release/build problem.
+        - label: I did not include credentials, cookies, tokens, signing keys, or private music account values.

@@ -3,6 +3,29 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-03 - GitHub Project Workflow Foundation
+
+Implemented in this increment:
+
+- Added Issue templates for bugs, feature requests, and engineering tasks.
+- Added a Pull Request template aligned with the remote-first build policy.
+- Added Dependabot coverage for GitHub Actions, Flutter/Dart, Android Gradle,
+  and iOS CocoaPods dependencies.
+- Added CodeQL scanning for the JavaScript Cloudflare Worker surface.
+- Added `CODEOWNERS`, `SECURITY.md`, and `CONTRIBUTING.md`.
+- Added repository workflow documentation and a release runbook under `docs/`.
+- Linked the new workflow documentation from `README.md`.
+- Tightened the Android workflow so `flutter test` failures block packaging
+  instead of being treated as advisory.
+
+Verification in this increment:
+
+- YAML parse check for workflow, Dependabot, and Issue template files.
+- `node --check scripts/cf.js`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test`
+
 ## 2026-07-03 - Release Stabilization And Proxy Source Tracking
 
 Implemented in this increment:

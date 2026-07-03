@@ -1,0 +1,33 @@
+name: Engineering task
+description: Track maintenance, documentation, workflow, or validation work.
+title: "[Task] "
+labels: ["task", "needs-triage"]
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: Why is this task needed now?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List the files, systems, workflows, or GitHub settings that are in scope.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Concrete done conditions.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification Plan
+      description: Commands, GitHub Actions runs, or manual checks expected before closing.
+    validations:
+      required: true
