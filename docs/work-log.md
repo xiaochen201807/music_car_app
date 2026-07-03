@@ -11,7 +11,7 @@ Implemented in this increment:
 - Added a Pull Request template aligned with the remote-first build policy.
 - Added Dependabot coverage for GitHub Actions, Flutter/Dart, Android Gradle,
   and iOS CocoaPods dependencies.
-- Added CodeQL scanning for the JavaScript Cloudflare Worker surface.
+- Added a CodeQL dry-run workflow for the JavaScript Cloudflare Worker surface.
 - Added `CODEOWNERS`, `SECURITY.md`, and `CONTRIBUTING.md`.
 - Added repository workflow documentation and a release runbook under `docs/`.
 - Linked the new workflow documentation from `README.md`.
@@ -26,6 +26,9 @@ Implemented in this increment:
 - Branch Rulesets, Branch Protection, and secret scanning were attempted but
   blocked by the current private-repository GitHub plan; GitHub returned 403
   for branch protection/rulesets and 422 for secret scanning.
+- Code scanning / Advanced Security was also attempted; GitHub returned 422
+  because Advanced Security has not been purchased, so the CodeQL workflow keeps
+  SARIF upload disabled.
 
 Verification in this increment:
 
