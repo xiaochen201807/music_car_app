@@ -3,40 +3,47 @@ import 'package:flutter/material.dart';
 class AppColor {
   const AppColor._();
 
-  // Base atmosphere colors.
-  static const bgBase = Color(0xFF0A0D12);
-  static const bgDeep = Color(0xFF030507);
-  static const glowViolet = Color(0xFF263647);
-  static const glowCyan = Color(0xFF365167);
-  static const glassTint = Color(0xFF111820);
+  // Spotify-inspired dark surfaces: achromatic, near-black, content-first.
+  static const bgBase = Color(0xFF121212);
+  static const bgDeep = Color(0xFF000000);
+  static const glowViolet = Color(0xFF1F1F1F);
+  static const glowCyan = Color(0xFF252525);
+  static const glassTint = Color(0xFF181818);
 
-  // Light paper theme colors.
-  static const paperBase = Color(0xFFF7F5EF);
-  static const paperWarm = Color(0xFFFFFDF8);
-  static const paperCool = Color(0xFFEFF1EA);
-  static const paperFiber = Color(0x168A806F);
-  static const paperGlassTint = Color(0xFFFFFCF4);
-  static const paperStrokeHairline = Color(0x2E7C735F);
-  static const paperSheenTop = Color(0xD9FFFFFF);
-  static const paperShadow = Color(0x184C4639);
-  static const paperInk = Color(0xFF25231E);
-  static const paperMuted = Color(0xFF686154);
-  static const paperFaint = Color(0xFF8D8678);
-  static const paperAccentContainer = Color(0xFFEDE7D8);
-  static const paperOnAccentContainer = Color(0xFF3D382F);
+  // BMW-inspired light surfaces: clean white/gray canvas with blue CTAs.
+  static const paperBase = Color(0xFFFFFFFF);
+  static const paperWarm = Color(0xFFF7F7F7);
+  static const paperCool = Color(0xFFEBEBEB);
+  static const paperFiber = Color(0x00FFFFFF);
+  static const paperGlassTint = Color(0xFFFAFAFA);
+  static const paperStrokeHairline = Color(0xFFE6E6E6);
+  static const paperSheenTop = Color(0xFFFFFFFF);
+  static const paperShadow = Color(0x14000000);
+  static const paperInk = Color(0xFF262626);
+  static const paperMuted = Color(0xFF6B6B6B);
+  static const paperFaint = Color(0xFF9A9A9A);
+  static const paperAccentContainer = Color(0xFFE8F1FC);
+  static const paperOnAccentContainer = Color(0xFF123B71);
 
   // Glass borders and highlights.
   static const strokeHairline = Color(0x1FFFFFFF);
   static const strokeStrong = Color(0x2EFFFFFF);
   static const sheenTop = Color(0x1AFFFFFF);
 
-  // Restricted accent colors. Kept cool and low-saturation for a premium
-  // automotive feel instead of the previous AI-style violet/rose palette.
-  static const accentSteelStart = Color(0xFF5E7FA4);
-  static const accentPlatinumEnd = Color(0xFFB8C2CC);
+  // Brand accents from awesome-design-md references.
+  static const spotifyGreen = Color(0xFF1ED760);
+  static const spotifyGreenPressed = Color(0xFF1DB954);
+  static const bmwBlue = Color(0xFF1C69D4);
+  static const bmwBlueActive = Color(0xFF0653B6);
+
+  // Compatibility names used by existing widgets. Primary transport controls
+  // stay Spotify green; light-theme navigation and settings use BMW blue via
+  // ColorScheme.
+  static const accentSteelStart = spotifyGreen;
+  static const accentPlatinumEnd = spotifyGreenPressed;
   static const accentVioletStart = accentSteelStart;
   static const accentRoseEnd = accentPlatinumEnd;
-  static const carlife = Color(0xFF3D6F9F);
+  static const carlife = Color(0xFF539DF5);
 
   // Neutral fills.
   static const fillNeutral = Color(0x12FFFFFF);
@@ -46,10 +53,19 @@ class AppColor {
   static const scrimStrong = Color(0xB3000000);
 
   // Text colors.
-  static const textPrimary = Color(0xFFF0F3F5);
-  static const textSecondary = Color(0xFFADB7C0);
-  static const textTertiary = Color(0xFF6F7B85);
-  static const error = Color(0xFFD25B61);
+  static const textPrimary = Color(0xFFFFFFFF);
+  static const textSecondary = Color(0xFFB3B3B3);
+  static const textTertiary = Color(0xFF7C7C7C);
+  static const error = Color(0xFFF3727F);
+
+  // Neutral material colors for the turntable artwork.
+  static const vinylBase = Color(0xFF090A0E);
+  static const vinylHead = Color(0xFF1C1C1E);
+  static const vinylJoint = Color(0xFF48484A);
+  static const vinylMetalDark = Color(0xFF3A3A3C);
+  static const vinylMetalMid = Color(0xFF8E8E93);
+  static const vinylMetalLight = Color(0xFFD1D1D6);
+  static const vinylMetalHighlight = Color(0xFFE5E5EA);
 
   static const accentGradient = LinearGradient(
     begin: Alignment.topLeft,

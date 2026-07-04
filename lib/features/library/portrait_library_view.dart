@@ -110,47 +110,15 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
     required VoidCallback? onTap,
     required String label,
   }) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return GlassPill(
-      onTap: disabled
-          ? null
-          : () {
-              HapticFeedback.lightImpact();
-              onTap?.call();
-            },
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-      child: Center(
-        widthFactor: 1.0,
-        heightFactor: 1.0,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.only(top: 1.0),
-              child: Icon(
-                Icons.play_arrow_rounded,
-                size: 18,
-                color: disabled
-                    ? colors.onSurface.withValues(alpha: 0.38)
-                    : colors.primary,
-              ),
-            ),
-            const SizedBox(width: AppSpace.xs),
-            Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: disabled
-                    ? colors.onSurface.withValues(alpha: 0.38)
-                    : colors.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return _LibraryActionPill(
+      icon: Icons.play_arrow_rounded,
+      label: label,
+      disabled: disabled,
+      expanded: true,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap?.call();
+      },
     );
   }
 
@@ -159,11 +127,11 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
         ? widget.favoriteSongs.isNotEmpty
         : widget.downloadedSongs.isNotEmpty;
     if (!hasItems) return const SizedBox.shrink();
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
     return Padding(
       padding: const EdgeInsets.only(right: AppSpace.sm),
-      child: GlassPill(
+      child: _LibraryActionPill(
+        icon: _isBatchMode ? Icons.close_rounded : Icons.checklist_rounded,
+        label: _isBatchMode ? '取消' : '批量操作',
         onTap: () {
           HapticFeedback.lightImpact();
           setState(() {
@@ -171,30 +139,6 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
             _selectedSongs.clear();
           });
         },
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-        child: Center(
-          widthFactor: 1.0,
-          heightFactor: 1.0,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(
-                _isBatchMode ? Icons.close_rounded : Icons.checklist_rounded,
-                size: 18,
-                color: colors.primary,
-              ),
-              const SizedBox(width: AppSpace.xs),
-              Text(
-                _isBatchMode ? '取消' : '批量操作',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: colors.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -209,7 +153,9 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
       child: Row(
         children: <Widget>[
           Icon(
-            isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
+            isSelected
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_off_rounded,
             color: isSelected ? colors.primary : colors.onSurfaceVariant,
             size: 20,
           ),
@@ -219,8 +165,12 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
               child: PortraitSongTile(
                 song: song,
                 visual: demoQueue[index % demoQueue.length],
-                favorite: widget.favoriteSongKeys.contains(favoriteSongKey(song)),
-                downloaded: widget.downloadedSongKeys.contains('${song.source}_${song.id}'),
+                favorite: widget.favoriteSongKeys.contains(
+                  favoriteSongKey(song),
+                ),
+                downloaded: widget.downloadedSongKeys.contains(
+                  '${song.source}_${song.id}',
+                ),
                 onPlay: () {},
                 onAddToQueue: null,
                 onToggleFavorite: () {},
@@ -249,65 +199,108 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
             ),
             sliver: SliverList.list(
               children: <Widget>[
+                _LibraryHeaderCard(
+                  favoriteCount: widget.favoriteSongs.length,
+                  downloadedCount: widget.downloadedSongs.length,
+                  queueCount: widget.queueSongs.length,
+                  selectedQueueIndex: widget.selectedQueueIndex,
+                  onPlayAll: _selectedSubTab == 0
+                      ? widget.onPlayAllFavorites
+                      : widget.onPlayAllDownloaded,
+                  playAllDisabled: _selectedSubTab == 0
+                      ? widget.favoriteSongs.isEmpty
+                      : widget.downloadedSongs.isEmpty,
+                  playAllLabel: _selectedSubTab == 0 ? '播放收藏' : '播放离线',
+                ),
+                const SizedBox(height: AppSpace.lg),
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: Text(
-                        '音乐库',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      child: PortraitSegmentedTab<int>(
+                        tabs: const <PortraitSegmentTabItem<int>>[
+                          PortraitSegmentTabItem<int>(
+                            value: 0,
+                            label: '我的收藏',
+                            icon: Icons.favorite_rounded,
+                          ),
+                          PortraitSegmentTabItem<int>(
+                            value: 1,
+                            label: '离线下载',
+                            icon: Icons.download_done_rounded,
+                          ),
+                        ],
+                        selected: _selectedSubTab,
+                        onSelected: (int val) {
+                          setState(() {
+                            _selectedSubTab = val;
+                            _isBatchMode = false;
+                            _selectedSongs.clear();
+                          });
+                        },
                       ),
                     ),
+                    const SizedBox(width: AppSpace.sm),
                     _buildBatchButton(),
-                    _buildPlayButton(
-                      disabled: _selectedSubTab == 0
-                          ? widget.favoriteSongs.isEmpty
-                          : widget.downloadedSongs.isEmpty,
-                      onTap: _selectedSubTab == 0
-                          ? widget.onPlayAllFavorites
-                          : widget.onPlayAllDownloaded,
-                      label: _selectedSubTab == 0 ? '播放收藏' : '播放离线',
-                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpace.lg),
-                Center(
-                  child: PortraitSegmentedTab<int>(
-                    tabs: const <PortraitSegmentTabItem<int>>[
-                      PortraitSegmentTabItem<int>(
-                        value: 0,
-                        label: '我的收藏',
-                        icon: Icons.favorite_rounded,
-                      ),
-                      PortraitSegmentTabItem<int>(
-                        value: 1,
-                        label: '离线下载',
-                        icon: Icons.download_done_rounded,
-                      ),
-                    ],
-                    selected: _selectedSubTab,
-                    onSelected: (int val) {
-                      setState(() {
-                        _selectedSubTab = val;
-                        _isBatchMode = false;
-                        _selectedSongs.clear();
-                      });
-                    },
-                  ),
+                _buildPlayButton(
+                  disabled: _selectedSubTab == 0
+                      ? widget.favoriteSongs.isEmpty
+                      : widget.downloadedSongs.isEmpty,
+                  onTap: _selectedSubTab == 0
+                      ? widget.onPlayAllFavorites
+                      : widget.onPlayAllDownloaded,
+                  label: _selectedSubTab == 0 ? '播放全部收藏' : '播放全部离线',
                 ),
               ],
             ),
           ),
-          // 收藏列表（懒加载）
-          if (_selectedSubTab == 0) ...<Widget>[
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
-              sliver: SliverToBoxAdapter(
-                child: PortraitSectionHeader(title: '收藏'),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+            sliver: SliverToBoxAdapter(
+              child: _LibrarySectionIntro(
+                icon: _selectedSubTab == 0
+                    ? Icons.favorite_rounded
+                    : Icons.download_done_rounded,
+                title: _selectedSubTab == 0 ? '收藏' : '离线下载',
+                subtitle: _selectedSubTab == 0 ? '你标记过的常听歌曲' : '已缓存到本机的歌曲',
+                count: _selectedSubTab == 0
+                    ? widget.favoriteSongs.length
+                    : widget.downloadedSongs.length,
               ),
             ),
-            if (widget.favoriteSongs.isEmpty)
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: AppSpace.md)),
+          if (_selectedSubTab == 0) ...<Widget>[
+            if (widget.favoritesBusy && widget.favoriteSongs.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                sliver: SliverToBoxAdapter(
+                  child: GlassCard(
+                    radius: AppRadius.panel,
+                    padding: const EdgeInsets.all(AppSpace.lg),
+                    shadows: const <BoxShadow>[],
+                    child: Row(
+                      children: <Widget>[
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: AppSpace.md),
+                        Text(
+                          '正在同步收藏',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else if (widget.favoriteSongs.isEmpty)
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 sliver: SliverToBoxAdapter(
@@ -340,7 +333,8 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                               ),
                               onPlay: () => widget.onPlayFavorite(index),
                               onAddToQueue: null,
-                              onToggleFavorite: () => widget.onToggleFavorite(song),
+                              onToggleFavorite: () =>
+                                  widget.onToggleFavorite(song),
                               onDownload: () => widget.onDownload(song),
                               onDeleteCache: () => widget.onDeleteCache(song),
                             );
@@ -348,7 +342,10 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: AppSpace.sm),
                         child: index < 6
-                            ? StaggeredAnimatedItem(index: index, child: songTile)
+                            ? StaggeredAnimatedItem(
+                                index: index,
+                                child: songTile,
+                              )
                             : songTile,
                       );
                     },
@@ -359,12 +356,6 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
           ]
           // 离线下载列表（懒加载）
           else ...<Widget>[
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.md),
-              sliver: SliverToBoxAdapter(
-                child: PortraitSectionHeader(title: '离线下载'),
-              ),
-            ),
             if (widget.downloadedSongs.isEmpty)
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
@@ -396,14 +387,18 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                               downloaded: true,
                               onPlay: () => widget.onPlayDownloaded(index),
                               onAddToQueue: null,
-                              onToggleFavorite: () => widget.onToggleFavorite(song),
+                              onToggleFavorite: () =>
+                                  widget.onToggleFavorite(song),
                               onDeleteCache: () => widget.onDeleteCache(song),
                             );
                       // 仅前 6 项启用入场动画
                       return Padding(
                         padding: const EdgeInsets.only(bottom: AppSpace.sm),
                         child: index < 6
-                            ? StaggeredAnimatedItem(index: index, child: songTile)
+                            ? StaggeredAnimatedItem(
+                                index: index,
+                                child: songTile,
+                              )
                             : songTile,
                       );
                     },
@@ -460,24 +455,33 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                   MusicAppStateScope.of(context).reorderQueue(oldIdx, newIdx);
                 },
                 onReorderStart: (int index) => HapticFeedback.mediumImpact(),
-                proxyDecorator: (Widget child, int index, Animation<double> animation) => child,
+                proxyDecorator:
+                    (Widget child, int index, Animation<double> animation) =>
+                        child,
                 itemBuilder: (BuildContext context, int index) {
                   final FreeMusicSong song = widget.queueSongs[index];
                   final bool isSelected = widget.selectedQueueIndex == index;
                   return ReorderableDragStartListener(
-                    key: ValueKey<String>('queue-item-${song.source}-${song.id}-$index'),
+                    key: ValueKey<String>(
+                      'queue-item-${song.source}-${song.id}-$index',
+                    ),
                     index: index,
                     child: Dismissible(
-                      key: ValueKey<String>('dismiss-queue-item-${song.source}-${song.id}-$index'),
+                      key: ValueKey<String>(
+                        'dismiss-queue-item-${song.source}-${song.id}-$index',
+                      ),
                       direction: DismissDirection.endToStart,
                       background: Container(
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: AppSpace.md),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.15),
+                          color: AppColor.error.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(AppRadius.panel),
                         ),
-                        child: const Icon(Icons.delete_sweep_rounded, color: Colors.red),
+                        child: const Icon(
+                          Icons.delete_sweep_rounded,
+                          color: AppColor.error,
+                        ),
                       ),
                       onDismissed: (DismissDirection direction) {
                         HapticFeedback.mediumImpact();
@@ -526,10 +530,26 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                       ),
                     ),
                     const Spacer(),
-                    TextButton(
-                      onPressed: () {
+                    _LibraryActionPill(
+                      icon:
+                          _selectedSongs.length ==
+                              (_selectedSubTab == 0
+                                  ? widget.favoriteSongs.length
+                                  : widget.downloadedSongs.length)
+                          ? Icons.remove_done_rounded
+                          : Icons.done_all_rounded,
+                      label:
+                          _selectedSongs.length ==
+                              (_selectedSubTab == 0
+                                  ? widget.favoriteSongs.length
+                                  : widget.downloadedSongs.length)
+                          ? '取消全选'
+                          : '全选',
+                      compact: true,
+                      onTap: () {
                         HapticFeedback.lightImpact();
-                        final List<FreeMusicSong> currentList = _selectedSubTab == 0
+                        final List<FreeMusicSong> currentList =
+                            _selectedSubTab == 0
                             ? widget.favoriteSongs
                             : widget.downloadedSongs;
                         setState(() {
@@ -542,25 +562,21 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                           }
                         });
                       },
-                      child: Text(
-                        _selectedSongs.length ==
-                                (_selectedSubTab == 0
-                                    ? widget.favoriteSongs.length
-                                    : widget.downloadedSongs.length)
-                            ? '取消全选'
-                            : '全选',
-                      ),
                     ),
                     const SizedBox(width: AppSpace.sm),
                     if (_selectedSubTab == 0) ...<Widget>[
                       IconButton(
                         tooltip: '批量取消收藏',
-                        icon: const Icon(Icons.favorite_rounded, color: Colors.red),
+                        icon: const Icon(
+                          Icons.favorite_rounded,
+                          color: AppColor.error,
+                        ),
                         onPressed: _selectedSongs.isEmpty
                             ? null
                             : () {
                                 HapticFeedback.mediumImpact();
-                                for (final FreeMusicSong song in _selectedSongs) {
+                                for (final FreeMusicSong song
+                                    in _selectedSongs) {
                                   widget.onToggleFavorite(song);
                                 }
                                 _exitBatchMode();
@@ -590,6 +606,287 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _LibraryActionPill extends StatelessWidget {
+  const _LibraryActionPill({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.disabled = false,
+    this.compact = false,
+    this.expanded = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool disabled;
+  final bool compact;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final Color foreground = disabled
+        ? colors.onSurfaceVariant
+        : colors.primary;
+    final double opacity = disabled
+        ? AppGlass.tintAlpha + AppGlass.ribbonWhiteAlpha
+        : 1;
+    final Widget pill = Opacity(
+      opacity: opacity,
+      child: GlassPill(
+        onTap: disabled ? null : onTap,
+        height: compact ? AppSpace.xl3 : AppSpace.xl4,
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? AppSpace.sm : AppSpace.md,
+        ),
+        child: Row(
+          mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(
+              icon,
+              size: compact ? AppSpace.lg : AppSpace.xl,
+              color: foreground,
+            ),
+            const SizedBox(width: AppSpace.xs),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.caption.copyWith(
+                  color: disabled ? colors.onSurfaceVariant : colors.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!expanded) return pill;
+    return SizedBox(width: double.infinity, child: pill);
+  }
+}
+
+class _LibraryHeaderCard extends StatelessWidget {
+  const _LibraryHeaderCard({
+    required this.favoriteCount,
+    required this.downloadedCount,
+    required this.queueCount,
+    required this.selectedQueueIndex,
+    required this.onPlayAll,
+    required this.playAllDisabled,
+    required this.playAllLabel,
+  });
+
+  final int favoriteCount;
+  final int downloadedCount;
+  final int queueCount;
+  final int selectedQueueIndex;
+  final VoidCallback onPlayAll;
+  final bool playAllDisabled;
+  final String playAllLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.panel,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      shadows: const <BoxShadow>[],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '音乐库',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      '收藏、离线和当前队列',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _LibraryActionPill(
+                icon: Icons.play_arrow_rounded,
+                label: playAllLabel,
+                disabled: playAllDisabled,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onPlayAll();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _LibraryMetricTile(
+                  icon: Icons.favorite_rounded,
+                  label: '收藏',
+                  value: '$favoriteCount',
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: _LibraryMetricTile(
+                  icon: Icons.download_done_rounded,
+                  label: '离线',
+                  value: '$downloadedCount',
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: _LibraryMetricTile(
+                  icon: Icons.queue_music_rounded,
+                  label: '队列',
+                  value: queueCount == 0
+                      ? '0'
+                      : selectedQueueIndex >= 0
+                      ? '${selectedQueueIndex + 1}/$queueCount'
+                      : '$queueCount',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LibraryMetricTile extends StatelessWidget {
+  const _LibraryMetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.tile,
+      padding: const EdgeInsets.all(AppSpace.sm),
+      shadows: const <BoxShadow>[],
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: colors.primary, size: 20),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LibrarySectionIntro extends StatelessWidget {
+  const _LibrarySectionIntro({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.count,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Row(
+      children: <Widget>[
+        GlassCard(
+          width: AppSpace.xl4 + AppSpace.xs,
+          height: AppSpace.xl4 + AppSpace.xs,
+          radius: AppRadius.control,
+          padding: EdgeInsets.zero,
+          shadows: const <BoxShadow>[],
+          child: Icon(icon, color: colors.primary, size: AppSpace.xl2),
+        ),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        GlassPill(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+          child: Text(
+            '$count 首',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
       ],
     );
   }

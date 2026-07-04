@@ -202,11 +202,26 @@ class PortraitPlayerView extends StatelessWidget {
                         ),
                         const SizedBox(width: AppSpace.sm),
                         Expanded(
-                          child: MarqueeText(
-                            text: artist.isEmpty ? title : '$title - $artist',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: <Widget>[
+                              Text(
+                                '正在播放',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpace.xs),
+                              MarqueeText(
+                                text: artist.isEmpty
+                                    ? title
+                                    : '$title - $artist',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: AppSpace.sm),
@@ -265,15 +280,51 @@ class PortraitPlayerView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpace.lg),
-                    PlayerLyricsView(
-                      lyrics: lyrics,
-                      position: playbackState.position,
-                      playing: playbackState.playing,
-                      lyricsBusy: lyricsBusy,
-                      lyricsError: lyricsError,
-                      currentSong: currentSong,
-                      onSeek: onSeek,
-                      onRetry: onRetryLyrics,
+                    _PlayerIdentityCard(
+                      title: title,
+                      artist: artist,
+                      duration: duration,
+                      playbackState: playbackState,
+                      qualities: qualities,
+                      qualitiesBusy: qualitiesBusy,
+                      qualityError: qualityError,
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    GlassCard(
+                      radius: AppRadius.panel,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md,
+                        vertical: AppSpace.sm,
+                      ),
+                      shadows: const <BoxShadow>[],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: AppSpace.xs,
+                              top: AppSpace.xs,
+                            ),
+                            child: Text(
+                              '歌词',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpace.sm),
+                          PlayerLyricsView(
+                            lyrics: lyrics,
+                            position: playbackState.position,
+                            playing: playbackState.playing,
+                            lyricsBusy: lyricsBusy,
+                            lyricsError: lyricsError,
+                            currentSong: currentSong,
+                            onSeek: onSeek,
+                            onRetry: onRetryLyrics,
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: AppSpace.xl2),
                     Padding(
@@ -398,6 +449,142 @@ class QualityChips extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _PlayerIdentityCard extends StatelessWidget {
+  const _PlayerIdentityCard({
+    required this.title,
+    required this.artist,
+    required this.duration,
+    required this.playbackState,
+    required this.qualities,
+    required this.qualitiesBusy,
+    required this.qualityError,
+  });
+
+  final String title;
+  final String artist;
+  final Duration duration;
+  final PlaybackUiState playbackState;
+  final List<FreeMusicQuality> qualities;
+  final bool qualitiesBusy;
+  final String qualityError;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.panel,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      shadows: const <BoxShadow>[],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      artist.isEmpty ? '未知艺人' : artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              GlassPill(
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      playbackState.playing
+                          ? Icons.graphic_eq_rounded
+                          : Icons.pause_rounded,
+                      size: 16,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(width: AppSpace.xs),
+                    Text(
+                      playbackState.playing ? '播放中' : '已暂停',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          Row(
+            children: <Widget>[
+              _PlayerInfoPill(
+                icon: Icons.schedule_rounded,
+                label: formatDuration(duration),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: QualityChips(
+                  qualities: qualities,
+                  busy: qualitiesBusy,
+                  error: qualityError,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayerInfoPill extends StatelessWidget {
+  const _PlayerInfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassPill(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 16, color: colors.primary),
+          const SizedBox(width: AppSpace.xs),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1389,7 +1576,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
               Container(
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF090A0E),
+                  color: AppColor.vinylBase,
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       color: Colors.black54,
@@ -1457,12 +1644,12 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
             shape: BoxShape.circle,
             gradient: const SweepGradient(
               colors: <Color>[
-                Color(0xFF8E8E93),
-                Color(0xFFD1D1D6),
-                Color(0xFFE5E5EA),
-                Color(0xFF8E8E93),
-                Color(0xFF3A3A3C),
-                Color(0xFF8E8E93),
+                AppColor.vinylMetalMid,
+                AppColor.vinylMetalLight,
+                AppColor.vinylMetalHighlight,
+                AppColor.vinylMetalMid,
+                AppColor.vinylMetalDark,
+                AppColor.vinylMetalMid,
               ],
               stops: <double>[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
             ),
@@ -1484,7 +1671,7 @@ class _SpinningVinylDiscState extends State<_SpinningVinylDisc>
               height: 12,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0xFF04060D),
+                color: AppColor.bgDeep,
               ),
             ),
           ),
@@ -1518,24 +1705,28 @@ class _ToneArmPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint armPaint = Paint()
-      ..color = const Color(0xFFD1D1D6)
+      ..color = AppColor.vinylMetalLight
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
 
     final Paint jointPaint = Paint()
-      ..color = const Color(0xFF48484A)
+      ..color = AppColor.vinylJoint
       ..style = PaintingStyle.fill;
 
     final Paint headPaint = Paint()
-      ..color = const Color(0xFF1C1C1E)
+      ..color = AppColor.vinylHead
       ..style = PaintingStyle.fill;
 
     final Offset pivot = Offset(size.width * 0.85, size.height * 0.15);
 
     // 1. 底座同心圆
     canvas.drawCircle(pivot, 10.0, jointPaint);
-    canvas.drawCircle(pivot, 5.0, Paint()..color = const Color(0xFFE5E5EA));
+    canvas.drawCircle(
+      pivot,
+      5.0,
+      Paint()..color = AppColor.vinylMetalHighlight,
+    );
 
     // 2. 针臂折线
     final Path path = Path()

@@ -242,10 +242,28 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                     child: Row(
                       children: <Widget>[
                         Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _songs.isEmpty ? null : _showPlayOptions,
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('播放全部'),
+                          child: GlassPill(
+                            onTap: _songs.isEmpty ? null : _showPlayOptions,
+                            height: AppSpace.xl4,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.md,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: colors.primary,
+                                ),
+                                const SizedBox(width: AppSpace.xs),
+                                Text(
+                                  '播放全部',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -270,9 +288,18 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                         const SizedBox(height: AppSpace.md),
                         Text(_error, style: theme.textTheme.titleMedium),
                         const SizedBox(height: AppSpace.md),
-                        ElevatedButton(
-                          onPressed: () => _loadSongs(reset: true),
-                          child: const Text('重试'),
+                        GlassPill(
+                          onTap: () => _loadSongs(reset: true),
+                          height: AppSpace.xl4,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.xl,
+                          ),
+                          child: Text(
+                            '重试',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -294,72 +321,76 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
                         BuildContext context,
                         int index,
                       ) {
-                      if (index == _songs.length) {
-                        final bool canLoadMore =
-                            _total == 0 || _songs.length < _total;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppSpace.md,
-                          ),
-                          child: Center(
-                            child: TextButton.icon(
-                              onPressed: canLoadMore && !_busy
-                                  ? () => _loadSongs(reset: false)
-                                  : null,
-                              icon: _busy
-                                  ? const SizedBox.square(
-                                      dimension: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.expand_more_rounded),
-                              label: Text(
-                                _busy
-                                    ? '加载中'
-                                    : canLoadMore
-                                    ? '加载更多'
-                                    : '已加载全部',
+                        if (index == _songs.length) {
+                          final bool canLoadMore =
+                              _total == 0 || _songs.length < _total;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpace.md,
+                            ),
+                            child: Center(
+                              child: TextButton.icon(
+                                onPressed: canLoadMore && !_busy
+                                    ? () => _loadSongs(reset: false)
+                                    : null,
+                                icon: _busy
+                                    ? const SizedBox.square(
+                                        dimension: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.expand_more_rounded),
+                                label: Text(
+                                  _busy
+                                      ? '加载中'
+                                      : canLoadMore
+                                      ? '加载更多'
+                                      : '已加载全部',
+                                ),
                               ),
                             ),
+                          );
+                        }
+                        final FreeMusicSong song = _songs[index];
+                        final Widget songRow = PlaylistSongRow(
+                          song: song,
+                          visual: demoQueue[index % demoQueue.length],
+                          index: index,
+                          favorite: widget.favoriteSongKeys.contains(
+                            favoriteSongKey(song),
                           ),
+                          downloaded: widget.downloadedSongKeys.contains(
+                            '${song.source}_${song.id}',
+                          ),
+                          onTap: () => widget.onPlay(_songs, index),
+                          onToggleFavorite: () {
+                            widget.onToggleFavorite(song);
+                            setState(() {});
+                          },
+                          onDownload: () => widget.onDownload(song),
+                          onDeleteCache: () => widget.onDeleteCache(song),
                         );
-                      }
-                      final FreeMusicSong song = _songs[index];
-                      final Widget songRow = PlaylistSongRow(
-                        song: song,
-                        visual: demoQueue[index % demoQueue.length],
-                        index: index,
-                        favorite: widget.favoriteSongKeys.contains(
-                          favoriteSongKey(song),
-                        ),
-                        downloaded: widget.downloadedSongKeys.contains(
-                          '${song.source}_${song.id}',
-                        ),
-                        onTap: () => widget.onPlay(_songs, index),
-                        onToggleFavorite: () {
-                          widget.onToggleFavorite(song);
-                          setState(() {});
-                        },
-                        onDownload: () => widget.onDownload(song),
-                        onDeleteCache: () => widget.onDeleteCache(song),
-                      );
-                      // 仅前 6 项启用入场动画，后续项直接显示避免大量 AnimationController 开销
-                      return index < 6
-                          ? StaggeredAnimatedItem(
-                              index: index,
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        // 仅前 6 项启用入场动画，后续项直接显示避免大量 AnimationController 开销
+                        return index < 6
+                            ? StaggeredAnimatedItem(
+                                index: index,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppSpace.sm,
+                                  ),
+                                  child: songRow,
+                                ),
+                              )
+                            : Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpace.sm,
+                                ),
                                 child: songRow,
-                              ),
-                            )
-                          : Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                              child: songRow,
-                            );
-                    }, childCount: _songs.length + 1),
+                              );
+                      }, childCount: _songs.length + 1),
+                    ),
                   ),
-                ),
                 ),
             ],
           ),

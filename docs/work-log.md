@@ -3,6 +3,89 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-04 - v1.0.69 UI Palette Release
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.69+10069` for the follow-up tag release.
+- Prepared the Spotify/BMW palette pass, secondary page button polish, and
+  shared empty-state cleanup for GitHub Actions packaging.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/theme/design_tokens.dart lib/widgets/sparkling_stars.dart lib/features/player/portrait_player_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+
+## 2026-07-04 - Spotify-Style Secondary Page Pass
+
+Implemented in this increment:
+
+- Reworked the search page around a Spotify-like glass header, compact search
+  control, recent-search shelf, and result-count section before the song list.
+- Rebuilt the music library entry with a glass overview card, collection
+  metrics, segmented favorites/offline controls, and a denser current-queue
+  continuation.
+- Updated the settings page with a matching page hero, grouped section
+  descriptions, neutral app mark, and current release version copy.
+- Added glass identity and lyrics panels to the full-screen player so it feels
+  connected to the portrait home visual system.
+
+Verification in this increment:
+
+- `dart format lib/features/search/portrait_search_view.dart lib/features/library/portrait_library_view.dart lib/features/settings/portrait_settings_view.dart lib/features/player/portrait_player_view.dart`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+## 2026-07-04 - Awesome Design Palette Alignment
+
+Implemented in this increment:
+
+- Reworked the global color tokens around
+  `xiaochen201807/awesome-design-md`: Spotify near-black surfaces and green
+  functional accents for dark mode, BMW white/gray surfaces and blue CTAs for
+  light mode.
+- Updated `MaterialApp` light/dark `ColorScheme` wiring so the two modes no
+  longer share the old steel-blue accent.
+- Removed the warm paper-texture light background and reduced dark dynamic
+  color bleed so album art does not tint the full UI too aggressively.
+- Moved turntable/vinyl neutral material colors into `design_tokens.dart` so
+  widget code no longer carries raw `Color(0x...)` literals.
+- Updated `docs/ui/design-spec.md` to make the Spotify/BMW palette the current
+  UI contract.
+
+Verification in this increment:
+
+- `dart format lib/theme/design_tokens.dart lib/main.dart lib/widgets/sparkling_stars.dart lib/features/player/portrait_player_view.dart`
+- `rg -n "Color\\(0x" lib -g '!lib/theme/design_tokens.dart' -g '!build/**'`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+
+## 2026-07-04 - Secondary Page Button Polish
+
+Implemented in this increment:
+
+- Replaced the library page play-all and batch actions with a unified
+  glass action pill so disabled and enabled states keep a complete button
+  shape.
+- Updated the shared portrait empty-state card to use the current `GlassCard`
+  treatment instead of the older row/tile surface.
+- Converted the search shelf action from a plain `TextButton` to a small glass
+  pill.
+- Replaced the remaining visible Material action buttons in cache confirmation,
+  playlist details, and playlist sheet flows with glass pills; the remaining
+  plain button hits are dialog confirmations or the lyric offset utility.
+
+Verification in this increment:
+
+- `dart format lib/features/settings/cache_manager_page.dart lib/features/home/playlist_details_page.dart lib/features/home/playlist_sheet.dart lib/features/library/portrait_library_view.dart lib/shared/portrait_message_card.dart lib/features/search/portrait_search_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+
 ## 2026-07-04 - iOS CarPlay Scene Removal For CI
 
 Implemented in this increment:

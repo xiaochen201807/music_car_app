@@ -10,7 +10,6 @@ import '../../shared/portrait_chip.dart';
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_song_tile.dart';
 import '../../shared/staggered_animated_item.dart';
-import '../home/portrait_home_view.dart'; // 共享已有的 PortraitSearchHero
 
 class PortraitSearchView extends StatefulWidget {
   const PortraitSearchView({
@@ -143,7 +142,7 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool showList = widget.songs.isNotEmpty && !widget.busy;
-    final double topSliverBottomPadding = showList ? 0.0 : 140.0;
+    final double topSliverBottomPadding = showList ? AppSpace.md : 140.0;
 
     return SafeArea(
       child: CustomScrollView(
@@ -157,20 +156,21 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
             ),
             sliver: SliverList.list(
               children: <Widget>[
-                Text(
-                  '搜索',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: AppSpace.lg),
-                PortraitSearchHero(
+                _SearchPageHeader(
                   controller: widget.controller,
-                  autofocus: true,
                   onSearch: _runSearch,
+                  resultCount: widget.songs.length,
+                  query: widget.query,
+                  busy: widget.busy || widget.loadMoreBusy,
                 ),
                 if (_searchHistory.isNotEmpty) ...[
-                  const SizedBox(height: AppSpace.md),
+                  const SizedBox(height: AppSpace.lg),
+                  _SearchShelfTitle(
+                    title: '最近搜索',
+                    actionLabel: '清空',
+                    onAction: _clearHistory,
+                  ),
+                  const SizedBox(height: AppSpace.sm),
                   _SearchHistoryBar(
                     history: _searchHistory,
                     onUse: _useHistory,
@@ -202,45 +202,42 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
             ),
           ),
           if (showList)
-            // 禁用列表项的 BackdropFilter 以降低 GPU 渲染压力
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-              sliver: GlassPerformanceMode(
-                enabled: true,
-                child: SliverList.builder(
-                  itemCount: widget.songs.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final FreeMusicSong song = widget.songs[index];
-                    final Widget songTile = PortraitSongTile(
-                      song: song,
-                      visual: demoQueue[index % demoQueue.length],
-                      favorite: widget.favoriteSongKeys.contains(
-                        favoriteSongKey(song),
-                      ),
-                      downloaded: widget.downloadedSongKeys.contains(
-                        '${song.source}_${song.id}',
-                      ),
-                      onPlay: () => widget.onPlay(index),
-                      onAddToQueue: () => widget.onAddToQueue(index),
-                      onToggleFavorite: () =>
-                          widget.onToggleFavorite(song),
-                      onDownload: () => widget.onDownload(song),
-                    );
-                    // 仅前 6 项启用入场动画，后续项直接显示避免大量 AnimationController 开销
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                      child: index < 6
-                          ? StaggeredAnimatedItem(
-                              index: index,
-                              child: songTile,
-                            )
-                          : songTile,
-                    );
-                  },
-                ),
+              sliver: SliverList.list(
+                children: <Widget>[
+                  _SearchShelfTitle(
+                    title: widget.query.isEmpty ? '搜索结果' : '“${widget.query}”',
+                    actionLabel: '${widget.songs.length} 首',
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  GlassPerformanceMode(
+                    enabled: true,
+                    child: Column(
+                      children: <Widget>[
+                        for (
+                          int index = 0;
+                          index < widget.songs.length;
+                          index += 1
+                        )
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                            child: index < 6
+                                ? StaggeredAnimatedItem(
+                                    index: index,
+                                    child: _buildSongTile(index),
+                                  )
+                                : _buildSongTile(index),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          if (widget.query.isNotEmpty && widget.songs.isNotEmpty && !widget.busy)
+          if (widget.query.isNotEmpty &&
+              widget.songs.isNotEmpty &&
+              !widget.busy)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpace.xl,
@@ -279,9 +276,7 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
                               size: 18,
                               color:
                                   (widget.canLoadMore ||
-                                          widget
-                                              .loadMoreError
-                                              .isNotEmpty) &&
+                                          widget.loadMoreError.isNotEmpty) &&
                                       !widget.busy &&
                                       !widget.loadMoreBusy
                                   ? theme.colorScheme.primary
@@ -302,9 +297,7 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
                               fontWeight: FontWeight.w900,
                               color:
                                   (widget.canLoadMore ||
-                                          widget
-                                              .loadMoreError
-                                              .isNotEmpty) &&
+                                          widget.loadMoreError.isNotEmpty) &&
                                       !widget.busy &&
                                       !widget.loadMoreBusy
                                   ? theme.colorScheme.onSurface
@@ -322,6 +315,195 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSongTile(int index) {
+    final FreeMusicSong song = widget.songs[index];
+    return PortraitSongTile(
+      song: song,
+      visual: demoQueue[index % demoQueue.length],
+      favorite: widget.favoriteSongKeys.contains(favoriteSongKey(song)),
+      downloaded: widget.downloadedSongKeys.contains(
+        '${song.source}_${song.id}',
+      ),
+      onPlay: () => widget.onPlay(index),
+      onAddToQueue: () => widget.onAddToQueue(index),
+      onToggleFavorite: () => widget.onToggleFavorite(song),
+      onDownload: () => widget.onDownload(song),
+    );
+  }
+}
+
+class _SearchPageHeader extends StatelessWidget {
+  const _SearchPageHeader({
+    required this.controller,
+    required this.onSearch,
+    required this.resultCount,
+    required this.query,
+    required this.busy,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onSearch;
+  final int resultCount;
+  final String query;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final String subtitle = query.isEmpty
+        ? '搜索歌曲、歌手、专辑'
+        : busy
+        ? '正在同步曲库'
+        : '找到 $resultCount 首结果';
+
+    return GlassCard(
+      radius: AppRadius.panel,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      shadows: const <BoxShadow>[],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '搜索',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (busy)
+                LuxuryLoadingIndicator(size: 20)
+              else
+                Icon(Icons.travel_explore_rounded, color: colors.primary),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          GlassCard(
+            height: 52,
+            radius: AppRadius.pill,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+            shadows: const <BoxShadow>[],
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.search_rounded, size: 22, color: colors.primary),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => onSearch(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      hintText: '想听什么？',
+                      hintStyle: TextStyle(
+                        color: colors.onSurfaceVariant.withValues(alpha: 0.68),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                GlassPill(
+                  onTap: onSearch,
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 18,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: AppSpace.xs),
+                      Text(
+                        '搜索',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchShelfTitle extends StatelessWidget {
+  const _SearchShelfTitle({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        if (actionLabel != null)
+          Opacity(
+            opacity: onAction == null
+                ? AppGlass.tintAlpha + AppGlass.ribbonWhiteAlpha
+                : 1,
+            child: GlassPill(
+              onTap: onAction,
+              height: AppSpace.xl3,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+              child: Text(
+                actionLabel!,
+                style: AppType.caption.copyWith(
+                  color: onAction == null
+                      ? colors.onSurfaceVariant
+                      : colors.onSurface,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

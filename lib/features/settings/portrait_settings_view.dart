@@ -43,10 +43,16 @@ class PortraitSettingsView extends StatelessWidget {
           140,
         ),
         children: <Widget>[
+          _SettingsHeroHeader(
+            updateBusy: updateBusy,
+            onCheckUpdate: onCheckUpdate,
+          ),
+          const SizedBox(height: AppSpace.lg),
           _SettingsProfileCard(onCheckUpdate: onCheckUpdate, busy: updateBusy),
           const SizedBox(height: AppSpace.xl),
           _SettingsSection(
             title: '播放',
+            subtitle: '默认音质会在搜索和歌单播放时优先使用',
             children: <Widget>[
               _buildQualityOption(
                 context: context,
@@ -81,6 +87,7 @@ class PortraitSettingsView extends StatelessWidget {
           const SizedBox(height: AppSpace.lg),
           _SettingsSection(
             title: '外观',
+            subtitle: '界面跟随当前使用环境',
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
@@ -112,6 +119,7 @@ class PortraitSettingsView extends StatelessWidget {
           const SizedBox(height: AppSpace.lg),
           _SettingsSection(
             title: '存储',
+            subtitle: '离线内容与缓存入口',
             children: <Widget>[
               _SettingsRow(
                 icon: Icons.download_rounded,
@@ -123,6 +131,7 @@ class PortraitSettingsView extends StatelessWidget {
           ),
           _SettingsSection(
             title: '应用',
+            subtitle: '版本与远程发布',
             children: <Widget>[
               _SettingsRow(
                 icon: Icons.system_update_rounded,
@@ -136,7 +145,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.0 · 车载音乐播放器',
+                subtitle: '版本 1.0.68 · 车载音乐播放器',
               ),
             ],
           ),
@@ -268,7 +277,8 @@ class _SettingsProfileCard extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.tile),
-              gradient: AppColor.accentGradient,
+              color: colors.onSurface.withValues(alpha: 0.08),
+              border: Border.all(color: colors.outline),
             ),
             child: const Icon(
               Icons.music_note_rounded,
@@ -315,10 +325,90 @@ class _SettingsProfileCard extends StatelessWidget {
   }
 }
 
+class _SettingsHeroHeader extends StatelessWidget {
+  const _SettingsHeroHeader({
+    required this.updateBusy,
+    required this.onCheckUpdate,
+  });
+
+  final bool updateBusy;
+  final VoidCallback onCheckUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.panel,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      shadows: const <BoxShadow>[],
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '设置',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  '播放偏好、离线缓存和版本更新',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GlassPill(
+            onTap: updateBusy
+                ? null
+                : () {
+                    HapticFeedback.lightImpact();
+                    onCheckUpdate();
+                  },
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (updateBusy)
+                  LuxuryLoadingIndicator(size: 14)
+                else
+                  Icon(
+                    Icons.system_update_rounded,
+                    size: 18,
+                    color: colors.primary,
+                  ),
+                const SizedBox(width: AppSpace.xs),
+                Text(
+                  updateBusy ? '检查中' : '检查更新',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SettingsSection extends StatelessWidget {
-  const _SettingsSection({required this.title, required this.children});
+  const _SettingsSection({
+    required this.title,
+    required this.children,
+    this.subtitle,
+  });
 
   final String title;
+  final String? subtitle;
   final List<Widget> children;
 
   @override
@@ -328,15 +418,32 @@ class _SettingsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.only(
-            left: AppSpace.xs,
-            bottom: AppSpace.sm,
-          ),
-          child: Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (subtitle != null) ...<Widget>[
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        subtitle!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         GlassCard(

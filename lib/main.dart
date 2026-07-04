@@ -132,11 +132,11 @@ class _MusicCarAppState extends State<MusicCarApp> {
     final ThemeMode themeMode = _settingsController.themeMode;
     final ThemeData lightTheme = _buildAppTheme(
       brightness: Brightness.light,
-      seedColor: AppColor.accentSteelStart,
+      seedColor: AppColor.bmwBlue,
     );
     final ThemeData darkTheme = _buildAppTheme(
       brightness: Brightness.dark,
-      seedColor: AppColor.accentSteelStart,
+      seedColor: AppColor.spotifyGreen,
     );
     return MaterialApp(
       title: '车载音乐',
@@ -168,21 +168,22 @@ ThemeData _buildAppTheme({
           surface: AppColor.paperBase,
           surfaceContainer: AppColor.paperWarm,
           surfaceContainerHighest: AppColor.paperCool,
-          primary: AppColor.accentSteelStart,
-          secondary: AppColor.accentPlatinumEnd,
+          primary: AppColor.bmwBlue,
+          secondary: AppColor.bmwBlueActive,
           onSurface: AppColor.paperInk,
           onSurfaceVariant: AppColor.paperMuted,
           primaryContainer: AppColor.paperAccentContainer,
           onPrimaryContainer: AppColor.paperOnAccentContainer,
           outline: AppColor.paperStrokeHairline,
           shadow: AppColor.paperShadow,
+          error: AppColor.error,
         )
       : baseColorScheme.copyWith(
           surface: AppColor.bgBase,
           surfaceContainer: AppColor.glassTint,
-          surfaceContainerHighest: AppColor.fillNeutralHover,
-          primary: AppColor.accentSteelStart,
-          secondary: AppColor.accentPlatinumEnd,
+          surfaceContainerHighest: AppColor.glowCyan,
+          primary: AppColor.spotifyGreen,
+          secondary: AppColor.spotifyGreenPressed,
           primaryContainer: AppColor.fillNeutralHover,
           onPrimaryContainer: AppColor.textPrimary,
           onSurface: AppColor.textPrimary,
@@ -305,8 +306,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.68 (Build 10068)');
-    debugPrint('✅ Fixes: 播放失败恢复 + 手动音质 + 新品牌图标');
+    debugPrint('🚀 App Version: 1.0.69 (Build 10069)');
+    debugPrint('✅ Fixes: Spotify/BMW 配色 + 二级页面按钮统一');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(

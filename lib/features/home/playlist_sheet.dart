@@ -6,6 +6,7 @@ import '../../theme/design_tokens.dart';
 import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_surface.dart';
+import '../../widgets/glass_card.dart';
 
 class PlaylistSheet extends StatelessWidget {
   const PlaylistSheet({
@@ -93,15 +94,34 @@ class PlaylistSheet extends StatelessWidget {
                 ),
                 if (songs.isNotEmpty) ...<Widget>[
                   const SizedBox(width: AppSpace.sm),
-                  FilledButton.icon(
-                    onPressed: busy
+                  GlassPill(
+                    onTap: busy
                         ? null
                         : () {
                             Navigator.of(context).pop();
                             onPlay(0);
                           },
-                    icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                    label: const Text('播放'),
+                    height: AppSpace.xl4,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.md,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.play_arrow_rounded,
+                          size: AppSpace.xl,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: AppSpace.xs),
+                        Text(
+                          '播放',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 const SizedBox(width: AppSpace.xs),
@@ -118,64 +138,66 @@ class PlaylistSheet extends StatelessWidget {
               child: songs.isEmpty && busy
                   ? const Center(child: CircularProgressIndicator())
                   : songs.isEmpty && error.isNotEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              Icon(Icons.queue_music_rounded,
-                                  color: colors.onSurfaceVariant, size: 48),
-                              const SizedBox(height: AppSpace.sm),
-                              Text('歌单加载失败',
-                                  style: theme.textTheme.titleSmall),
-                              Text(error, style: theme.textTheme.bodySmall),
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                            Icons.queue_music_rounded,
+                            color: colors.onSurfaceVariant,
+                            size: 48,
                           ),
-                        )
-                      : ListView.separated(
-                          itemCount: songs.length + 1,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: AppSpace.sm),
-                          itemBuilder: (BuildContext context, int index) {
-                            if (index == songs.length) {
-                              return Center(
-                                child: TextButton.icon(
-                                  onPressed: canLoadMore && !busy
-                                      ? onLoadMore
-                                      : null,
-                                  icon: busy
-                                      ? const SizedBox.square(
-                                          dimension: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.expand_more_rounded),
-                                  label: Text(
-                                    busy
-                                        ? '加载中'
-                                        : canLoadMore
-                                            ? '加载更多'
-                                            : '已加载全部',
-                                  ),
-                                ),
-                              );
-                            }
-                            return PlaylistSongRow(
-                              song: songs[index],
-                              visual: demoQueue[index % demoQueue.length],
-                              index: index,
-                              favorite: favoriteSongKeys.contains(
-                                favoriteSongKey(songs[index]),
+                          const SizedBox(height: AppSpace.sm),
+                          Text('歌单加载失败', style: theme.textTheme.titleSmall),
+                          Text(error, style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: songs.length + 1,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppSpace.sm),
+                      itemBuilder: (BuildContext context, int index) {
+                        if (index == songs.length) {
+                          return Center(
+                            child: TextButton.icon(
+                              onPressed: canLoadMore && !busy
+                                  ? onLoadMore
+                                  : null,
+                              icon: busy
+                                  ? const SizedBox.square(
+                                      dimension: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.expand_more_rounded),
+                              label: Text(
+                                busy
+                                    ? '加载中'
+                                    : canLoadMore
+                                    ? '加载更多'
+                                    : '已加载全部',
                               ),
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                onPlay(index);
-                              },
-                              onToggleFavorite: () =>
-                                  onToggleFavorite(songs[index]),
-                            );
+                            ),
+                          );
+                        }
+                        return PlaylistSongRow(
+                          song: songs[index],
+                          visual: demoQueue[index % demoQueue.length],
+                          index: index,
+                          favorite: favoriteSongKeys.contains(
+                            favoriteSongKey(songs[index]),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            onPlay(index);
                           },
-                        ),
+                          onToggleFavorite: () =>
+                              onToggleFavorite(songs[index]),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

@@ -12,9 +12,10 @@
 
 ## 0. 设计原则 (出现分歧时按此裁决)
 
-1. **石墨冷底 + 钢蓝点缀**:屏幕 95% 面积是石墨黑、深冷灰与中性玻璃。高饱和粉/紫不再作为产品主风格；
-   主播放按钮、进度条已播放段、当前导航项指示等强调位统一使用低饱和钢蓝→铂银渐变。
-   其余一律用"白色低透明度"中性玻璃。这是修复"AI 味配色"和"全屏热粉"的核心规则。
+1. **Spotify 深色 + BMW 浅色**:深色模式遵循 `awesome-design-md/design-md/spotify`
+   的近黑沉浸式音乐界面,主播放、进度、激活态使用 Spotify Green。浅色模式遵循
+   `awesome-design-md/design-md/bmw` 的白/浅灰企业车机画布,BMW Blue 承担导航、
+   设置和次级 CTA。高饱和粉/紫不再作为产品主风格。
 2. **一个 GlassCard 统治所有卡片**:任何卡片/面板/药丸背景都来自同一个 `GlassCard` 组件,
    不允许各处自己拼 `Container + 半透明 color`。玻璃必须含 `BackdropFilter` 模糊。
 3. **token 化**:颜色、间距、圆角、字阶、阴影全部来自 `lib/theme/design_tokens.dart`(见 §8)。
@@ -31,11 +32,24 @@
 
 | Token | Hex / 值 | 用途 |
 | --- | --- | --- |
-| `bgBase` | `#0A0D12` | 主背景基色(石墨黑) |
-| `bgDeep` | `#030507` | 背景最深角(近黑) |
-| `glowViolet` | `#263647` | 环境光晕主色(保留旧 token 名,实际为低饱和钢灰) |
-| `glowCyan` | `#365167` | 环境光晕副色,alpha ≈ 0.16(可选) |
-| `glassTint` | `#111820` | 玻璃卡片暗底色,使用时 alpha ≈ 0.48 |
+| `bgBase` | `#121212` | Spotify 近黑主背景 |
+| `bgDeep` | `#000000` | 背景最深层 |
+| `glowViolet` | `#1F1F1F` | 深色环境层(保留旧 token 名) |
+| `glowCyan` | `#252525` | 深色抬升层(保留旧 token 名) |
+| `glassTint` | `#181818` | Spotify 深色卡片/面板底色 |
+
+### 1.1.1 浅色 BMW 画布
+
+| Token | Hex / 值 | 用途 |
+| --- | --- | --- |
+| `paperBase` | `#FFFFFF` | 浅色主画布 |
+| `paperWarm` | `#F7F7F7` | 浅色顶部柔和表面 |
+| `paperCool` | `#EBEBEB` | 浅色底部抬升/分区 |
+| `paperGlassTint` | `#FAFAFA` | 浅色玻璃卡片底色 |
+| `paperStrokeHairline` | `#E6E6E6` | 浅色卡片描边 |
+| `paperInk` | `#262626` | 浅色主文字 |
+| `paperMuted` | `#6B6B6B` | 浅色次级文字 |
+| `paperFaint` | `#9A9A9A` | 浅色弱化文字 |
 
 ### 1.2 描边 / 分隔
 
@@ -49,14 +63,16 @@
 
 | Token | 值 | **仅允许用于** |
 | --- | --- | --- |
-| `accentSteelStart` | `#5E7FA4` | 主播放按钮渐变起点、进度条渐变起点、激活导航指示 |
-| `accentPlatinumEnd` | `#B8C2CC` | 上述渐变终点、金属高光 |
-| `accentVioletStart` / `accentRoseEnd` | 兼容别名 | 旧字段保留,实际指向钢蓝/铂银 |
-| `accentGradient` | `LinearGradient(topLeft→bottomRight, [accentSteelStart, accentPlatinumEnd])` | 同上 |
-| `carlife` | `#3D6F9F` | 仅 CarLife 入口/状态 |
+| `spotifyGreen` | `#1ED760` | 深色模式主播放、进度、激活态、主 CTA |
+| `spotifyGreenPressed` | `#1DB954` | Spotify Green 按下/渐变终点 |
+| `bmwBlue` | `#1C69D4` | 浅色模式导航、设置、次级 CTA |
+| `bmwBlueActive` | `#0653B6` | BMW Blue 按下态 |
+| `accentSteelStart` / `accentPlatinumEnd` | 兼容别名 | 旧字段保留,实际指向 Spotify Green |
+| `accentGradient` | `LinearGradient(topLeft→bottomRight, [spotifyGreen, spotifyGreenPressed])` | 主播放按钮、进度条、深色激活态 |
+| `carlife` | `#539DF5` | 仅 CarLife 入口/状态 |
 
-> ⚠️ 删除当前的 `primary = #FF5C93` / `accent = #FFB86B` 全局暖色。Logo 方块、搜索"搜索"按钮、
-> 模式药丸、歌词药丸**不得**使用点缀渐变——它们用中性玻璃 `fillNeutral`。
+> ⚠️ 删除当前的 `primary = #FF5C93` / `accent = #FFB86B` 全局暖色。深色模式不要把绿色当装饰背景,
+> 只用于播放、进度、激活态和主 CTA。浅色模式不要使用米黄/纸张纹理,保持 BMW 式白灰画布。
 
 ### 1.4 中性填充(玻璃内控件)
 
@@ -69,9 +85,9 @@
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
-| `textPrimary` | `#F4F6FB` | 标题、主文案 |
-| `textSecondary` | `#AEB6C8` | 副标题、艺人名 |
-| `textTertiary` | `#6E7891` | 时间戳、占位、禁用 |
+| `textPrimary` | `#FFFFFF` | 深色标题、主文案 |
+| `textSecondary` | `#B3B3B3` | 深色副标题、艺人名 |
+| `textTertiary` | `#7C7C7C` | 深色时间戳、占位、禁用 |
 
 ---
 
@@ -263,24 +279,35 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class AppColor {
-  static const bgBase = Color(0xFF0B1020);
-  static const bgDeep = Color(0xFF04060D);
-  static const glowViolet = Color(0xFF263647);
-  static const glowCyan = Color(0xFF365167);
-  static const glassTint = Color(0xFF0E1426);          // 用时 .withValues(alpha: .35)
+  static const bgBase = Color(0xFF121212);
+  static const bgDeep = Color(0xFF000000);
+  static const glowViolet = Color(0xFF1F1F1F);
+  static const glowCyan = Color(0xFF252525);
+  static const glassTint = Color(0xFF181818);
+  static const paperBase = Color(0xFFFFFFFF);
+  static const paperWarm = Color(0xFFF7F7F7);
+  static const paperCool = Color(0xFFEBEBEB);
+  static const paperGlassTint = Color(0xFFFAFAFA);
+  static const paperStrokeHairline = Color(0xFFE6E6E6);
+  static const paperInk = Color(0xFF262626);
+  static const paperMuted = Color(0xFF6B6B6B);
   static const strokeHairline = Color(0x1FFFFFFF);
   static const strokeStrong = Color(0x2EFFFFFF);
   static const sheenTop = Color(0x1AFFFFFF);
-  static const accentSteelStart = Color(0xFF5E7FA4);
-  static const accentPlatinumEnd = Color(0xFFB8C2CC);
+  static const spotifyGreen = Color(0xFF1ED760);
+  static const spotifyGreenPressed = Color(0xFF1DB954);
+  static const bmwBlue = Color(0xFF1C69D4);
+  static const bmwBlueActive = Color(0xFF0653B6);
+  static const accentSteelStart = spotifyGreen;
+  static const accentPlatinumEnd = spotifyGreenPressed;
   static const accentVioletStart = accentSteelStart;
   static const accentRoseEnd = accentPlatinumEnd;
-  static const carlife = Color(0xFF2D7DFF);
+  static const carlife = Color(0xFF539DF5);
   static const fillNeutral = Color(0x14FFFFFF);
   static const fillNeutralHover = Color(0x24FFFFFF);
-  static const textPrimary = Color(0xFFF4F6FB);
-  static const textSecondary = Color(0xFFAEB6C8);
-  static const textTertiary = Color(0xFF6E7891);
+  static const textPrimary = Color(0xFFFFFFFF);
+  static const textSecondary = Color(0xFFB3B3B3);
+  static const textTertiary = Color(0xFF7C7C7C);
 
   static const accentGradient = LinearGradient(
     begin: Alignment.topLeft, end: Alignment.bottomRight,

@@ -67,78 +67,94 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
       barrierLabel: 'Dismiss',
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (BuildContext ctx, Animation<double> anim1, Animation<double> anim2) {
-        final ThemeData theme = Theme.of(context);
-        final ColorScheme colors = theme.colorScheme;
-        return Center(
-          child: Material(
-            color: Colors.transparent,
-            child: GlassCard(
-              width: 320,
-              padding: const EdgeInsets.all(AppSpace.xl),
-              radius: AppRadius.card,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+      pageBuilder:
+          (BuildContext ctx, Animation<double> anim1, Animation<double> anim2) {
+            final ThemeData theme = Theme.of(context);
+            final ColorScheme colors = theme.colorScheme;
+            return Center(
+              child: Material(
+                color: Colors.transparent,
+                child: GlassCard(
+                  width: 320,
+                  padding: const EdgeInsets.all(AppSpace.xl),
+                  radius: AppRadius.card,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Icon(Icons.warning_amber_rounded, color: colors.error, size: 24),
-                      const SizedBox(width: AppSpace.sm),
-                      Text(
-                        '清空缓存',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpace.md),
-                  Text(
-                    '确定要清空所有已下载的离线歌曲吗？这无法撤销。',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpace.xl),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: <Widget>[
-                      TextButton(
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.of(ctx).pop(false);
-                        },
-                        child: const Text('取消'),
-                      ),
-                      const SizedBox(width: AppSpace.sm),
-                      GlassPill(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          Navigator.of(ctx).pop(true);
-                        },
-                        height: 36,
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                        child: Center(
-                          widthFactor: 1.0,
-                          heightFactor: 1.0,
-                          child: Text(
-                            '确定清空',
-                            style: theme.textTheme.labelMedium?.copyWith(
+                      Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: colors.error,
+                            size: 24,
+                          ),
+                          const SizedBox(width: AppSpace.sm),
+                          Text(
+                            '清空缓存',
+                            style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w900,
-                              color: colors.error,
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                      Text(
+                        '确定要清空所有已下载的离线歌曲吗？这无法撤销。',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
                         ),
+                      ),
+                      const SizedBox(height: AppSpace.xl),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: <Widget>[
+                          GlassPill(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.of(ctx).pop(false);
+                            },
+                            height: AppSpace.xl3 + AppSpace.xs,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.md,
+                            ),
+                            child: Text(
+                              '取消',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpace.sm),
+                          GlassPill(
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.of(ctx).pop(true);
+                            },
+                            height: AppSpace.xl3 + AppSpace.xs,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.md,
+                            ),
+                            child: Center(
+                              widthFactor: 1.0,
+                              heightFactor: 1.0,
+                              child: Text(
+                                '确定清空',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: colors.error,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
       transitionBuilder: (context, anim1, anim2, child) {
         return FadeTransition(
           opacity: anim1,
@@ -199,10 +215,7 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
                       color: colors.onSurfaceVariant,
                     ),
                     const SizedBox(height: AppSpace.md),
-                    Text(
-                      '暂无离线缓存',
-                      style: theme.textTheme.titleMedium,
-                    ),
+                    Text('暂无离线缓存', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpace.xs),
                     Text(
                       '在播放页或歌单中下载歌曲后，将可以在这里查看和管理。',
@@ -235,7 +248,9 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
                                 color: colors.onSurface,
                                 shadows: <Shadow>[
                                   Shadow(
-                                    color: colors.primary.withValues(alpha: 0.35),
+                                    color: colors.primary.withValues(
+                                      alpha: 0.35,
+                                    ),
                                     offset: const Offset(0, 2),
                                     blurRadius: 10,
                                   ),
@@ -255,7 +270,9 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.xl,
+                      ),
                       child: GlassCard(
                         radius: AppRadius.card,
                         child: ListView.separated(
@@ -270,7 +287,9 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
                           itemBuilder: (BuildContext context, int index) {
                             final CachedTrack track = _tracks[index];
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpace.sm,
+                              ),
                               child: Row(
                                 children: <Widget>[
                                   PortraitArtwork(
