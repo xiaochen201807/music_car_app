@@ -3,6 +3,38 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-04 - Roadmap P0/P1 Quality Foundation
+
+Implemented in this increment:
+
+- Added `AppTelemetry` as a bounded local diagnostic ring buffer with JSON
+  export and sensitive-field redaction.
+- Added settings access to copy diagnostics for playback, search, download, and
+  performance troubleshooting.
+- Instrumented search, recommendations, download, URL resolution, source
+  fallback, and playback readiness paths with telemetry events.
+- Moved search debounce into `MusicSearchController` so stale/cancelled searches
+  are controlled in one testable place.
+- Reused active download tasks for the same song to avoid duplicate concurrent
+  downloads from repeated taps.
+- Added the first performance budget contract and a release QA gate script.
+- Added the device/head-unit validation matrix for Android, iOS, Bluetooth,
+  lock-screen media, and CarLife evidence.
+
+Project coverage:
+
+- Advances #8, #9, #10, #11, #14, #15, and #16.
+- #12 and #13 remain open for larger UI architecture/player interaction work,
+  though existing seek, quality switching, queue rollback, and controller
+  extraction remain in place.
+
+Verification in this increment:
+
+- `dart format lib test scripts`
+- `dart run scripts/app_quality_gate.dart`
+- `flutter analyze`
+- `flutter test test/app_telemetry_test.dart test/performance_budget_test.dart test/music_search_controller_test.dart test/download_controller_test.dart`
+
 ## 2026-07-04 - v1.0.69 UI Palette Release
 
 Implemented in this increment:

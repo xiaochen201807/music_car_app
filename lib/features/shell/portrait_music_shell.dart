@@ -385,6 +385,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onCheckUpdate: () => appState.checkForUpdate(),
       onOpenDownloads: () => appState.openDownloads(),
       onSyncCarLife: () => appState.syncCarLifeManually(),
+      onCopyDiagnostics: () => appState.copyDiagnostics(),
     );
   }
 

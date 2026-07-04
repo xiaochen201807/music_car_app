@@ -19,6 +19,7 @@ class PortraitSettingsView extends StatelessWidget {
     required this.onCheckUpdate,
     required this.onOpenDownloads,
     required this.onSyncCarLife,
+    required this.onCopyDiagnostics,
   });
 
   final ThemeMode themeMode;
@@ -31,6 +32,7 @@ class PortraitSettingsView extends StatelessWidget {
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
   final VoidCallback onSyncCarLife;
+  final VoidCallback onCopyDiagnostics;
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +144,13 @@ class PortraitSettingsView extends StatelessWidget {
                     ? LuxuryLoadingIndicator(size: 14)
                     : const Icon(Icons.chevron_right_rounded),
                 onTap: updateBusy ? null : onCheckUpdate,
+              ),
+              _SettingsRow(
+                icon: Icons.bug_report_outlined,
+                title: '复制诊断信息',
+                subtitle: '最近播放、搜索、下载和性能事件',
+                trailing: const Icon(Icons.copy_rounded),
+                onTap: onCopyDiagnostics,
               ),
               _SettingsRow(
                 icon: Icons.info_outline_rounded,

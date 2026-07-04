@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../free_music_api.dart';
+import '../services/app_telemetry.dart';
 
 abstract class MusicSearchClient {
   Future<FreeMusicSearchResult> searchSongs(
@@ -37,9 +40,16 @@ class FreeMusicSearchApiClient implements MusicSearchClient {
 }
 
 class MusicSearchController extends ChangeNotifier {
-  MusicSearchController({required MusicSearchClient client}) : _client = client;
+  MusicSearchController({
+    required MusicSearchClient client,
+    AppTelemetry? telemetry,
+    this.searchDebounce = const Duration(milliseconds: 300),
+  }) : _client = client,
+       _telemetry = telemetry ?? AppTelemetry.instance;
 
   final MusicSearchClient _client;
+  final AppTelemetry _telemetry;
+  final Duration searchDebounce;
 
   bool _isSearching = false;
   bool _isLoadingMore = false;
@@ -53,6 +63,8 @@ class MusicSearchController extends ChangeNotifier {
   String _lastSearchQuery = '';
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
   List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
+  Timer? _searchDebounceTimer;
+  Completer<void>? _pendingDebouncedSearch;
 
   bool get isSearching => _isSearching;
 
@@ -74,6 +86,30 @@ class MusicSearchController extends ChangeNotifier {
 
   List<FreeMusicPlaylist> get recommendedPlaylists => _recommendedPlaylists;
 
+  Future<void> searchSongsDebounced(
+    String query, {
+    List<String>? sources,
+  }) async {
+    _searchDebounceTimer?.cancel();
+    _completePendingDebouncedSearch();
+    final String normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty || searchDebounce == Duration.zero) {
+      await searchSongs(normalizedQuery, sources: sources);
+      return;
+    }
+    final Completer<void> completer = Completer<void>();
+    _pendingDebouncedSearch = completer;
+    _searchDebounceTimer = Timer(searchDebounce, () {
+      unawaited(
+        searchSongs(
+          normalizedQuery,
+          sources: sources,
+        ).whenComplete(() => _completePendingDebouncedSearch(completer)),
+      );
+    });
+    return completer.future;
+  }
+
   Future<void> searchSongs(String query, {List<String>? sources}) async {
     final String normalizedQuery = query.trim();
     final int requestId = ++_searchRequestId;
@@ -93,6 +129,7 @@ class MusicSearchController extends ChangeNotifier {
     _searchPage = 0;
     notifyListeners();
 
+    final Stopwatch stopwatch = Stopwatch()..start();
     try {
       final FreeMusicSearchResult result = await _client.searchSongs(
         normalizedQuery,
@@ -106,6 +143,16 @@ class MusicSearchController extends ChangeNotifier {
       _searchPage = result.page;
       _searchHasMore = result.hasMore;
       _isSearching = false;
+      _telemetry.record(
+        'search_first_page',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'queryLength': normalizedQuery.length,
+          'sources': sources?.join(','),
+          'resultCount': result.songs.length,
+          'hasMore': result.hasMore,
+        },
+      );
       notifyListeners();
     } on FreeMusicApiException catch (error) {
       if (requestId != _searchRequestId) {
@@ -113,6 +160,15 @@ class MusicSearchController extends ChangeNotifier {
       }
       _searchError = error.message;
       _isSearching = false;
+      _telemetry.record(
+        'search_first_page.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'queryLength': normalizedQuery.length,
+          'sources': sources?.join(','),
+        },
+        error: error.message,
+      );
       notifyListeners();
     } catch (error) {
       if (requestId != _searchRequestId) {
@@ -120,6 +176,15 @@ class MusicSearchController extends ChangeNotifier {
       }
       _searchError = '搜索失败：$error';
       _isSearching = false;
+      _telemetry.record(
+        'search_first_page.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'queryLength': normalizedQuery.length,
+          'sources': sources?.join(','),
+        },
+        error: error,
+      );
       notifyListeners();
     }
   }
@@ -134,6 +199,7 @@ class MusicSearchController extends ChangeNotifier {
     _searchLoadMoreError = '';
     notifyListeners();
 
+    final Stopwatch stopwatch = Stopwatch()..start();
     try {
       final FreeMusicSearchResult result = await _client.searchSongs(
         query,
@@ -150,6 +216,16 @@ class MusicSearchController extends ChangeNotifier {
       _searchPage = result.page;
       _searchHasMore = result.hasMore;
       _isLoadingMore = false;
+      _telemetry.record(
+        'search_load_more',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'queryLength': query.length,
+          'page': result.page,
+          'resultCount': result.songs.length,
+          'hasMore': result.hasMore,
+        },
+      );
       notifyListeners();
     } on FreeMusicApiException catch (error) {
       if (requestId != _searchRequestId) {
@@ -157,6 +233,12 @@ class MusicSearchController extends ChangeNotifier {
       }
       _searchLoadMoreError = error.message;
       _isLoadingMore = false;
+      _telemetry.record(
+        'search_load_more.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{'queryLength': query.length},
+        error: error.message,
+      );
       notifyListeners();
     } catch (error) {
       if (requestId != _searchRequestId) {
@@ -164,6 +246,12 @@ class MusicSearchController extends ChangeNotifier {
       }
       _searchLoadMoreError = '加载更多失败：$error';
       _isLoadingMore = false;
+      _telemetry.record(
+        'search_load_more.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{'queryLength': query.length},
+        error: error,
+      );
       notifyListeners();
     }
   }
@@ -176,6 +264,7 @@ class MusicSearchController extends ChangeNotifier {
     _recommendationError = '';
     notifyListeners();
 
+    final Stopwatch stopwatch = Stopwatch()..start();
     try {
       final FreeMusicRecommendResult result = await _client
           .fetchRecommendations(sources: sources);
@@ -183,10 +272,24 @@ class MusicSearchController extends ChangeNotifier {
         result.playlists,
       );
       _isLoadingRecommendations = false;
+      _telemetry.record(
+        'recommendations_load',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'sources': sources?.join(','),
+          'playlistCount': result.playlists.length,
+        },
+      );
       notifyListeners();
     } on FreeMusicApiException catch (error) {
       _recommendationError = error.message;
       _isLoadingRecommendations = false;
+      _telemetry.record(
+        'recommendations_load.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{'sources': sources?.join(',')},
+        error: error.message,
+      );
       notifyListeners();
     } catch (error) {
       final String msg = error.toString();
@@ -195,8 +298,21 @@ class MusicSearchController extends ChangeNotifier {
           ? '推荐加载超时，请检查网络后重试'
           : '推荐加载失败：$error';
       _isLoadingRecommendations = false;
+      _telemetry.record(
+        'recommendations_load.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{'sources': sources?.join(',')},
+        error: error,
+      );
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _completePendingDebouncedSearch();
+    super.dispose();
   }
 
   void _resetSearch() {
@@ -209,5 +325,15 @@ class MusicSearchController extends ChangeNotifier {
     _isSearching = false;
     _isLoadingMore = false;
     notifyListeners();
+  }
+
+  void _completePendingDebouncedSearch([Completer<void>? completer]) {
+    final Completer<void>? target = completer ?? _pendingDebouncedSearch;
+    if (target != null && !target.isCompleted) {
+      target.complete();
+    }
+    if (identical(_pendingDebouncedSearch, target)) {
+      _pendingDebouncedSearch = null;
+    }
   }
 }

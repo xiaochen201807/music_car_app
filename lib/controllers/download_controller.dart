@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../free_music_api.dart';
 import '../models/cached_track.dart';
 import '../services/download_service.dart';
+import '../services/app_telemetry.dart';
 
 abstract class DownloadControllerBackend {
   List<CachedTrack> getAllCachedTracks();
@@ -52,13 +53,17 @@ class DownloadController extends ChangeNotifier {
   DownloadController({
     required DownloadControllerBackend backend,
     required DownloadQualityClient qualityClient,
+    AppTelemetry? telemetry,
   }) : _backend = backend,
-       _qualityClient = qualityClient;
+       _qualityClient = qualityClient,
+       _telemetry = telemetry ?? AppTelemetry.instance;
 
   final DownloadControllerBackend _backend;
   final DownloadQualityClient _qualityClient;
+  final AppTelemetry _telemetry;
   final List<StreamSubscription<double>> _downloadSubscriptions =
       <StreamSubscription<double>>[];
+  final Map<String, Future<void>> _activeDownloads = <String, Future<void>>{};
 
   Set<String> get downloadedSongKeys {
     return _backend
@@ -87,6 +92,28 @@ class DownloadController extends ChangeNotifier {
     FreeMusicSong song, {
     required String preferredBitrate,
   }) async {
+    final String key = '${song.source}_${song.id}';
+    final Future<void>? active = _activeDownloads[key];
+    if (active != null) {
+      return active;
+    }
+    final Future<void> task = _downloadSong(
+      song,
+      preferredBitrate: preferredBitrate,
+    );
+    _activeDownloads[key] = task;
+    try {
+      await task;
+    } finally {
+      _activeDownloads.remove(key);
+    }
+  }
+
+  Future<void> _downloadSong(
+    FreeMusicSong song, {
+    required String preferredBitrate,
+  }) async {
+    final Stopwatch stopwatch = Stopwatch()..start();
     List<FreeMusicQuality> qualities = const <FreeMusicQuality>[];
     try {
       final FreeMusicQualityResult result = await _qualityClient.fetchQualities(
@@ -108,17 +135,42 @@ class DownloadController extends ChangeNotifier {
           (double progress) {
             if (progress >= 1.0 && !downloadCompleter.isCompleted) {
               downloadCompleter.complete();
+              _telemetry.record(
+                'download_track',
+                duration: stopwatch.elapsed,
+                attributes: <String, Object?>{
+                  'source': song.source,
+                  'quality': targetQuality.bitrate,
+                },
+              );
               notifyListeners();
             }
           },
           onError: (Object error, StackTrace stackTrace) {
             if (!downloadCompleter.isCompleted) {
+              _telemetry.record(
+                'download_track.error',
+                duration: stopwatch.elapsed,
+                attributes: <String, Object?>{
+                  'source': song.source,
+                  'quality': targetQuality.bitrate,
+                },
+                error: error,
+              );
               downloadCompleter.completeError(error, stackTrace);
             }
           },
           onDone: () {
             if (!downloadCompleter.isCompleted) {
               downloadCompleter.complete();
+              _telemetry.record(
+                'download_track',
+                duration: stopwatch.elapsed,
+                attributes: <String, Object?>{
+                  'source': song.source,
+                  'quality': targetQuality.bitrate,
+                },
+              );
               notifyListeners();
             }
           },
@@ -145,6 +197,7 @@ class DownloadController extends ChangeNotifier {
       unawaited(subscription.cancel());
     }
     _downloadSubscriptions.clear();
+    _activeDownloads.clear();
     super.dispose();
   }
 }

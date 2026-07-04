@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'free_music_api.dart';
 import 'models/cached_track.dart';
+import 'services/app_telemetry.dart';
 import 'services/app_settings_controller.dart';
 import 'services/download_service.dart';
 import 'services/logger_service.dart';
@@ -225,10 +226,12 @@ class NativeAudioController {
     FreeMusicApi? api,
     SharedPreferences? preferences,
     DownloadService? downloadService,
+    AppTelemetry? telemetry,
   }) : _player = player ?? JustAudioNativePlayer(),
        _api = api ?? FreeMusicApi(),
        _downloadService = downloadService,
        _preferences = preferences,
+       _telemetry = telemetry ?? AppTelemetry.instance,
        _logger = Logger(),
        _errorTracker = PlaybackErrorTracker() {
     _updatePlaybackContext();
@@ -241,6 +244,7 @@ class NativeAudioController {
   final FreeMusicApi _api;
   final DownloadService? _downloadService;
   final SharedPreferences? _preferences;
+  final AppTelemetry _telemetry;
   final Logger _logger;
   final PlaybackErrorTracker _errorTracker;
   late final Future<void> _restoreFuture;
@@ -318,12 +322,31 @@ class NativeAudioController {
 
   Future<bool> syncFromProbe(PlayerProbeSnapshot snapshot) async {
     await _restoreFuture;
+    final Stopwatch stopwatch = Stopwatch()..start();
+    _telemetry.record(
+      'play_snapshot_request',
+      attributes: <String, Object?>{
+        'source': snapshot.song?.source,
+        'queueLength': snapshot.playlist.length,
+        'index': snapshot.currentIndex,
+      },
+    );
     _syncQueue(snapshot);
     _wantsPlayback = snapshot.playing;
     final String audioUrl = await _resolveAudioUrl(snapshot);
     if (audioUrl.isEmpty) {
       debugPrint(
         '[native-audio] probe ignored: no audio URL for ${snapshot.debugTitle}',
+      );
+      _telemetry.record(
+        'play_request_to_ready.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'source': snapshot.song?.source,
+          'queueLength': snapshot.playlist.length,
+          'index': snapshot.currentIndex,
+        },
+        error: 'empty_audio_url',
       );
       return false;
     }
@@ -342,6 +365,16 @@ class NativeAudioController {
           stackTrace,
           previousLoadedUrl: previousLoadedUrl,
           previousLoadedSnapshot: previousLoadedSnapshot,
+        );
+        _telemetry.record(
+          'play_request_to_ready.error',
+          duration: stopwatch.elapsed,
+          attributes: <String, Object?>{
+            'source': snapshot.song?.source,
+            'queueLength': snapshot.playlist.length,
+            'index': snapshot.currentIndex,
+          },
+          error: error,
         );
         return false;
       }
@@ -366,8 +399,27 @@ class NativeAudioController {
         previousLoadedUrl: previousLoadedUrl,
         previousLoadedSnapshot: previousLoadedSnapshot,
       );
+      _telemetry.record(
+        'play_request_to_ready.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'source': snapshot.song?.source,
+          'queueLength': snapshot.playlist.length,
+          'index': snapshot.currentIndex,
+        },
+        error: error,
+      );
       return false;
     }
+    _telemetry.record(
+      'play_request_to_ready',
+      duration: stopwatch.elapsed,
+      attributes: <String, Object?>{
+        'source': snapshot.song?.source,
+        'queueLength': snapshot.playlist.length,
+        'index': snapshot.currentIndex,
+      },
+    );
     return true;
   }
 
@@ -453,6 +505,14 @@ class NativeAudioController {
   Future<bool> playSong(FreeMusicSong song) async {
     await _restoreFuture;
     _logger.info('Playing: ${song.name} - ${song.artist}');
+    final Stopwatch stopwatch = Stopwatch()..start();
+    _telemetry.record(
+      'play_request',
+      attributes: <String, Object?>{
+        'source': song.source,
+        'duration': song.duration,
+      },
+    );
 
     final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
       audioUrl: '',
@@ -468,9 +528,26 @@ class NativeAudioController {
 
     if (handled) {
       _errorTracker.recordSuccess();
+      _telemetry.record(
+        'play_request_to_ready',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'source': song.source,
+          'queueLength': _playlist.length,
+        },
+      );
     } else {
       _logger.error('Failed to play: ${song.name}');
       final bool shouldStop = _errorTracker.recordFailure(song);
+      _telemetry.record(
+        'play_request_to_ready.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'source': song.source,
+          'shouldSkip': shouldStop,
+        },
+        error: 'playback_failed',
+      );
       if (shouldStop) {
         _logger.warn('Too many failures, skipping to next');
         unawaited(skipToNext());
@@ -555,6 +632,7 @@ class NativeAudioController {
     // projection reading this same queue — silently stall. We fall through to
     // [_resolveViaSourceSwitch] instead.
     final String preferredBitrate = await getPreferredBitrate();
+    final Stopwatch stopwatch = Stopwatch()..start();
     try {
       final FreeMusicResolvedUrl? resolved = await _api
           .resolveSongUrl(song, bitrate: preferredBitrate)
@@ -562,13 +640,38 @@ class NativeAudioController {
       final String url = resolved?.url ?? '';
       if (url.isNotEmpty) {
         debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
+        _telemetry.record(
+          'url_resolve',
+          duration: stopwatch.elapsed,
+          attributes: <String, Object?>{
+            'source': song.source,
+            'bitrate': preferredBitrate,
+          },
+        );
         return url;
       }
       _logger.warn(
         'Resolve empty for ${snapshot.debugTitle}, trying source switch',
       );
+      _telemetry.record(
+        'url_resolve.empty',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'source': song.source,
+          'bitrate': preferredBitrate,
+        },
+      );
     } catch (error) {
       _logger.error('Resolve failed for ${snapshot.debugTitle}', error: error);
+      _telemetry.record(
+        'url_resolve.error',
+        duration: stopwatch.elapsed,
+        attributes: <String, Object?>{
+          'source': song.source,
+          'bitrate': preferredBitrate,
+        },
+        error: error,
+      );
     }
     return _resolveViaSourceSwitch(song, snapshot, preferredBitrate);
   }
@@ -588,6 +691,7 @@ class NativeAudioController {
       if (target == song.source) {
         continue;
       }
+      final Stopwatch stopwatch = Stopwatch()..start();
       try {
         final FreeMusicSourceSwitch? matched = await _api
             .switchSource(song, target: target)
@@ -604,10 +708,25 @@ class NativeAudioController {
             '[native-audio] resolved ${snapshot.debugTitle} via $target '
             '(score ${matched.score.toStringAsFixed(2)})',
           );
+          _telemetry.record(
+            'source_fallback',
+            duration: stopwatch.elapsed,
+            attributes: <String, Object?>{
+              'from': song.source,
+              'to': target,
+              'score': matched.score,
+            },
+          );
           return url;
         }
       } catch (error) {
         debugPrint('[native-audio] source switch to $target failed: $error');
+        _telemetry.record(
+          'source_fallback.error',
+          duration: stopwatch.elapsed,
+          attributes: <String, Object?>{'from': song.source, 'to': target},
+          error: error,
+        );
       }
     }
     return '';

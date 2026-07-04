@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_car_app/controllers/download_controller.dart';
 import 'package:music_car_app/free_music_api.dart';
@@ -67,6 +69,32 @@ void main() {
     },
   );
 
+  test('downloadSong reuses an active task for the same song', () async {
+    final Completer<void> gate = Completer<void>();
+    final _FakeDownloadBackend backend = _FakeDownloadBackend(gate: gate);
+    final DownloadController controller = DownloadController(
+      backend: backend,
+      qualityClient: _FakeDownloadQualityClient(),
+    );
+
+    final Future<void> first = controller.downloadSong(
+      _song('1'),
+      preferredBitrate: '128kmp3',
+    );
+    final Future<void> second = controller.downloadSong(
+      _song('1'),
+      preferredBitrate: '128kmp3',
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.downloadedQualities, hasLength(1));
+
+    gate.complete();
+    await Future.wait(<Future<void>>[first, second]);
+
+    controller.dispose();
+  });
+
   test('downloadSong forwards stream errors', () async {
     final _FakeDownloadBackend backend = _FakeDownloadBackend(
       downloadError: StateError('disk full'),
@@ -108,10 +136,12 @@ class _FakeDownloadBackend implements DownloadControllerBackend {
   _FakeDownloadBackend({
     List<CachedTrack> tracks = const <CachedTrack>[],
     this.downloadError,
+    this.gate,
   }) : _tracks = tracks;
 
   final List<CachedTrack> _tracks;
   final Object? downloadError;
+  final Completer<void>? gate;
   final List<FreeMusicQuality> downloadedQualities = <FreeMusicQuality>[];
   final List<String> deletedKeys = <String>[];
 
@@ -124,6 +154,10 @@ class _FakeDownloadBackend implements DownloadControllerBackend {
     final Object? error = downloadError;
     if (error != null) {
       return Stream<double>.error(error);
+    }
+    final Completer<void>? currentGate = gate;
+    if (currentGate != null) {
+      return Stream<double>.fromFuture(currentGate.future.then((_) => 1.0));
     }
     return Stream<double>.fromIterable(<double>[1.0]);
   }

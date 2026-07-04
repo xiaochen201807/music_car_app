@@ -17,6 +17,7 @@ import 'models/playback_ui_state.dart';
 import 'native_audio_controller.dart';
 import 'services/app_installer_service.dart';
 import 'services/app_settings_controller.dart';
+import 'services/app_telemetry.dart';
 import 'controllers/download_controller.dart';
 import 'controllers/library_controller.dart';
 import 'controllers/music_search_controller.dart';
@@ -232,10 +233,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   late final TrackMetadataController _trackMetadataController;
   late final PlatformMediaBridge _mediaBridge;
   final FreeMusicApi _freeMusicApi = FreeMusicApi();
+  final AppTelemetry _telemetry = AppTelemetry.instance;
   final TextEditingController _searchController = TextEditingController();
   final UpdateCheckService _updateCheckService = UpdateCheckService();
   OverlayEntry? _activeToastEntry;
-  Timer? _searchDebounceTimer;
   CarLifePlaybackContext? _pendingSyncContext;
   final AppInstallerService _appInstallerService = const AppInstallerService();
   final CarLifeService _carLifeService = const CarLifeService();
@@ -405,7 +406,6 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _queueController.dispose();
     _activeToastEntry?.remove();
     _activeToastEntry = null;
-    _searchDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -647,21 +647,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _searchSongs() async {
-    _searchDebounceTimer?.cancel();
     final String query = _searchController.text.trim();
-    if (query.isEmpty) {
-      await _musicSearchController.searchSongs(
-        query,
-        sources: _activeSourceIds,
-      );
-      return;
-    }
-
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-      unawaited(
-        _musicSearchController.searchSongs(query, sources: _activeSourceIds),
-      );
-    });
+    await _musicSearchController.searchSongsDebounced(
+      query,
+      sources: _activeSourceIds,
+    );
   }
 
   Future<void> _loadMoreSearchResults() async {
@@ -1908,6 +1898,22 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       _syncCarLifePlaybackContext(showResult: showResult);
   Future<void> refreshCarLifeStatus() => _refreshCarLifeStatus();
   Future<void> checkForUpdate() => _checkForUpdate();
+
+  Future<void> copyDiagnostics() async {
+    final String payload = _telemetry.exportJson(
+      app: <String, Object?>{
+        'version': '1.0.73',
+        'build': 10073,
+        'currentSource': _currentSong?.source,
+        'queueLength': _playbackQueue.length,
+        'selectedQueueIndex': _selectedQueueIndex,
+        'playbackMode': playbackMode.storageValue,
+        'preferredBitrate': preferredBitrate,
+      },
+    );
+    await Clipboard.setData(ClipboardData(text: payload));
+    _showToast('诊断信息已复制');
+  }
 
   void openDownloads() {
     Navigator.of(context).push(

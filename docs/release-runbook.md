@@ -9,6 +9,17 @@ GitHub Actions is the release authority.
 2. Confirm `Android APK` on `main` is green.
 3. Confirm required secrets and variables are present in the target repository.
 4. Choose the release version as `vX.Y.Z`.
+5. Run local quality checks that do not create release packages:
+
+```sh
+dart run scripts/app_quality_gate.dart
+flutter analyze
+flutter test
+```
+
+6. For user-facing release candidates, complete
+   `docs/device-validation-matrix.md` and record any exception in
+   `docs/work-log.md`.
 
 ## Tag Release
 

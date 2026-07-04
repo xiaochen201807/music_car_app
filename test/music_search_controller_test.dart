@@ -117,6 +117,33 @@ void main() {
     controller.dispose();
   });
 
+  test('debounced search only executes the latest query', () async {
+    final _FakeMusicSearchClient client = _FakeMusicSearchClient();
+    final MusicSearchController controller = MusicSearchController(
+      client: client,
+      searchDebounce: const Duration(milliseconds: 10),
+    );
+    client.searchResults.add(
+      FreeMusicSearchResult(
+        songs: <FreeMusicSong>[_song('2')],
+        hasMore: false,
+        page: 0,
+      ),
+    );
+
+    final Future<void> first = controller.searchSongsDebounced('old');
+    final Future<void> second = controller.searchSongsDebounced('new');
+
+    await first;
+    await second;
+
+    expect(client.searchCalls, hasLength(1));
+    expect(client.searchCalls.single.query, 'new');
+    expect(controller.searchResults.single.id, '2');
+
+    controller.dispose();
+  });
+
   test('loadMore appends the next page and keeps original query', () async {
     final _FakeMusicSearchClient client = _FakeMusicSearchClient();
     final MusicSearchController controller = MusicSearchController(
