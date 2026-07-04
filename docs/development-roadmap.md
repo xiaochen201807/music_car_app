@@ -36,6 +36,8 @@ native audio foundation:
    remains.
 8. `[~]` iOS Now Playing and remote command behavior are wired through
    background audio/session dependencies, but still need real-device validation.
+   The optional Flutter CarPlay plugin is currently disabled because the
+   GitHub-hosted Xcode SDK rejects its current Swift CarPlay API usage.
 
 ## Target Architecture
 
@@ -76,8 +78,8 @@ The implementation sequence is now gated as follows:
    timeouts, and retry behavior. Manual quality tiers are wired, player-load
    failures no longer poison later playback, and resolver/source-switch paths
    preserve the preferred bitrate; real-service validation remains.
-4. `[~]` Keep existing CarLife SDK work, but resume CarLife product integration
-   only after the core app is usable without projection.
+4. `[~]` Keep existing Android CarLife SDK work, but resume car-projection
+   product integration only after the core app is usable without projection.
 
 ## Musify Reference Optimization Track
 

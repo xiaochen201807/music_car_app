@@ -3,6 +3,27 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-04 - CarPlay Plugin Removal For iOS CI
+
+Implemented in this increment:
+
+- Removed the `flutter_carplay` package from Flutter dependencies after the
+  tag-triggered iOS unsigned IPA workflow failed inside the plugin's Swift
+  sources on GitHub-hosted Xcode.
+- Kept the app-side `CarPlayService` as a no-op compatibility shim so startup
+  paths remain stable while the visible car/projection entry stays hidden.
+- Bumped the app version to `1.0.67+10067` for the follow-up release tag.
+
+Verification in this increment:
+
+- GitHub Actions run `28699989567` for tag `v1.0.66` failed at
+  `Build Unsigned iOS Device App` with missing `CPListImageRowItem*` CarPlay
+  symbols from `flutter_carplay 1.5.0`.
+- `flutter pub get`
+- `dart format lib/main.dart lib/services/carplay_service.dart`
+- No local release package was built; packaging remains delegated to GitHub
+  Actions via the next tag.
+
 ## 2026-07-04 - iOS Deployment Target CI Fix
 
 Implemented in this increment:
