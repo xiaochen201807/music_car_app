@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../theme/design_tokens.dart';
@@ -29,12 +27,8 @@ class GlassCard extends StatelessWidget {
     final BorderRadiusGeometry borderRadius = BorderRadius.circular(radius);
     final bool isLight = Theme.of(context).brightness == Brightness.light;
     final bool ancestorHasBlur = GlassBackdropScope.hasBlur(context);
-    final bool blurDisabled =
-        GlassPerformanceMode.of(context) || ancestorHasBlur;
-    final double effectiveBlur = isLight || blurDisabled ? 0 : blur;
-    final List<BoxShadow> effectiveShadows = isLight
-        ? const <BoxShadow>[]
-        : shadows;
+    final double effectiveBlur = 0;
+    final List<BoxShadow> effectiveShadows = const <BoxShadow>[];
     final BoxDecoration decoration = BoxDecoration(
       color: isLight
           ? AppColor.paperGlassTint
@@ -50,46 +44,12 @@ class GlassCard extends StatelessWidget {
       height: height,
       padding: padding,
       decoration: decoration,
-      child: Stack(
-        children: <Widget>[
-          if (!isLight)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: borderRadius,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[AppColor.sheenTop, Colors.transparent],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          child,
-        ],
-      ),
+      child: child,
     );
-
-    final Widget card = isLight
-        ? content
-        : ClipRRect(
-            borderRadius: borderRadius,
-            child: effectiveBlur <= 0
-                ? content
-                : BackdropFilter(
-                    filter: ImageFilter.blur(
-                      sigmaX: effectiveBlur,
-                      sigmaY: effectiveBlur,
-                    ),
-                    child: content,
-                  ),
-          );
 
     return GlassBackdropScope(
       hasActiveBlur: ancestorHasBlur || effectiveBlur > 0,
-      child: card,
+      child: content,
     );
   }
 }

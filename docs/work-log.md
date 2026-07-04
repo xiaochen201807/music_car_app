@@ -1736,3 +1736,31 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-04 - Dark Mode Card Fill Correction
+
+Implemented in this increment:
+
+- Removed the dark-mode `GlassCard` blur and top sheen layer that caused gray
+  fill bands on settings cards and segmented controls.
+- Changed shared card rendering to solid tokenized surfaces with lightweight
+  borders, avoiding clipped internal shadow artifacts across light and dark
+  modes.
+- Reduced the dark hairline stroke opacity so panel edges no longer read as
+  thick double outlines.
+- Bumped the app version to `1.0.71+10071` for the follow-up tag release.
+- Updated the visible settings version string to `1.0.71`.
+
+Verification in this increment:
+
+- `dart format lib/theme/design_tokens.dart lib/widgets/glass_card.dart lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `rg -n "Color\\(0x" lib -g '!lib/theme/design_tokens.dart' -g '!build/**'`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

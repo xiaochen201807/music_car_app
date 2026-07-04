@@ -26,7 +26,7 @@ class AppColor {
   static const paperOnAccentContainer = Color(0xFF123B71);
 
   // Glass borders and highlights.
-  static const strokeHairline = Color(0x1FFFFFFF);
+  static const strokeHairline = Color(0x14FFFFFF);
   static const strokeStrong = Color(0x2EFFFFFF);
   static const sheenTop = Color(0x1AFFFFFF);
 
