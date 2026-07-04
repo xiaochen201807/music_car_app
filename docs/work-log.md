@@ -1707,3 +1707,32 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-04 - Light Mode Fill Polish
+
+Implemented in this increment:
+
+- Changed `GlassCard` light-mode rendering to use solid paper surfaces without
+  backdrop blur, inner sheen, or clipped internal shadows.
+- Flattened the light-mode search field and submit pill so the search page no
+  longer shows muddy gray fill bands.
+- Reworked library metric tiles, section icons, and action pills to use tokenized
+  solid surfaces in light mode instead of nested glass cards.
+- Reworked empty-state message icons, settings profile icons, settings rows, and
+  selected quality rows to use light-mode solid surface fills.
+- Bumped the app version to `1.0.70+10070` for the follow-up tag release.
+- Updated the visible settings version string to `1.0.70`.
+
+Verification in this increment:
+
+- `dart format lib/widgets/glass_card.dart lib/widgets/portrait_segmented_tab.dart lib/shared/portrait_message_card.dart lib/shared/portrait_surface.dart lib/features/search/portrait_search_view.dart lib/features/library/portrait_library_view.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `rg -n "Color\\(0x" lib -g '!lib/theme/design_tokens.dart' -g '!build/**'`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

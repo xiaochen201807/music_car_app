@@ -145,7 +145,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.68 · 车载音乐播放器',
+                subtitle: '版本 1.0.70 · 车载音乐播放器',
               ),
             ],
           ),
@@ -163,6 +163,7 @@ class PortraitSettingsView extends StatelessWidget {
   }) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final bool isSelected = _qualityTier(preferredBitrate) == value;
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.tile),
@@ -177,7 +178,9 @@ class PortraitSettingsView extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? colors.primaryContainer.withValues(alpha: 0.12)
+              ? isLight
+                    ? colors.primaryContainer
+                    : colors.primaryContainer.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.tile),
           border: Border.all(
@@ -195,7 +198,11 @@ class PortraitSettingsView extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(AppRadius.control),
                 color: isSelected
-                    ? colors.primary.withValues(alpha: 0.16)
+                    ? isLight
+                          ? colors.primaryContainer
+                          : colors.primary.withValues(alpha: 0.16)
+                    : isLight
+                    ? colors.surfaceContainer
                     : colors.surfaceContainerHighest.withValues(alpha: 0.3),
               ),
               child: Icon(
@@ -266,6 +273,7 @@ class _SettingsProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     return GlassCard(
       radius: AppRadius.panel,
       padding: const EdgeInsets.all(AppSpace.lg),
@@ -277,12 +285,14 @@ class _SettingsProfileCard extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.tile),
-              color: colors.onSurface.withValues(alpha: 0.08),
+              color: isLight
+                  ? colors.primaryContainer
+                  : colors.onSurface.withValues(alpha: 0.08),
               border: Border.all(color: colors.outline),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.music_note_rounded,
-              color: AppColor.textPrimary,
+              color: colors.primary,
               size: 28,
             ),
           ),
@@ -476,6 +486,7 @@ class _SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final Widget row = Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpace.md,
@@ -488,7 +499,9 @@ class _SettingsRow extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.control),
-              color: colors.primary.withValues(alpha: 0.12),
+              color: isLight
+                  ? colors.primaryContainer
+                  : colors.primary.withValues(alpha: 0.12),
             ),
             child: Icon(icon, color: colors.primary, size: 20),
           ),

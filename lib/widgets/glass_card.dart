@@ -31,70 +31,65 @@ class GlassCard extends StatelessWidget {
     final bool ancestorHasBlur = GlassBackdropScope.hasBlur(context);
     final bool blurDisabled =
         GlassPerformanceMode.of(context) || ancestorHasBlur;
-    final double effectiveBlur = blurDisabled ? 0 : blur;
-    final List<BoxShadow> effectiveShadows = isLight && shadows.isNotEmpty
-        ? const <BoxShadow>[
-            BoxShadow(
-              color: AppColor.paperShadow,
-              blurRadius: 28,
-              offset: Offset(0, 14),
-            ),
-          ]
+    final double effectiveBlur = isLight || blurDisabled ? 0 : blur;
+    final List<BoxShadow> effectiveShadows = isLight
+        ? const <BoxShadow>[]
         : shadows;
+    final BoxDecoration decoration = BoxDecoration(
+      color: isLight
+          ? AppColor.paperGlassTint
+          : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
+      borderRadius: borderRadius,
+      border: Border.all(
+        color: isLight ? AppColor.paperStrokeHairline : AppColor.strokeHairline,
+      ),
+      boxShadow: effectiveShadows,
+    );
     final Widget content = Container(
       width: width,
       height: height,
       padding: padding,
-      decoration: BoxDecoration(
-        color: isLight
-            ? AppColor.paperGlassTint.withValues(alpha: 0.70)
-            : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
-        borderRadius: borderRadius,
-        border: Border.all(
-          color: isLight
-              ? AppColor.paperStrokeHairline
-              : AppColor.strokeHairline,
-        ),
-        boxShadow: effectiveShadows,
-      ),
+      decoration: decoration,
       child: Stack(
         children: <Widget>[
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: borderRadius,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      isLight ? AppColor.paperSheenTop : AppColor.sheenTop,
-                      Colors.transparent,
-                    ],
+          if (!isLight)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: borderRadius,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[AppColor.sheenTop, Colors.transparent],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
           child,
         ],
       ),
     );
 
+    final Widget card = isLight
+        ? content
+        : ClipRRect(
+            borderRadius: borderRadius,
+            child: effectiveBlur <= 0
+                ? content
+                : BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: effectiveBlur,
+                      sigmaY: effectiveBlur,
+                    ),
+                    child: content,
+                  ),
+          );
+
     return GlassBackdropScope(
       hasActiveBlur: ancestorHasBlur || effectiveBlur > 0,
-      child: ClipRRect(
-        borderRadius: borderRadius,
-        child: effectiveBlur <= 0
-            ? content
-            : BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: effectiveBlur,
-                  sigmaY: effectiveBlur,
-                ),
-                child: content,
-              ),
-      ),
+      child: card,
     );
   }
 }

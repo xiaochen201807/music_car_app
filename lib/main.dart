@@ -306,8 +306,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.69 (Build 10069)');
-    debugPrint('✅ Fixes: Spotify/BMW 配色 + 二级页面按钮统一');
+    debugPrint('🚀 App Version: 1.0.70 (Build 10070)');
+    debugPrint('✅ Fixes: 浅色模式填充和玻璃层级修复');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(

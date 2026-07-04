@@ -16,12 +16,16 @@ class PortraitSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final Widget innerContent = Container(
       padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
         color: selected
-            ? colors.primaryContainer.withValues(alpha: 0.24)
+            ? isLight
+                  ? colors.primaryContainer
+                  : colors.primaryContainer.withValues(alpha: 0.24)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(

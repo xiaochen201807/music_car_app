@@ -354,6 +354,7 @@ class _SearchPageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final String subtitle = query.isEmpty
         ? '搜索歌曲、歌手、专辑'
         : busy
@@ -396,59 +397,109 @@ class _SearchPageHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.lg),
-          GlassCard(
+          Container(
             height: 52,
-            radius: AppRadius.pill,
             padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-            shadows: const <BoxShadow>[],
-            child: Row(
-              children: <Widget>[
-                Icon(Icons.search_rounded, size: 22, color: colors.primary),
-                const SizedBox(width: AppSpace.sm),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    autofocus: true,
-                    keyboardType: TextInputType.text,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => onSearch(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      hintText: '想听什么？',
-                      hintStyle: TextStyle(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.68),
+            decoration: BoxDecoration(
+              color: isLight
+                  ? AppColor.paperBase
+                  : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: isLight
+                    ? AppColor.paperStrokeHairline
+                    : AppColor.strokeHairline,
+              ),
+            ),
+            child: Center(
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.search_rounded, size: 22, color: colors.primary),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      autofocus: true,
+                      keyboardType: TextInputType.text,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => onSearch(),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpace.sm),
-                GlassPill(
-                  onTap: onSearch,
-                  height: 36,
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 18,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(width: AppSpace.xs),
-                      Text(
-                        '搜索',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        hintText: '想听什么？',
+                        hintStyle: TextStyle(
+                          color: colors.onSurfaceVariant.withValues(
+                            alpha: 0.68,
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSpace.sm),
+                  if (isLight)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      onTap: onSearch,
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpace.md,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.primaryContainer,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          border: Border.all(color: colors.outline),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: colors.primary,
+                            ),
+                            const SizedBox(width: AppSpace.xs),
+                            Text(
+                              '搜索',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    GlassPill(
+                      onTap: onSearch,
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: AppSpace.xs),
+                          Text(
+                            '搜索',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],

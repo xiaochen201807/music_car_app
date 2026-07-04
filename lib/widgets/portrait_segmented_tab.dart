@@ -20,6 +20,7 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
 
     final BorderRadius radius = BorderRadius.circular(AppRadius.control);
 
@@ -43,10 +44,12 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected
-                ? colors.primaryContainer.withValues(alpha: 0.65)
+                ? isLight
+                      ? colors.primaryContainer
+                      : colors.primaryContainer.withValues(alpha: 0.65)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.control - 2),
-            boxShadow: isSelected
+            boxShadow: isSelected && !isLight
                 ? <BoxShadow>[
                     BoxShadow(
                       color: colors.primary.withValues(alpha: 0.15),
@@ -91,7 +94,9 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpace.xs),
         decoration: BoxDecoration(
-          color: colors.surfaceContainer.withValues(alpha: 0.15),
+          color: isLight
+              ? colors.surfaceContainer
+              : colors.surfaceContainer.withValues(alpha: 0.15),
           borderRadius: radius,
           border: Border.all(color: colors.outline),
         ),

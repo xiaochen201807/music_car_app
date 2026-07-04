@@ -630,45 +630,70 @@ class _LibraryActionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final Color foreground = disabled
         ? colors.onSurfaceVariant
         : colors.primary;
     final double opacity = disabled
         ? AppGlass.tintAlpha + AppGlass.ribbonWhiteAlpha
         : 1;
-    final Widget pill = Opacity(
-      opacity: opacity,
-      child: GlassPill(
-        onTap: disabled ? null : onTap,
-        height: compact ? AppSpace.xl3 : AppSpace.xl4,
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? AppSpace.sm : AppSpace.md,
+    final Widget content = Row(
+      mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Icon(
+          icon,
+          size: compact ? AppSpace.lg : AppSpace.xl,
+          color: foreground,
         ),
-        child: Row(
-          mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(
-              icon,
-              size: compact ? AppSpace.lg : AppSpace.xl,
-              color: foreground,
+        const SizedBox(width: AppSpace.xs),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.caption.copyWith(
+              color: disabled ? colors.onSurfaceVariant : colors.onSurface,
             ),
-            const SizedBox(width: AppSpace.xs),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppType.caption.copyWith(
-                  color: disabled ? colors.onSurfaceVariant : colors.onSurface,
+          ),
+        ),
+      ],
+    );
+    final Widget pill = isLight
+        ? Opacity(
+            opacity: opacity,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              onTap: disabled ? null : onTap,
+              child: Container(
+                height: compact ? AppSpace.xl3 : AppSpace.xl4,
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? AppSpace.sm : AppSpace.md,
                 ),
+                decoration: BoxDecoration(
+                  color: disabled
+                      ? colors.surfaceContainer
+                      : colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  border: Border.all(color: colors.outline),
+                ),
+                child: content,
               ),
             ),
-          ],
-        ),
-      ),
-    );
+          )
+        : Opacity(
+            opacity: opacity,
+            child: GlassPill(
+              onTap: disabled ? null : onTap,
+              height: compact ? AppSpace.xl3 : AppSpace.xl4,
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? AppSpace.sm : AppSpace.md,
+              ),
+              child: content,
+            ),
+          );
 
     if (!expanded) return pill;
     return SizedBox(width: double.infinity, child: pill);
@@ -791,10 +816,13 @@ class _LibraryMetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
-    return GlassCard(
-      radius: AppRadius.tile,
+    return Container(
       padding: const EdgeInsets.all(AppSpace.sm),
-      shadows: const <BoxShadow>[],
+      decoration: BoxDecoration(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+        border: Border.all(color: colors.outline),
+      ),
       child: Row(
         children: <Widget>[
           Icon(icon, color: colors.primary, size: 20),
@@ -848,12 +876,14 @@ class _LibrarySectionIntro extends StatelessWidget {
     final ColorScheme colors = theme.colorScheme;
     return Row(
       children: <Widget>[
-        GlassCard(
+        Container(
           width: AppSpace.xl4 + AppSpace.xs,
           height: AppSpace.xl4 + AppSpace.xs,
-          radius: AppRadius.control,
-          padding: EdgeInsets.zero,
-          shadows: const <BoxShadow>[],
+          decoration: BoxDecoration(
+            color: colors.primaryContainer,
+            borderRadius: BorderRadius.circular(AppRadius.control),
+            border: Border.all(color: colors.outline),
+          ),
           child: Icon(icon, color: colors.primary, size: AppSpace.xl2),
         ),
         const SizedBox(width: AppSpace.md),
