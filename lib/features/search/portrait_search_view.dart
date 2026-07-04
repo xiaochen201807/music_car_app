@@ -405,11 +405,6 @@ class _SearchPageHeader extends StatelessWidget {
                   ? AppColor.paperBase
                   : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
               borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: isLight
-                    ? AppColor.paperStrokeHairline
-                    : AppColor.strokeHairline,
-              ),
             ),
             child: Center(
               child: Row(
@@ -451,7 +446,6 @@ class _SearchPageHeader extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: colors.primaryContainer,
                           borderRadius: BorderRadius.circular(AppRadius.pill),
-                          border: Border.all(color: colors.outline),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,

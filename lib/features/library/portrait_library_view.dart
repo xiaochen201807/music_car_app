@@ -677,7 +677,6 @@ class _LibraryActionPill extends StatelessWidget {
                       ? colors.surfaceContainer
                       : colors.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(color: colors.outline),
                 ),
                 child: content,
               ),
@@ -821,7 +820,6 @@ class _LibraryMetricTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(AppRadius.tile),
-        border: Border.all(color: colors.outline),
       ),
       child: Row(
         children: <Widget>[
@@ -882,7 +880,6 @@ class _LibrarySectionIntro extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.primaryContainer,
             borderRadius: BorderRadius.circular(AppRadius.control),
-            border: Border.all(color: colors.outline),
           ),
           child: Icon(icon, color: colors.primary, size: AppSpace.xl2),
         ),

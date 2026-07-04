@@ -95,10 +95,10 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpace.xs),
         decoration: BoxDecoration(
           color: isLight
-              ? colors.surfaceContainer
+              ? AppColor.paperGlassTint
               : colors.surfaceContainer.withValues(alpha: 0.15),
           borderRadius: radius,
-          border: Border.all(color: colors.outline),
+          border: isLight ? null : Border.all(color: colors.outline),
         ),
         child: Row(
           mainAxisSize: expands ? MainAxisSize.max : MainAxisSize.min,

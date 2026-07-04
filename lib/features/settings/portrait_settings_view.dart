@@ -88,6 +88,7 @@ class PortraitSettingsView extends StatelessWidget {
           _SettingsSection(
             title: '外观',
             subtitle: '界面跟随当前使用环境',
+            framed: false,
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
@@ -145,7 +146,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.71 · 车载音乐播放器',
+                subtitle: '版本 1.0.72 · 车载音乐播放器',
               ),
             ],
           ),
@@ -183,12 +184,6 @@ class PortraitSettingsView extends StatelessWidget {
                     : colors.primaryContainer.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(
-            color: isSelected
-                ? colors.primary.withValues(alpha: 0.3)
-                : Colors.transparent,
-            width: 1.0,
-          ),
         ),
         child: Row(
           children: <Widget>[
@@ -288,7 +283,6 @@ class _SettingsProfileCard extends StatelessWidget {
               color: isLight
                   ? colors.primaryContainer
                   : colors.onSurface.withValues(alpha: 0.08),
-              border: Border.all(color: colors.outline),
             ),
             child: Icon(
               Icons.music_note_rounded,
@@ -415,11 +409,13 @@ class _SettingsSection extends StatelessWidget {
     required this.title,
     required this.children,
     this.subtitle,
+    this.framed = true,
   });
 
   final String title;
   final String? subtitle;
   final List<Widget> children;
+  final bool framed;
 
   @override
   Widget build(BuildContext context) {
@@ -456,12 +452,15 @@ class _SettingsSection extends StatelessWidget {
             ],
           ),
         ),
-        GlassCard(
-          radius: AppRadius.panel,
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-          shadows: const <BoxShadow>[],
-          child: Column(children: children),
-        ),
+        if (framed)
+          GlassCard(
+            radius: AppRadius.panel,
+            padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+            shadows: const <BoxShadow>[],
+            child: Column(children: children),
+          )
+        else
+          Column(children: children),
       ],
     );
   }

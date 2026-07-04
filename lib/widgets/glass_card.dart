@@ -26,17 +26,20 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final BorderRadiusGeometry borderRadius = BorderRadius.circular(radius);
     final bool isLight = Theme.of(context).brightness == Brightness.light;
-    final bool ancestorHasBlur = GlassBackdropScope.hasBlur(context);
-    final double effectiveBlur = 0;
+    final bool ancestorHasFrame = GlassBackdropScope.hasBlur(context);
     final List<BoxShadow> effectiveShadows = const <BoxShadow>[];
     final BoxDecoration decoration = BoxDecoration(
       color: isLight
           ? AppColor.paperGlassTint
           : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),
       borderRadius: borderRadius,
-      border: Border.all(
-        color: isLight ? AppColor.paperStrokeHairline : AppColor.strokeHairline,
-      ),
+      border: ancestorHasFrame
+          ? null
+          : Border.all(
+              color: isLight
+                  ? AppColor.paperStrokeHairline
+                  : AppColor.strokeHairline,
+            ),
       boxShadow: effectiveShadows,
     );
     final Widget content = Container(
@@ -47,10 +50,7 @@ class GlassCard extends StatelessWidget {
       child: child,
     );
 
-    return GlassBackdropScope(
-      hasActiveBlur: ancestorHasBlur || effectiveBlur > 0,
-      child: content,
-    );
+    return GlassBackdropScope(hasActiveBlur: true, child: content);
   }
 }
 

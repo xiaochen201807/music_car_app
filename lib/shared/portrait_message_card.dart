@@ -36,7 +36,6 @@ class PortraitMessageCard extends StatelessWidget {
                   ? colors.primaryContainer
                   : colors.primaryContainer.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(color: colors.outline),
             ),
             child: Icon(icon, size: AppSpace.xl2, color: colors.primary),
           ),

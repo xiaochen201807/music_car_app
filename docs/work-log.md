@@ -1764,3 +1764,31 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-04 - Settings Appearance Segmented Control Polish
+
+Implemented in this increment:
+
+- Removed the extra section frame around the settings appearance segmented
+  control so light mode no longer shows a double curved top border.
+- Changed the light-mode segmented control to use a flat paper surface without a
+  separate gray outline.
+- Normalized nested surfaces across settings, search, library, empty states, and
+  portrait surfaces so inner controls do not draw an extra border when an outer
+  frame already provides the boundary.
+- Bumped the app version to `1.0.72+10072` for the follow-up tag release.
+- Updated the visible settings version string to `1.0.72`.
+
+Verification in this increment:
+
+- `dart format lib/features/settings/portrait_settings_view.dart lib/widgets/portrait_segmented_tab.dart lib/main.dart`
+- `git diff --check`
+- `rg -n "Color\\(0x" lib -g '!lib/theme/design_tokens.dart' -g '!build/**'`
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.
