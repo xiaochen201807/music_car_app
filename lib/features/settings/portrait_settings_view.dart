@@ -121,26 +121,6 @@ class PortraitSettingsView extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.lg),
-          _SettingsSection(
-            title: '车机',
-            children: <Widget>[
-              _SettingsRow(
-                icon: carLifeStatus.available
-                    ? Icons.link_rounded
-                    : Icons.link_off_rounded,
-                title: '百度 CarLife',
-                subtitle: carLifeStatus.available
-                    ? '已连接车机'
-                    : '未连接 · ${carLifeStatus.reason}',
-                trailing: carLifeSyncing
-                    ? LuxuryLoadingIndicator(size: 14)
-                    : const Icon(Icons.sync_rounded),
-                onTap: carLifeSyncing ? null : onSyncCarLife,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.lg),
           _SettingsSection(
             title: '应用',
             children: <Widget>[

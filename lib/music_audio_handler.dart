@@ -132,20 +132,21 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
             AndroidContentStyle.listItemHintValue,
       },
     );
-    mediaItem.add(item);
-    queueTitle.add('当前播放');
     final List<MediaItem> publishedQueue = _mediaQueueFromSnapshot(
       snapshot,
       fallbackItem: item,
     );
-    _activeQueueIndex = _queueIndexFromSnapshot(
+    final int? activeQueueIndex = _queueIndexFromSnapshot(
       snapshot,
       publishedQueue: publishedQueue,
       fallbackItem: item,
     );
+    await setUrl(url);
+    mediaItem.add(item);
+    queueTitle.add('当前播放');
+    _activeQueueIndex = activeQueueIndex;
     queue.add(publishedQueue);
     _broadcastPlaybackState(_player.playbackEvent);
-    await setUrl(url);
   }
 
   @override

@@ -72,8 +72,10 @@ The implementation sequence is now gated as follows:
    loading, empty, error, retry, playlist, queue, lyrics, and playback states.
    The Spotify-inspired portrait home and compact settings structure are now
    active.
-3. `[ ]` Harden playback reliability with quality selection, source switching,
-   timeouts, and retry behavior.
+3. `[~]` Harden playback reliability with quality selection, source switching,
+   timeouts, and retry behavior. Manual quality tiers are wired, player-load
+   failures no longer poison later playback, and resolver/source-switch paths
+   preserve the preferred bitrate; real-service validation remains.
 4. `[~]` Keep existing CarLife SDK work, but resume CarLife product integration
    only after the core app is usable without projection.
 
@@ -257,7 +259,8 @@ Exit criteria:
   playback-context sync calls.
 - `[x]` Add Android MethodChannel implementation for package probe, launch
   fallback, AppKey status, and playback-context sync.
-- `[x]` Add native UI entry card for `百度 CarLife`.
+- `[x]` Keep the CarLife service bridge available while hiding the phone-app
+  settings entry until product validation resumes.
 - `[~]` Link `Carlife_android_platformsdk_2.2.0.jar`; project AppKey,
   certification, and official integration validation are still pending.
 - `[~]` Replace the cache-only `syncPlaybackContext` placeholder with SDK

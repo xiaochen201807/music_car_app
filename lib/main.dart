@@ -305,8 +305,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.60 (Build 2024-06-12-v2)');
-    debugPrint('✅ Fixes: 锁屏播放 + 歌词串歌 + 歌词偏移 + CarLife歌词');
+    debugPrint('🚀 App Version: 1.0.66 (Build 10066)');
+    debugPrint('✅ Fixes: 播放失败恢复 + 手动音质 + 新品牌图标');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
@@ -952,15 +952,19 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
-    // 无 setState 操作，不需要全局锁；NativeAudioController 内部自有并发控制
     await setPreferredBitrate(quality.bitrate);
+    _showToast('已切换音质：${quality.name}');
     if (!mounted) return;
     final FreeMusicSong? current = _currentSong;
     if (current != null) {
       final Duration currentPosition = _playbackController.position;
-      await _playbackController.playSong(current);
+      final bool handled = await _playbackController.playSong(current);
       if (!mounted) return;
-      if (currentPosition != Duration.zero) {
+      if (!handled) {
+        _showSnack('音质已保存，当前歌曲重新加载失败');
+        return;
+      }
+      if (currentPosition > Duration.zero) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
         await _playbackController.seekNative(currentPosition);
       }
@@ -1085,6 +1089,51 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     return bestQuality;
   }
 
+  FreeMusicQuality _fallbackQualityForTier(String tier) {
+    switch (tier) {
+      case 'standard':
+        return const FreeMusicQuality(
+          name: '标准',
+          bitrate: '48kaac',
+          format: 'AAC',
+        );
+      case 'higher':
+        return const FreeMusicQuality(
+          name: '较高',
+          bitrate: '128kmp3',
+          format: 'MP3',
+        );
+      case 'extreme':
+        return const FreeMusicQuality(
+          name: '极高',
+          bitrate: '320kmp3',
+          format: 'MP3',
+        );
+      case 'lossless':
+        return const FreeMusicQuality(
+          name: '无损',
+          bitrate: 'flac',
+          format: 'FLAC',
+        );
+    }
+    return const FreeMusicQuality(name: '极高', bitrate: '320kmp3');
+  }
+
+  String _qualitySubtitle(FreeMusicQuality quality, {required bool detected}) {
+    final String detail = <String>[
+      if (quality.format.isNotEmpty) quality.format,
+      if (quality.size.isNotEmpty) quality.size,
+      if (quality.bitrate.isNotEmpty) quality.bitrate,
+    ].join(' · ');
+    if (detected && detail.isNotEmpty) {
+      return detail;
+    }
+    if (detail.isEmpty) {
+      return '保存为默认播放偏好';
+    }
+    return '请求 $detail';
+  }
+
   List<_QualitySheetOption> _qualitySheetOptions(
     List<FreeMusicQuality> qualities,
   ) {
@@ -1124,51 +1173,47 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return quality;
     }
 
-    final FreeMusicQuality? standardQuality = pickClosestLossy(
+    final FreeMusicQuality? detectedStandardQuality = pickClosestLossy(
       48,
       where: (FreeMusicQuality quality) =>
           _parseBitrateValue(quality.bitrate) < 128,
     );
-    final FreeMusicQuality? higherQuality = pickClosestLossy(
+    final FreeMusicQuality? detectedHigherQuality = pickClosestLossy(
       128,
       where: (FreeMusicQuality quality) =>
           _parseBitrateValue(quality.bitrate) >= 128 &&
           _parseBitrateValue(quality.bitrate) < 192,
     );
-    final FreeMusicQuality? extremeQuality = pickHighestLossy(
+    final FreeMusicQuality? detectedExtremeQuality = pickHighestLossy(
       where: (FreeMusicQuality quality) =>
           _parseBitrateValue(quality.bitrate) >= 192,
     );
-    final FreeMusicQuality? losslessQuality = _highestQuality(
+    final FreeMusicQuality? detectedLosslessQuality = _highestQuality(
       losslessQualities,
       const <String>{},
     );
 
+    _QualitySheetOption option(
+      String tier,
+      String label,
+      FreeMusicQuality? quality,
+    ) {
+      final bool detected = quality != null;
+      final FreeMusicQuality resolved =
+          quality ?? _fallbackQualityForTier(tier);
+      return _QualitySheetOption(
+        tier: tier,
+        label: label,
+        subtitle: _qualitySubtitle(resolved, detected: detected),
+        quality: resolved,
+      );
+    }
+
     return <_QualitySheetOption>[
-      _QualitySheetOption(
-        tier: 'standard',
-        label: '标准',
-        unavailableText: '当前歌曲暂无标准音源',
-        quality: standardQuality,
-      ),
-      _QualitySheetOption(
-        tier: 'higher',
-        label: '较高',
-        unavailableText: '当前歌曲暂无较高音源',
-        quality: higherQuality,
-      ),
-      _QualitySheetOption(
-        tier: 'extreme',
-        label: '极高',
-        unavailableText: '当前歌曲暂无极高音源',
-        quality: extremeQuality,
-      ),
-      _QualitySheetOption(
-        tier: 'lossless',
-        label: '无损',
-        unavailableText: '当前歌曲暂无无损音源',
-        quality: losslessQuality,
-      ),
+      option('standard', '标准', detectedStandardQuality),
+      option('higher', '较高', detectedHigherQuality),
+      option('extreme', '极高', detectedExtremeQuality),
+      option('lossless', '无损', detectedLosslessQuality),
     ];
   }
 
@@ -1190,101 +1235,81 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             padding: const EdgeInsets.all(AppSpace.xl3),
             child: Center(child: LuxuryLoadingIndicator()),
           );
-        } else if (error.isNotEmpty) {
-          content = Padding(
-            padding: const EdgeInsets.all(AppSpace.xl3),
-            child: Center(
-              child: Text(error, style: theme.textTheme.bodyMedium),
-            ),
-          );
-        } else if (qualities.isEmpty) {
-          content = Padding(
-            padding: const EdgeInsets.all(AppSpace.xl3),
-            child: Center(
-              child: Text(
-                '暂无可用音质',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ),
-          );
         } else {
-          final FreeMusicQuality selectedQuality = findBestQuality(
-            qualities,
-            preferredBitrate,
-          );
           final String selectedQualityTier = _qualityTierValue(
-            selectedQuality.bitrate,
-            quality: selectedQuality,
+            preferredBitrate,
           );
           final List<_QualitySheetOption> qualityOptions = _qualitySheetOptions(
             qualities,
           );
-          content = ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.xl,
-              vertical: AppSpace.md,
-            ),
-            itemCount: qualityOptions.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpace.xs),
-            itemBuilder: (BuildContext context, int index) {
-              final _QualitySheetOption option = qualityOptions[index];
-              final FreeMusicQuality? quality = option.quality;
-              final String subtitle = quality == null
-                  ? option.unavailableText
-                  : <String>[
-                      if (quality.format.isNotEmpty) quality.format,
-                      if (quality.size.isNotEmpty) quality.size,
-                      if (quality.bitrate.isNotEmpty) quality.bitrate,
-                    ].join(' · ');
-              final bool isSelected =
-                  quality != null && option.tier == selectedQualityTier;
-              return ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.control),
-                ),
-                enabled: quality != null,
-                tileColor: isSelected
-                    ? colors.primaryContainer.withValues(alpha: 0.25)
-                    : null,
-                leading: Icon(
-                  isSelected
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: quality == null
-                      ? colors.onSurfaceVariant.withValues(alpha: 0.38)
-                      : isSelected
-                      ? colors.primary
-                      : colors.onSurfaceVariant,
-                ),
-                title: Text(
-                  option.label,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                    color: quality == null
-                        ? colors.onSurfaceVariant.withValues(alpha: 0.55)
-                        : null,
+          content = Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.xl,
+                    AppSpace.sm,
+                    AppSpace.xl,
+                    AppSpace.xs,
+                  ),
+                  child: Text(
+                    '当前歌曲品质信息暂不可用，仍可手动设置默认音质。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                 ),
-                subtitle: subtitle.isNotEmpty
-                    ? Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      )
-                    : null,
-                onTap: quality == null
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                        unawaited(_changePlaybackQuality(quality));
-                      },
-              );
-            },
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.xl,
+                  vertical: AppSpace.md,
+                ),
+                itemCount: qualityOptions.length,
+                separatorBuilder: (_, _) => const SizedBox(height: AppSpace.xs),
+                itemBuilder: (BuildContext context, int index) {
+                  final _QualitySheetOption option = qualityOptions[index];
+                  final FreeMusicQuality quality = option.quality;
+                  final bool isSelected = option.tier == selectedQualityTier;
+                  return ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.control),
+                    ),
+                    tileColor: isSelected
+                        ? colors.primaryContainer.withValues(alpha: 0.25)
+                        : null,
+                    leading: Icon(
+                      isSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: isSelected
+                          ? colors.primary
+                          : colors.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      option.label,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: isSelected
+                            ? FontWeight.w900
+                            : FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      option.subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      unawaited(_changePlaybackQuality(quality));
+                    },
+                  );
+                },
+              ),
+            ],
           );
         }
 
@@ -1921,14 +1946,14 @@ class _QualitySheetOption {
   const _QualitySheetOption({
     required this.tier,
     required this.label,
-    required this.unavailableText,
+    required this.subtitle,
     required this.quality,
   });
 
   final String tier;
   final String label;
-  final String unavailableText;
-  final FreeMusicQuality? quality;
+  final String subtitle;
+  final FreeMusicQuality quality;
 }
 
 // ==========================================

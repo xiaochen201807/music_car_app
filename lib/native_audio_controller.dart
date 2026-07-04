@@ -327,22 +327,46 @@ class NativeAudioController {
       );
       return false;
     }
+    final String previousLoadedUrl = _loadedUrl;
+    final PlayerProbeSnapshot? previousLoadedSnapshot = _loadedSnapshot;
     if (_loadedUrl != audioUrl) {
+      try {
+        await _player.loadFromSnapshot(audioUrl, snapshot);
+        if (snapshot.currentTime > Duration.zero) {
+          await _player.seek(snapshot.currentTime);
+        }
+      } catch (error, stackTrace) {
+        await _recoverFailedLoad(
+          'probe load ${snapshot.debugTitle}',
+          error,
+          stackTrace,
+          previousLoadedUrl: previousLoadedUrl,
+          previousLoadedSnapshot: previousLoadedSnapshot,
+        );
+        return false;
+      }
       _loadedUrl = audioUrl;
       _loadedSnapshot = snapshot;
-      await _player.loadFromSnapshot(audioUrl, snapshot);
-      if (snapshot.currentTime > Duration.zero) {
-        await _player.seek(snapshot.currentTime);
-      }
       debugPrint('[native-audio] loaded ${snapshot.debugTitle}');
       await _persistState(immediate: true);
     }
-    if (snapshot.playing) {
-      await _player.playDirect();
-      debugPrint('[native-audio] playing ${snapshot.debugTitle}');
-    } else {
-      await _player.pauseDirect();
-      debugPrint('[native-audio] paused ${snapshot.debugTitle}');
+    try {
+      if (snapshot.playing) {
+        await _player.playDirect();
+        debugPrint('[native-audio] playing ${snapshot.debugTitle}');
+      } else {
+        await _player.pauseDirect();
+        debugPrint('[native-audio] paused ${snapshot.debugTitle}');
+      }
+    } catch (error, stackTrace) {
+      await _recoverFailedLoad(
+        'probe playback ${snapshot.debugTitle}',
+        error,
+        stackTrace,
+        previousLoadedUrl: previousLoadedUrl,
+        previousLoadedSnapshot: previousLoadedSnapshot,
+      );
+      return false;
     }
     return true;
   }
@@ -353,7 +377,9 @@ class NativeAudioController {
   }
 
   Future<bool> resumePlayback() async {
-    debugPrint('[native-audio] resumePlayback called, _loadedUrl: ${_loadedUrl.isEmpty ? "empty" : "ok"}, _isQueueLoading: $_isQueueLoading');
+    debugPrint(
+      '[native-audio] resumePlayback called, _loadedUrl: ${_loadedUrl.isEmpty ? "empty" : "ok"}, _isQueueLoading: $_isQueueLoading',
+    );
     await _restoreFuture;
     _wantsPlayback = true;
     if (_isQueueLoading) {
@@ -362,16 +388,33 @@ class NativeAudioController {
     }
     if (_loadedUrl.isNotEmpty) {
       final PlayerProbeSnapshot? snapshot = _loadedSnapshot;
-      if (_player.processingState == ProcessingState.idle && snapshot != null) {
-        await _player.loadFromSnapshot(_loadedUrl, snapshot);
+      try {
+        if (_player.processingState == ProcessingState.idle &&
+            snapshot != null) {
+          await _player.loadFromSnapshot(_loadedUrl, snapshot);
+        }
+        await _player.playDirect();
+        debugPrint(
+          '[native-audio] resumed ${snapshot?.debugTitle ?? _loadedUrl}',
+        );
+        return true;
+      } catch (error, stackTrace) {
+        await _recoverFailedLoad(
+          'resume ${snapshot?.debugTitle ?? _loadedUrl}',
+          error,
+          stackTrace,
+          previousLoadedUrl: '',
+          previousLoadedSnapshot: null,
+        );
+        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+          return _loadQueueIndex(_currentIndex, playWhenReady: true);
+        }
+        return false;
       }
-      await _player.playDirect();
-      debugPrint(
-        '[native-audio] resumed ${snapshot?.debugTitle ?? _loadedUrl}',
-      );
-      return true;
     }
-    debugPrint('[native-audio] resumePlayback failed: no loaded URL, currentIndex: $_currentIndex, playlist: ${_playlist.length}');
+    debugPrint(
+      '[native-audio] resumePlayback failed: no loaded URL, currentIndex: $_currentIndex, playlist: ${_playlist.length}',
+    );
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       final bool handled = await _loadQueueIndex(_currentIndex);
       if (!handled) {
@@ -525,12 +568,9 @@ class NativeAudioController {
         'Resolve empty for ${snapshot.debugTitle}, trying source switch',
       );
     } catch (error) {
-      _logger.error(
-        'Resolve failed for ${snapshot.debugTitle}',
-        error: error,
-      );
+      _logger.error('Resolve failed for ${snapshot.debugTitle}', error: error);
     }
-    return _resolveViaSourceSwitch(song, snapshot);
+    return _resolveViaSourceSwitch(song, snapshot, preferredBitrate);
   }
 
   /// Fallback when the song's own source cannot produce a playable URL. Asks
@@ -541,6 +581,7 @@ class NativeAudioController {
   Future<String> _resolveViaSourceSwitch(
     FreeMusicSong song,
     PlayerProbeSnapshot snapshot,
+    String preferredBitrate,
   ) async {
     final List<String> targets = await _candidateSources();
     for (final String target in targets) {
@@ -555,7 +596,7 @@ class NativeAudioController {
           continue;
         }
         final FreeMusicResolvedUrl? resolved = await _api
-            .resolveSongUrl(matched.song)
+            .resolveSongUrl(matched.song, bitrate: preferredBitrate)
             .timeout(const Duration(seconds: 5));
         final String url = resolved?.url ?? '';
         if (url.isNotEmpty) {
@@ -740,23 +781,37 @@ class NativeAudioController {
         return false;
       }
 
+      final int previousCurrentIndex = _currentIndex;
+      final String previousLoadedUrl = _loadedUrl;
+      final PlayerProbeSnapshot? previousLoadedSnapshot = _loadedSnapshot;
       final bool wasPlaying = _player.playing;
-      if (wasPlaying) {
-        await _fadeOut(const Duration(milliseconds: 250));
+      try {
+        if (wasPlaying) {
+          await _fadeOut(const Duration(milliseconds: 250));
+        }
+        await _player.setVolume(_wantsPlayback ? 0.0 : 1.0);
+        await _player.loadFromSnapshot(audioUrl, snapshot);
+        if (_wantsPlayback) {
+          await _player.playDirect();
+        } else {
+          await _player.pauseDirect();
+        }
+      } catch (error, stackTrace) {
+        await _recoverFailedLoad(
+          'queue load ${snapshot.debugTitle}',
+          error,
+          stackTrace,
+          previousLoadedUrl: previousLoadedUrl,
+          previousLoadedSnapshot: previousLoadedSnapshot,
+          previousCurrentIndex: previousCurrentIndex,
+        );
+        return false;
       }
-
-      await _player.setVolume(_wantsPlayback ? 0.0 : 1.0);
 
       _currentIndex = index;
       _updatePlaybackContext();
       _loadedUrl = audioUrl;
       _loadedSnapshot = snapshot;
-      await _player.loadFromSnapshot(audioUrl, snapshot);
-      if (_wantsPlayback) {
-        await _player.playDirect();
-      } else {
-        await _player.pauseDirect();
-      }
       await _persistState(immediate: true);
       debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
 
@@ -787,6 +842,32 @@ class NativeAudioController {
       }
     }
     return false;
+  }
+
+  Future<void> _recoverFailedLoad(
+    String action,
+    Object error,
+    StackTrace stackTrace, {
+    required String previousLoadedUrl,
+    required PlayerProbeSnapshot? previousLoadedSnapshot,
+    int? previousCurrentIndex,
+  }) async {
+    debugPrint('[native-audio] $action failed: $error');
+    if (kDebugMode) {
+      debugPrint('$stackTrace');
+    }
+    _loadedUrl = previousLoadedUrl;
+    _loadedSnapshot = previousLoadedSnapshot;
+    if (previousCurrentIndex != null) {
+      _currentIndex = previousCurrentIndex;
+    }
+    _preloadedNextUrl = null;
+    _preloadedNextIndex = null;
+    _updatePlaybackContext();
+    try {
+      await _player.setVolume(1.0);
+    } catch (_) {}
+    await _persistState(immediate: true);
   }
 
   /// 预加载下一首歌曲的 URL，减少切歌延迟

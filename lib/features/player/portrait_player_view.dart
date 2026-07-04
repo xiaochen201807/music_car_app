@@ -14,6 +14,7 @@ import '../../utils/formatters.dart';
 import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
+import '../../shared/portrait_play_button.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/luxury_loading_indicator.dart';
 
@@ -780,25 +781,14 @@ class PortraitMiniPlayerBar extends StatelessWidget {
             onPressed: onPlaybackMode,
             icon: Icon(iconForPlaybackMode(playbackMode)),
           ),
-          GlassPill(
+          PortraitPlayButton(
+            size: 48,
+            iconSize: 28,
+            playing: playbackState.playing,
             onTap: () {
               HapticFeedback.lightImpact();
               onPlayPause();
             },
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
-            child: Center(
-              widthFactor: 1.0,
-              heightFactor: 1.0,
-              child: Icon(
-                playbackState.playing
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: playbackState.playing
-                    ? colors.primary
-                    : colors.onSurface,
-              ),
-            ),
           ),
           IconButton(
             tooltip: '音质',

@@ -1552,3 +1552,35 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-04 - Playback Recovery, Manual Quality, And Branding Refresh
+
+Implemented in this increment:
+
+- Replaced the app icon set with a new premium steel/glass music mark generated
+  from `assets/branding/app_icon_master.svg`, then rendered the Android launcher
+  and iOS AppIcon PNGs from the same source.
+- Updated `MusicAudioHandler.loadFromSnapshot` so failed `setUrl` calls do not
+  publish a bad media item or queue before the player has actually loaded.
+- Updated `NativeAudioController` so probe, resume, and queue-item load failures
+  restore the previous playable state, clear bad preload data, and keep the
+  queue usable for later songs.
+- Preserved the preferred bitrate in source-switch fallback URL resolution.
+- Changed the quality sheet to always expose manual Standard, Higher, Extreme,
+  and Lossless choices, even when the upstream quality endpoint returns no
+  per-song quality list.
+- Hid the visible CarLife settings entry while keeping the underlying service
+  bridge and synchronization code in place.
+- Replaced the mini-player glass play/pause pill with the shared premium
+  circular play button.
+
+Verification in this increment:
+
+- `dart format lib/native_audio_controller.dart lib/music_audio_handler.dart lib/main.dart lib/features/settings/portrait_settings_view.dart lib/features/player/portrait_player_view.dart lib/shared/portrait_play_button.dart test/native_audio_controller_test.dart test/music_audio_handler_test.dart test/widget_test.dart`
+- `flutter analyze`
+- `flutter test test/native_audio_controller_test.dart test/music_audio_handler_test.dart test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

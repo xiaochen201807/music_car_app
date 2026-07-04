@@ -622,6 +622,88 @@ void main() {
     },
   );
 
+  test('NativeAudioController recovers after a player load failure', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer()
+      ..failLoadUrls.add('https://example.com/bad.mp3');
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+    );
+
+    final bool failed = await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/bad.mp3',
+        playing: true,
+        title: '坏音源',
+      ),
+    );
+    final bool recovered = await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/good.mp3',
+        playing: true,
+        title: '可播放',
+      ),
+    );
+
+    expect(failed, isFalse);
+    expect(recovered, isTrue);
+    expect(player.calls, <String>[
+      'setUrl:https://example.com/bad.mp3',
+      'setUrl:https://example.com/good.mp3',
+      'play',
+    ]);
+  });
+
+  test(
+    'NativeAudioController keeps queue usable after failed queue load',
+    () async {
+      final FakeNativeAudioPlayer player = FakeNativeAudioPlayer()
+        ..failLoadUrls.add('https://example.com/2.mp3');
+      final FreeMusicApi api = _resolvingApi();
+      final NativeAudioController controller = NativeAudioController(
+        player: player,
+        api: api,
+      );
+
+      await controller.syncFromProbe(
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/1.mp3',
+          playing: true,
+          currentIndex: 0,
+          song: FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          playlist: <FreeMusicSong>[
+            FreeMusicSong(
+              id: '1',
+              source: 'kuwo',
+              name: '七里香',
+              artist: '周杰伦',
+              duration: 290,
+            ),
+            FreeMusicSong(
+              id: '2',
+              source: 'kuwo',
+              name: '晴天',
+              artist: '周杰伦',
+              duration: 269,
+            ),
+          ],
+        ),
+      );
+
+      expect(await controller.skipToNext(), isFalse);
+      expect(controller.currentIndex, 0);
+
+      player.failLoadUrls.clear();
+      expect(await controller.skipToNext(), isTrue);
+      expect(controller.currentIndex, 1);
+    },
+  );
+
   test('NativeAudioController gives up when every source fails', () async {
     final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
     final FreeMusicApi api = _resolvingApi(failingIds: <String>{'1'});
@@ -703,6 +785,7 @@ http.Response _songUrlResponse(String url) {
 
 class FakeNativeAudioPlayer implements NativeAudioPlayer {
   final List<String> calls = <String>[];
+  final Set<String> failLoadUrls = <String>{};
   bool isPlaying = false;
 
   @override
@@ -738,6 +821,9 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
     PlayerProbeSnapshot snapshot,
   ) async {
     calls.add('setUrl:$url');
+    if (failLoadUrls.contains(url)) {
+      throw StateError('failed to load $url');
+    }
   }
 
   @override

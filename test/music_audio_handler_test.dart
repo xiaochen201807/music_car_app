@@ -11,6 +11,7 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   bool isPlaying = false;
   int stopCalls = 0;
   Duration currentPosition = Duration.zero;
+  final Set<String> failSetUrl = <String>{};
 
   @override
   Duration get bufferedPosition => Duration.zero;
@@ -76,7 +77,12 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   }
 
   @override
-  Future<Duration?> setUrl(String url) async => Duration.zero;
+  Future<Duration?> setUrl(String url) async {
+    if (failSetUrl.contains(url)) {
+      throw StateError('failed to set $url');
+    }
+    return Duration.zero;
+  }
 
   @override
   Future<void> stop() async {
@@ -208,6 +214,41 @@ void main() {
       await handler.dispose();
     },
   );
+
+  test('loadFromSnapshot does not publish failed media item', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+      ..failSetUrl.add('https://example.com/bad.mp3');
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+    await expectLater(
+      handler.loadFromSnapshot(
+        'https://example.com/bad.mp3',
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/bad.mp3',
+          playing: true,
+          title: '坏音源',
+        ),
+      ),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(handler.mediaItem.valueOrNull, isNull);
+    expect(handler.queue.valueOrNull, isEmpty);
+
+    await handler.loadFromSnapshot(
+      'https://example.com/good.mp3',
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/good.mp3',
+        playing: true,
+        title: '可播放',
+      ),
+    );
+
+    expect(handler.mediaItem.valueOrNull?.title, '可播放');
+    expect(handler.queue.valueOrNull, hasLength(1));
+
+    await handler.dispose();
+  });
 
   test(
     'skipToQueueItem calls native queue callback for another item',
