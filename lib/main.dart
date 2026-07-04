@@ -306,7 +306,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.72 (Build 10072)');
+    debugPrint('🚀 App Version: 1.0.73 (Build 10073)');
     debugPrint('✅ Fixes: 设置外观切换双层边框修复');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);

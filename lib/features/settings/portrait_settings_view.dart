@@ -146,7 +146,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.72 · 车载音乐播放器',
+                subtitle: '版本 1.0.73 · 车载音乐播放器',
               ),
             ],
           ),

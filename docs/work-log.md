@@ -1776,8 +1776,8 @@ Implemented in this increment:
 - Normalized nested surfaces across settings, search, library, empty states, and
   portrait surfaces so inner controls do not draw an extra border when an outer
   frame already provides the boundary.
-- Bumped the app version to `1.0.72+10072` for the follow-up tag release.
-- Updated the visible settings version string to `1.0.72`.
+- Bumped the app version to `1.0.73+10073` for the follow-up tag release.
+- Updated the visible settings version string to `1.0.73`.
 
 Verification in this increment:
 
