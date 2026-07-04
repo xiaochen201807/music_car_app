@@ -141,7 +141,8 @@ enough to review.
    `AudioHandler` to `PlaybackUiState` projection for app state and the portrait
    shell.
 6. `[x]` Extract `PlatformMediaBridge` so lock-screen media buttons, Bluetooth,
-   CarLife, and CarPlay call the unified controllers instead of page methods.
+   Android CarLife, and future projection integrations call the unified
+   controllers instead of page methods.
 7. `[x]` After the above chain is stable, compare Musify's local queue model,
    playback state machine, cache policy, and player-page decomposition for
    targeted ideas only.
@@ -155,8 +156,9 @@ enough to review.
 - Android Auto and Apple CarPlay are separate platform integrations; a good
   phone/tablet/car-head-unit app does not automatically become an approved
   Android Auto or CarPlay template app.
-- Apple CarPlay full app surfaces require iOS project work and CarPlay Audio
-  entitlement signing.
+- Apple CarPlay full app surfaces require separate iOS project work and
+  CarPlay Audio entitlement signing; the current release path keeps that scene
+  registration disabled.
 
 ## Implementation Phases
 

@@ -3,6 +3,25 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-04 - iOS CarPlay Scene Removal For CI
+
+Implemented in this increment:
+
+- Removed the iOS CarPlay scene registration from `AppDelegate.swift` and
+  `Info.plist` after the `v1.0.67` tag confirmed the plugin dependency was gone
+  but the project still compiled an unsupported CarPlay session path.
+- Removed the unused CarPlay scene delegate and CarPlay entitlement from the
+  unsigned iOS packaging path.
+- Bumped the app version to `1.0.68+10068` for the follow-up release tag.
+
+Verification in this increment:
+
+- GitHub Actions run `28700153230` for tag `v1.0.67` failed at
+  `Build Unsigned iOS Device App` with `UISceneSession.Role.templateApplication`
+  and `CarPlaySceneDelegate` compiler errors.
+- No local release package was built; packaging remains delegated to GitHub
+  Actions via the next tag.
+
 ## 2026-07-04 - CarPlay Plugin Removal For iOS CI
 
 Implemented in this increment:
