@@ -166,6 +166,14 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     if (!handled) {
       debugPrint('[audio-handler] calling playDirect() fallback');
       await playDirect();
+    } else if (!_player.playing &&
+        _player.processingState != ProcessingState.loading &&
+        _player.processingState != ProcessingState.buffering) {
+      debugPrint(
+        '[audio-handler] play callback handled but player is still paused; '
+        'forcing direct resume',
+      );
+      await playDirect();
     } else {
       _broadcastPlaybackState(_player.playbackEvent);
     }

@@ -1900,3 +1900,48 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after tag push.
+
+## 2026-07-05 - Notification Resume Fallback
+
+Implemented in this increment:
+
+- Hardened notification/media-session play handling after a notification pause.
+  If the platform play callback reports success but the underlying player still
+  has not resumed, `MusicAudioHandler` now forces a direct resume instead of
+  leaving the notification button in a no-op state.
+- Kept the loading/buffering path untouched so queue loads can still complete
+  without prematurely resuming an old item.
+- Added a focused regression test for the handled-but-still-paused notification
+  resume case.
+
+Verification in this increment:
+
+- `flutter test test/music_audio_handler_test.dart`
+- `flutter test test/playback_controller_test.dart test/native_audio_controller_test.dart`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
+## 2026-07-05 - v1.0.75 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.75+10075` for the notification resume release.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.75`.
+- Kept release packaging remote-first through the `v1.0.75` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.
