@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:music_car_app/controllers/playback_controller.dart';
 import 'package:music_car_app/free_music_api.dart';
+import 'package:music_car_app/music_audio_handler.dart';
 import 'package:music_car_app/native_audio_controller.dart';
+import 'package:just_audio/just_audio.dart';
 
 void main() {
   test('pause and previous commands are debounced', () async {
@@ -95,6 +98,25 @@ void main() {
     await controller.setVolume(-0.5);
     expect(controller.volume, 0.0);
   });
+
+  test('togglePlayback delegates to audio handler real-state click', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+      ..isPlaying = true;
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+    final PlaybackController controller = PlaybackController.withBackend(
+      backend: _FakePlaybackBackend(),
+      audioHandler: handler,
+    );
+
+    handler.playbackState.add(PlaybackState(playing: false));
+    await controller.togglePlayback();
+
+    expect(player.isPlaying, isFalse);
+    expect(player.pauseCalls, 1);
+    expect(player.playCalls, 0);
+
+    await handler.dispose();
+  });
 }
 
 class _FakePlaybackBackend implements PlaybackBackend {
@@ -174,4 +196,73 @@ FreeMusicSong _song(String id) {
     artist: 'Artist',
     duration: 120,
   );
+}
+
+class _FakeNativeAudioPlayer implements NativeAudioPlayer {
+  bool isPlaying = false;
+  int playCalls = 0;
+  int pauseCalls = 0;
+
+  @override
+  Duration get bufferedPosition => Duration.zero;
+
+  @override
+  bool get playing => isPlaying;
+
+  @override
+  Stream<PlaybackEvent> get playbackEventStream =>
+      const Stream<PlaybackEvent>.empty();
+
+  @override
+  PlaybackEvent get playbackEvent => PlaybackEvent();
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  ProcessingState get processingState => ProcessingState.idle;
+
+  @override
+  double get speed => 1;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> loadFromSnapshot(
+    String url,
+    PlayerProbeSnapshot snapshot,
+  ) async {}
+
+  @override
+  Future<void> pause() async {
+    pauseCalls += 1;
+    isPlaying = false;
+  }
+
+  @override
+  Future<void> pauseDirect() => pause();
+
+  @override
+  Future<void> play() async {
+    playCalls += 1;
+    isPlaying = true;
+  }
+
+  @override
+  Future<void> playDirect() => play();
+
+  @override
+  Future<void> seek(Duration position) async {}
+
+  @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
+  Future<Duration?> setUrl(String url) async => Duration.zero;
+
+  @override
+  Future<void> stop() async {
+    isPlaying = false;
+  }
 }

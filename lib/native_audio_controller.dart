@@ -202,10 +202,17 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
   Future<void> setVolume(double volume) => _player.setVolume(volume);
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() {
+    unawaited(
+      _player.play().catchError((Object error, StackTrace stackTrace) {
+        debugPrint('[native-audio] play failed: $error');
+      }),
+    );
+    return Future<void>.value();
+  }
 
   @override
-  Future<void> playDirect() => _player.play();
+  Future<void> playDirect() => play();
 
   @override
   Future<void> pause() => _player.pause();

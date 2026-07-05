@@ -170,16 +170,12 @@ class PlaybackController {
     return _backend.playSong(song);
   }
 
-  Future<void> togglePlayback(bool playing) async {
+  Future<void> togglePlayback() async {
     final MusicAudioHandler? handler = _audioHandler;
     if (handler == null) {
       return;
     }
-    if (playing) {
-      await handler.pause();
-    } else {
-      await handler.play();
-    }
+    await handler.click();
   }
 
   Future<void> seekPlayback(Duration position) async {

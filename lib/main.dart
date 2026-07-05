@@ -307,8 +307,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.76 (Build 10076)');
-    debugPrint('✅ Fixes: 蓝牙/通知栏播放暂停同步修复');
+    debugPrint('🚀 App Version: 1.0.77 (Build 10077)');
+    debugPrint('✅ Fixes: 播放暂停命令延迟与状态同步修复');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
@@ -1406,8 +1406,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     });
   }
 
-  Future<void> _togglePlayback(bool playing) async {
-    await _playbackController.togglePlayback(playing);
+  Future<void> _togglePlayback() async {
+    await _playbackController.togglePlayback();
   }
 
   Future<void> _seekPlayback(Duration position) async {
@@ -1890,7 +1890,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> playAllFavorites() => _playAllFavorites();
   void openPlaylistDetails(FreeMusicPlaylist playlist) =>
       _openPlaylistDetails(playlist);
-  Future<void> togglePlayback(bool playing) => _togglePlayback(playing);
+  Future<void> togglePlayback() => _togglePlayback();
   Future<void> cyclePlaybackMode() => _cyclePlaybackMode();
   void showQualitySheet() => _showQualitySheet();
   Future<void> seekPlayback(Duration position) => _seekPlayback(position);
@@ -1905,8 +1905,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.76',
-        'build': 10076,
+        'version': '1.0.77',
+        'build': 10077,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

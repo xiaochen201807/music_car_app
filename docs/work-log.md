@@ -1901,6 +1901,58 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after tag push.
 
+## 2026-07-05 - Playback Toggle Command Latency Fix
+
+Implemented in this increment:
+
+- Validated the connected vivo `V2284A` device through adb and confirmed the
+  installed app was `1.0.76`.
+- Captured media-session state and Flutter logs showing a single toggle path
+  could resume playback and then immediately issue a pause/resume correction.
+- Fixed the root command-latency issue: `JustAudioNativePlayer.play()` now
+  starts `AudioPlayer.play()` without awaiting the playback-completion future,
+  so media commands return immediately instead of finishing only after a later
+  pause/stop.
+- Changed app UI play/pause toggles to call `MusicAudioHandler.click()` without
+  passing a possibly stale `PlaybackUiState.playing` snapshot. The app UI,
+  notification, Bluetooth, and media-session play-pause buttons now share the
+  same real-player-state toggle path.
+- Added regression coverage for app UI toggle behavior when cached playback
+  state disagrees with the real player state.
+
+Verification in this increment:
+
+- adb device detected: `10AD6D2STD0012Y` / `V2284A` / `PD2284`.
+- adb media-session inspection confirmed the active session belongs to
+  `com.sy110.music_car_app` with queue metadata published.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.
+
+## 2026-07-05 - v1.0.77 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.77+10077` for the playback toggle command
+  latency fix.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.77`.
+- Kept release packaging remote-first through the `v1.0.77` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/native_audio_controller.dart lib/controllers/playback_controller.dart lib/main.dart lib/features/shell/portrait_music_shell.dart test/playback_controller_test.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.
+
 ## 2026-07-05 - Notification Resume Fallback
 
 Implemented in this increment:

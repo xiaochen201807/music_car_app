@@ -284,8 +284,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
                     playbackMode: appState.playbackMode,
                     coverSeedColor: appState.coverSeedColor,
                     onSelectTab: (int index) => appState.selectTab(index),
-                    onPlayPause: () =>
-                        appState.togglePlayback(playbackState.playing),
+                    onPlayPause: appState.togglePlayback,
                     onPlaybackMode: () => appState.cyclePlaybackMode(),
                     onQuality: () => appState.showQualitySheet(),
                     onPrevious: () => appState.skipToPreviousTrack(),
@@ -415,7 +414,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onToggleFavorite: appState.currentSong == null
           ? null
           : () => appState.toggleFavoriteSong(appState.currentSong!),
-      onPlayPause: () => appState.togglePlayback(playbackState.playing),
+      onPlayPause: appState.togglePlayback,
       onPlaybackMode: () => appState.cyclePlaybackMode(),
       onQuality: () => appState.showQualitySheet(),
       playbackPositionStream: appState.playerUiStateController.positionStream,
