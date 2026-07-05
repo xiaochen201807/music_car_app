@@ -38,6 +38,79 @@ void main() {
     expect(await nextPosition, const Duration(seconds: 9));
     expect(controller.value.playing, isTrue);
     expect(controller.value.position, const Duration(seconds: 9));
+    expect(controller.value.bufferedPosition, Duration.zero);
+    expect(controller.value.processingState, AudioProcessingState.idle);
+
+    controller.dispose();
+    await source.close();
+  });
+
+  test('stable stream ignores position-only updates', () async {
+    final _FakePlayerUiStateSource source = _FakePlayerUiStateSource();
+    final PlayerUiStateController controller = PlayerUiStateController(
+      source: source,
+    );
+    final List<PlaybackUiState> stableStates = <PlaybackUiState>[];
+    final List<PlaybackUiState> positionStates = <PlaybackUiState>[];
+    final StreamSubscription<PlaybackUiState> stableSub = controller
+        .stableStream
+        .listen(stableStates.add);
+    final StreamSubscription<PlaybackUiState> positionSub = controller
+        .positionStream
+        .listen(positionStates.add);
+
+    source.emitMediaItem(
+      const MediaItem(
+        id: 'song-1',
+        title: 'Road Song',
+        duration: Duration(minutes: 3),
+      ),
+    );
+    source.emitPlayback(
+      PlaybackState(updatePosition: const Duration(seconds: 1)),
+    );
+    source.emitPlayback(
+      PlaybackState(updatePosition: const Duration(seconds: 2)),
+    );
+    await pumpEventQueue();
+
+    expect(stableStates.map((PlaybackUiState state) => state.title), <String>[
+      'Road Song',
+    ]);
+    expect(
+      positionStates.map((PlaybackUiState state) => state.position),
+      containsAll(<Duration>[
+        Duration.zero,
+        const Duration(seconds: 1),
+        const Duration(seconds: 2),
+      ]),
+    );
+
+    await stableSub.cancel();
+    await positionSub.cancel();
+    controller.dispose();
+    await source.close();
+  });
+
+  test('stable stream emits processing state changes', () async {
+    final _FakePlayerUiStateSource source = _FakePlayerUiStateSource();
+    final PlayerUiStateController controller = PlayerUiStateController(
+      source: source,
+    );
+
+    final Future<AudioProcessingState> loadingState = controller.stableStream
+        .map((PlaybackUiState state) => state.processingState)
+        .firstWhere(
+          (AudioProcessingState state) => state == AudioProcessingState.loading,
+        );
+
+    source.emitPlayback(
+      PlaybackState(processingState: AudioProcessingState.loading),
+    );
+
+    expect(await loadingState, AudioProcessingState.loading);
+    expect(controller.value.isLoading, isTrue);
+    expect(controller.value.statusLabel, '正在解析音源');
 
     controller.dispose();
     await source.close();

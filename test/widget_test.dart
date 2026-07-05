@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:music_car_app/features/player/player_seek_bar.dart';
 import 'package:music_car_app/features/player/portrait_player_view.dart';
 import 'package:music_car_app/features/search/portrait_search_view.dart';
 import 'package:music_car_app/free_music_api.dart';
@@ -197,5 +198,36 @@ void main() {
     expect(find.text('较高 128K'), findsNothing);
     expect(find.text('192kogg'), findsNothing);
     expect(find.text('无损'), findsNothing);
+  });
+
+  testWidgets('player seek bar exposes a large draggable seek target', (
+    WidgetTester tester,
+  ) async {
+    Duration? seekedPosition;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(useMaterial3: true),
+        home: Scaffold(
+          body: PlayerSeekBar(
+            position: const Duration(seconds: 10),
+            bufferedPosition: const Duration(seconds: 30),
+            duration: const Duration(seconds: 100),
+            busy: false,
+            onSeek: (Duration position) {
+              seekedPosition = position;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.getSize(find.byType(PlayerSeekBar)).height, 48);
+
+    await tester.drag(find.byType(Slider), const Offset(180, 0));
+    await tester.pumpAndSettle();
+
+    expect(seekedPosition, isNotNull);
+    expect(seekedPosition!, greaterThan(const Duration(seconds: 10)));
   });
 }

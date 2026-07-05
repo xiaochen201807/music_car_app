@@ -60,7 +60,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
     final PlaybackUiState initialUiState = playerUiStateController.value;
 
     return StreamBuilder<PlaybackUiState>(
-      stream: playerUiStateController.stream,
+      stream: playerUiStateController.stableStream,
       initialData: initialUiState,
       builder: (BuildContext context, AsyncSnapshot<PlaybackUiState> snapshot) {
         final PlaybackUiState playbackState = snapshot.data ?? initialUiState;
@@ -418,6 +418,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onPlayPause: () => appState.togglePlayback(playbackState.playing),
       onPlaybackMode: () => appState.cyclePlaybackMode(),
       onQuality: () => appState.showQualitySheet(),
+      playbackPositionStream: appState.playerUiStateController.positionStream,
       onSeek: (Duration position) => appState.seekPlayback(position),
       onPrevious: () => appState.skipToPreviousTrack(),
       onNext: () => appState.skipToNextTrack(),

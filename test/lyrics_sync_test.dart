@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:music_car_app/features/player/portrait_player_view.dart';
+import 'package:music_car_app/features/player/player_lyrics_view.dart';
 import 'package:music_car_app/free_music_api.dart';
 import 'package:music_car_app/utils/lyrics_utils.dart';
 
@@ -78,5 +78,64 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(seekedDuration, const Duration(seconds: 5));
+  });
+
+  testWidgets('PlayerLyricsView locks manual scroll until resume is tapped', (
+    WidgetTester tester,
+  ) async {
+    final FreeMusicLyrics lyrics = FreeMusicLyrics(raw: 'raw', lines: lines);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlayerLyricsView(
+            lyrics: lyrics,
+            position: const Duration(seconds: 1),
+            playing: false,
+            lyricsBusy: false,
+            lyricsError: '',
+            currentSong: null,
+          ),
+        ),
+      ),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -80));
+    await tester.pump();
+
+    expect(find.text('恢复同步'), findsOneWidget);
+
+    await tester.tap(find.text('恢复同步'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('恢复同步'), findsNothing);
+  });
+
+  testWidgets('PlayerLyricsView exposes retry action for lyric errors', (
+    WidgetTester tester,
+  ) async {
+    bool retried = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlayerLyricsView(
+            lyrics: null,
+            position: Duration.zero,
+            playing: false,
+            lyricsBusy: false,
+            lyricsError: 'network failed',
+            currentSong: null,
+            onRetry: () {
+              retried = true;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('重试'));
+
+    expect(retried, isTrue);
   });
 }

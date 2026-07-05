@@ -943,8 +943,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   }
 
   Future<void> _changePlaybackQuality(FreeMusicQuality quality) async {
+    final String previousBitrate = preferredBitrate;
     await setPreferredBitrate(quality.bitrate);
-    _showToast('已切换音质：${quality.name}');
+    _showToast('正在切换音质：${quality.name}');
     if (!mounted) return;
     final FreeMusicSong? current = _currentSong;
     if (current != null) {
@@ -952,7 +953,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       final bool handled = await _playbackController.playSong(current);
       if (!mounted) return;
       if (!handled) {
-        _showSnack('音质已保存，当前歌曲重新加载失败');
+        await setPreferredBitrate(previousBitrate);
+        _showSnack('音质切换失败，已恢复原音质');
         return;
       }
       if (currentPosition > Duration.zero) {
@@ -960,6 +962,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         await _playbackController.seekNative(currentPosition);
       }
     }
+    _showToast('已切换音质：${quality.name}');
   }
 
   int _parseBitrateValue(String bitrateStr) {

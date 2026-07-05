@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
@@ -11,15 +10,12 @@ import '../../models/playback_ui_state.dart';
 import '../../native_audio_controller.dart';
 import '../../theme/design_tokens.dart';
 import '../../utils/formatters.dart';
-import '../../utils/lyrics_utils.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
 import '../../shared/portrait_play_button.dart';
 import '../../widgets/glass_card.dart';
-import '../../widgets/luxury_loading_indicator.dart';
-
-import '../../services/lyric_offset_store.dart';
-import '../../widgets/lyric_offset_adjuster.dart';
+import 'player_lyrics_view.dart';
+import 'player_seek_bar.dart';
 
 IconData iconForPlaybackMode(NativePlaybackMode mode) {
   switch (mode) {
@@ -68,6 +64,7 @@ class PortraitPlayerView extends StatelessWidget {
     required this.onPlayPause,
     required this.onPlaybackMode,
     required this.onQuality,
+    this.playbackPositionStream,
     required this.onSeek,
     required this.onPrevious,
     required this.onNext,
@@ -92,6 +89,7 @@ class PortraitPlayerView extends StatelessWidget {
   final VoidCallback onPlayPause;
   final VoidCallback onPlaybackMode;
   final VoidCallback onQuality;
+  final Stream<PlaybackUiState>? playbackPositionStream;
   final ValueChanged<Duration> onSeek;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -172,10 +170,18 @@ class PortraitPlayerView extends StatelessWidget {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: _PlayerSeekBar(
-                      position: playbackState.position,
-                      duration: duration,
-                      onSeek: onSeek,
+                    child: _PlaybackPositionBuilder(
+                      stream: playbackPositionStream,
+                      initialState: playbackState,
+                      builder: (BuildContext context, PlaybackUiState state) {
+                        return PlayerSeekBar(
+                          position: state.position,
+                          bufferedPosition: state.bufferedPosition,
+                          duration: state.duration ?? duration,
+                          busy: state.isBusy,
+                          onSeek: onSeek,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -313,15 +319,22 @@ class PortraitPlayerView extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: AppSpace.sm),
-                          PlayerLyricsView(
-                            lyrics: lyrics,
-                            position: playbackState.position,
-                            playing: playbackState.playing,
-                            lyricsBusy: lyricsBusy,
-                            lyricsError: lyricsError,
-                            currentSong: currentSong,
-                            onSeek: onSeek,
-                            onRetry: onRetryLyrics,
+                          _PlaybackPositionBuilder(
+                            stream: playbackPositionStream,
+                            initialState: playbackState,
+                            builder:
+                                (BuildContext context, PlaybackUiState state) {
+                                  return PlayerLyricsView(
+                                    lyrics: lyrics,
+                                    position: state.position,
+                                    playing: state.playing,
+                                    lyricsBusy: lyricsBusy,
+                                    lyricsError: lyricsError,
+                                    currentSong: currentSong,
+                                    onSeek: onSeek,
+                                    onRetry: onRetryLyrics,
+                                  );
+                                },
                           ),
                         ],
                       ),
@@ -354,6 +367,33 @@ class PortraitPlayerView extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PlaybackPositionBuilder extends StatelessWidget {
+  const _PlaybackPositionBuilder({
+    required this.stream,
+    required this.initialState,
+    required this.builder,
+  });
+
+  final Stream<PlaybackUiState>? stream;
+  final PlaybackUiState initialState;
+  final Widget Function(BuildContext context, PlaybackUiState state) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final Stream<PlaybackUiState>? effectiveStream = stream;
+    if (effectiveStream == null) {
+      return builder(context, initialState);
+    }
+    return StreamBuilder<PlaybackUiState>(
+      stream: effectiveStream,
+      initialData: initialState,
+      builder: (BuildContext context, AsyncSnapshot<PlaybackUiState> snapshot) {
+        return builder(context, snapshot.data ?? initialState);
+      },
     );
   }
 }
@@ -511,31 +551,13 @@ class _PlayerIdentityCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpace.md),
-              GlassPill(
-                height: 34,
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(
-                      playbackState.playing
-                          ? Icons.graphic_eq_rounded
-                          : Icons.pause_rounded,
-                      size: 16,
-                      color: colors.primary,
-                    ),
-                    const SizedBox(width: AppSpace.xs),
-                    Text(
-                      playbackState.playing ? '播放中' : '已暂停',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _PlaybackStatusPill(playbackState: playbackState),
             ],
           ),
+          if (playbackState.isBusy) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            _PlaybackLoadingBanner(playbackState: playbackState),
+          ],
           const SizedBox(height: AppSpace.lg),
           Row(
             children: <Widget>[
@@ -552,6 +574,83 @@ class _PlayerIdentityCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaybackStatusPill extends StatelessWidget {
+  const _PlaybackStatusPill({required this.playbackState});
+
+  final PlaybackUiState playbackState;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final IconData icon = playbackState.isBusy
+        ? Icons.sync_rounded
+        : playbackState.playing
+        ? Icons.graphic_eq_rounded
+        : Icons.pause_rounded;
+
+    return GlassPill(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 16, color: colors.primary),
+          const SizedBox(width: AppSpace.xs),
+          Text(
+            playbackState.statusLabel,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaybackLoadingBanner extends StatelessWidget {
+  const _PlaybackLoadingBanner({required this.playbackState});
+
+  final PlaybackUiState playbackState;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return GlassCard(
+      radius: AppRadius.control,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.md,
+        vertical: AppSpace.sm,
+      ),
+      shadows: const <BoxShadow>[],
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: AppSpace.lg,
+            height: AppSpace.lg,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(
+              playbackState.isLoading ? '正在解析播放地址' : '网络缓冲中，保持当前播放上下文',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -996,490 +1095,6 @@ class PortraitMiniPlayerBar extends StatelessWidget {
     }
 
     return GlassCard(child: innerContent);
-  }
-}
-
-class PlayerLyricsView extends StatefulWidget {
-  const PlayerLyricsView({
-    super.key,
-    required this.lyrics,
-    required this.position,
-    required this.playing,
-    required this.lyricsBusy,
-    required this.lyricsError,
-    required this.currentSong,
-    this.onSeek,
-    this.onRetry,
-  });
-
-  final FreeMusicLyrics? lyrics;
-  final Duration position;
-  final bool playing;
-  final bool lyricsBusy;
-  final String lyricsError;
-  final FreeMusicSong? currentSong;
-  final ValueChanged<Duration>? onSeek;
-  final VoidCallback? onRetry;
-
-  @override
-  State<PlayerLyricsView> createState() => _PlayerLyricsViewState();
-}
-
-class _PlayerLyricsViewState extends State<PlayerLyricsView>
-    with SingleTickerProviderStateMixin {
-  static const double _lyricLineHeight = 48.0;
-
-  final ScrollController _scrollController = ScrollController();
-  int _lastIndex = -1;
-  bool _isUserScrolling = false;
-  int _centerIndex = 0;
-  Timer? _userScrollTimer;
-  Duration _offset = Duration.zero;
-
-  late Duration _currentPosition;
-  Ticker? _ticker;
-  DateTime? _lastTickTime;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_handleScroll);
-    _currentPosition = widget.position;
-    _updateTicker();
-    _loadOffset();
-  }
-
-  Future<void> _loadOffset() async {
-    if (widget.currentSong == null) return;
-    final store = LyricOffsetStore();
-    final offset = await store.getOffset(widget.currentSong!);
-    if (mounted) {
-      setState(() {
-        _offset = offset;
-      });
-    }
-  }
-
-  void _showOffsetAdjuster() {
-    if (widget.currentSong == null) return;
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (BuildContext context) => LyricOffsetAdjuster(
-        song: widget.currentSong!,
-        currentOffset: _offset,
-        onOffsetChanged: (Duration offset) {
-          setState(() {
-            _offset = offset;
-          });
-        },
-      ),
-    );
-  }
-
-  @override
-  void didUpdateWidget(PlayerLyricsView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.position != oldWidget.position ||
-        widget.playing != oldWidget.playing) {
-      _currentPosition = widget.position;
-      _updateTicker();
-    }
-
-    final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-    final int activeIndex = activeLyricLineIndex(
-      lines,
-      _currentPosition + _offset,
-      lead: lyricHighlightLead,
-    );
-    if (activeIndex != _lastIndex && activeIndex >= 0) {
-      _lastIndex = activeIndex;
-      if (!_isUserScrolling) {
-        _scrollToIndex(activeIndex);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_handleScroll);
-    _scrollController.dispose();
-    _userScrollTimer?.cancel();
-    _ticker?.stop();
-    _ticker?.dispose();
-    super.dispose();
-  }
-
-  void _updateTicker() {
-    _ticker?.stop();
-    _ticker?.dispose();
-    _ticker = null;
-    _lastTickTime = null;
-
-    if (widget.playing) {
-      _lastTickTime = DateTime.now();
-      _ticker = createTicker((Duration elapsed) {
-        if (!mounted) return;
-        final DateTime now = DateTime.now();
-        final Duration delta = _lastTickTime != null
-            ? now.difference(_lastTickTime!)
-            : Duration.zero;
-        _lastTickTime = now;
-
-        setState(() {
-          _currentPosition += delta;
-        });
-
-        final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-        final int activeIndex = activeLyricLineIndex(
-          lines,
-          _currentPosition,
-          lead: lyricHighlightLead,
-        );
-        if (activeIndex != _lastIndex && activeIndex >= 0) {
-          _lastIndex = activeIndex;
-          if (!_isUserScrolling) {
-            _scrollToIndex(activeIndex);
-          }
-        }
-      });
-      _ticker!.start();
-    }
-  }
-
-  void _handleScroll() {
-    if (!_scrollController.hasClients) return;
-    final double offset = _scrollController.offset;
-    final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-    if (lines.isEmpty) return;
-    final int calculatedIndex = (offset / _lyricLineHeight).round().clamp(
-      0,
-      lines.length - 1,
-    );
-    if (calculatedIndex != _centerIndex) {
-      setState(() {
-        _centerIndex = calculatedIndex;
-      });
-    }
-  }
-
-  void _scrollToIndex(int index) {
-    if (!_scrollController.hasClients) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final double target = index * _lyricLineHeight;
-      final double clamped = target.clamp(
-        _scrollController.position.minScrollExtent,
-        _scrollController.position.maxScrollExtent,
-      );
-      _scrollController.animateTo(
-        clamped,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOutCubic,
-      );
-    });
-  }
-
-  void _startRestoreAutoScrollTimer() {
-    _userScrollTimer?.cancel();
-    _userScrollTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted) {
-        setState(() {
-          _isUserScrolling = false;
-        });
-        final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-        final int activeIndex = activeLyricLineIndex(
-          lines,
-          _currentPosition,
-          lead: lyricHighlightLead,
-        );
-        if (activeIndex >= 0) {
-          _scrollToIndex(activeIndex);
-        }
-      }
-    });
-  }
-
-  Widget _buildSeekOverlay(FreeMusicLyricLine line) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return Positioned(
-      left: 0,
-      right: 0,
-      top:
-          76.0, // Vertically center on the line height 48 inside a 200 height container
-      height: 48.0,
-      child: IgnorePointer(
-        ignoring: false,
-        child: Row(
-          children: <Widget>[
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Container(
-                height: 1,
-                color: colors.primary.withValues(alpha: 0.25),
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            GestureDetector(
-              onTap: () {
-                widget.onSeek?.call(line.time);
-                setState(() {
-                  _currentPosition = line.time;
-                  _isUserScrolling = false;
-                });
-              },
-              child: GlassCard(
-                radius: AppRadius.control,
-                shadows: const <BoxShadow>[],
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.sm,
-                    vertical: AppSpace.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primaryContainer.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(AppRadius.control),
-                    border: Border.all(
-                      color: colors.primary.withValues(alpha: 0.4),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.play_arrow_rounded,
-                        size: 14,
-                        color: colors.onPrimaryContainer,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '从此处播放 ${formatDuration(line.time)}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: Container(
-                height: 1,
-                color: colors.primary.withValues(alpha: 0.25),
-              ),
-            ),
-            const SizedBox(width: AppSpace.md),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-
-    if (widget.lyricsBusy) {
-      return const SizedBox(
-        height: 120,
-        child: Center(child: LuxuryLoadingIndicator()),
-      );
-    }
-    if (widget.lyricsError.isNotEmpty) {
-      return SizedBox(
-        height: 120,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Text(
-                '歌词加载失败',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.error,
-                ),
-              ),
-              const SizedBox(height: AppSpace.xs),
-              TextButton.icon(
-                onPressed: widget.onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('重试'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
-    if (lines.isEmpty) {
-      return SizedBox(
-        height: 120,
-        child: Center(
-          child: Text(
-            widget.lyrics?.raw.isNotEmpty == true
-                ? widget.lyrics!.raw
-                : '等待歌词同步',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      );
-    }
-
-    final int activeIndex = activeLyricLineIndex(
-      lines,
-      _currentPosition + _offset,
-      lead: lyricHighlightLead,
-    );
-
-    return SizedBox(
-      height: 200,
-      child: GestureDetector(
-        onLongPress: _showOffsetAdjuster,
-        child: Stack(
-          children: <Widget>[
-            ShaderMask(
-              shaderCallback: (Rect rect) {
-                return const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Colors.transparent,
-                    Colors.white,
-                    Colors.white,
-                    Colors.transparent,
-                  ],
-                  stops: <double>[0, 0.25, 0.75, 1],
-                ).createShader(rect);
-              },
-              blendMode: BlendMode.dstIn,
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (ScrollNotification notification) {
-                  if (notification is ScrollStartNotification) {
-                    if (notification.dragDetails != null) {
-                      setState(() {
-                        _isUserScrolling = true;
-                      });
-                      _userScrollTimer?.cancel();
-                    }
-                  } else if (notification is ScrollEndNotification) {
-                    _startRestoreAutoScrollTimer();
-                  }
-                  return false;
-                },
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: lines.length,
-                  itemExtent: _lyricLineHeight,
-                  padding: const EdgeInsets.symmetric(vertical: 76.0),
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  itemBuilder: (BuildContext context, int index) {
-                    final bool active = index == activeIndex;
-                    final FreeMusicLyricLine line = lines[index];
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          widget.onSeek?.call(line.time);
-                          setState(() {
-                            _currentPosition = line.time;
-                            _isUserScrolling = false;
-                          });
-                        },
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 300),
-                            style: active
-                                ? theme.textTheme.titleLarge!.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                    letterSpacing: -0.3,
-                                    shadows: <Shadow>[
-                                      Shadow(
-                                        color: AppColor.accentRoseEnd
-                                            .withValues(alpha: 0.35),
-                                        offset: Offset.zero,
-                                        blurRadius: 14,
-                                      ),
-                                    ],
-                                  )
-                                : theme.textTheme.titleMedium!.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                    color: colors.onSurface.withValues(
-                                      alpha: 0.20,
-                                    ),
-                                    fontSize: 15,
-                                  ),
-                            child: active
-                                ? ShaderMask(
-                                    shaderCallback: (Rect bounds) {
-                                      return AppColor.accentGradient
-                                          .createShader(
-                                            Rect.fromLTWH(
-                                              0,
-                                              0,
-                                              bounds.width,
-                                              bounds.height,
-                                            ),
-                                          );
-                                    },
-                                    blendMode: BlendMode.srcIn,
-                                    child: MarqueeText(
-                                      text: line.text,
-                                      style: theme.textTheme.titleLarge!
-                                          .copyWith(
-                                            fontWeight: FontWeight.w900,
-                                            color: Colors.white,
-                                            letterSpacing: -0.3,
-                                            shadows: <Shadow>[
-                                              Shadow(
-                                                color: AppColor.accentRoseEnd
-                                                    .withValues(alpha: 0.35),
-                                                offset: Offset.zero,
-                                                blurRadius: 14,
-                                              ),
-                                            ],
-                                          ),
-                                    ),
-                                  )
-                                : Text(
-                                    line.text,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                  ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            if (_isUserScrolling &&
-                lines.isNotEmpty &&
-                _centerIndex >= 0 &&
-                _centerIndex < lines.length)
-              _buildSeekOverlay(lines[_centerIndex]),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -2033,168 +1648,6 @@ class _VinylTouchWrapperState extends State<_VinylTouchWrapper>
         _controller.reverse();
       },
       child: ScaleTransition(scale: _scaleAnimation, child: widget.child),
-    );
-  }
-}
-
-class _FullWidthTrackShape extends SliderTrackShape with BaseSliderTrackShape {
-  const _FullWidthTrackShape();
-
-  @override
-  void paint(
-    PaintingContext context,
-    Offset offset, {
-    required RenderBox parentBox,
-    required SliderThemeData sliderTheme,
-    required Animation<double> enableAnimation,
-    required TextDirection textDirection,
-    required Offset thumbCenter,
-    Offset? secondaryOffset,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-    double additionalActiveTrackHeight = 0,
-  }) {}
-
-  @override
-  Rect getPreferredRect({
-    required RenderBox parentBox,
-    Offset offset = Offset.zero,
-    required SliderThemeData sliderTheme,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-  }) {
-    final double trackHeight = sliderTheme.trackHeight ?? 4.0;
-    final double trackLeft = offset.dx;
-    final double trackTop =
-        offset.dy + (parentBox.size.height - trackHeight) / 2;
-    final double trackWidth = parentBox.size.width;
-    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
-  }
-}
-
-class _PlayerSeekBar extends StatefulWidget {
-  const _PlayerSeekBar({
-    required this.position,
-    required this.duration,
-    required this.onSeek,
-  });
-
-  final Duration position;
-  final Duration duration;
-  final ValueChanged<Duration>? onSeek;
-
-  @override
-  State<_PlayerSeekBar> createState() => _PlayerSeekBarState();
-}
-
-class _PlayerSeekBarState extends State<_PlayerSeekBar> {
-  double? _dragValue;
-  bool _isDragging = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    final int totalMs = widget.duration.inMilliseconds;
-    final int currentMs = widget.position.inMilliseconds;
-    final double value = _isDragging
-        ? (_dragValue ?? 0.0)
-        : (totalMs > 0 ? currentMs / totalMs : 0.0);
-
-    // 静态背景轨道：不随 position 变化重建
-    final Widget trackBg = Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: Container(
-        height: 4.0,
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.2),
-      ),
-    );
-
-    // 静态已播放进度条：仅 widthFactor 变化，用 FractionallySizedBox 轻量更新
-    final Widget progressIndicator = Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: IgnorePointer(
-        child: SizedBox(
-          height: 4.0,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: value.clamp(0.0, 1.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: AppColor.accentGradient,
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(2.0),
-                    bottomRight: Radius.circular(2.0),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    // SliderThemeData 是纯静态的，每次 build 重建浪费；缓存到 State 级别
-    return RepaintBoundary(
-      child: SizedBox(
-        height: 24,
-        child: Stack(
-          alignment: Alignment.center,
-          children: <Widget>[
-            trackBg,
-            progressIndicator,
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 24,
-              child: SliderTheme(
-                data: SliderThemeData(
-                  trackHeight: 4.0,
-                  activeTrackColor: Colors.transparent,
-                  inactiveTrackColor: Colors.transparent,
-                  thumbColor: colors.primary,
-                  thumbShape: RoundSliderThumbShape(
-                    enabledThumbRadius: _isDragging ? 8.0 : 0.0,
-                  ),
-                  overlayShape: SliderComponentShape.noOverlay,
-                  trackShape: const _FullWidthTrackShape(),
-                ),
-                child: Slider(
-                  value: value.clamp(0.0, 1.0),
-                  onChanged: (double val) {
-                    setState(() {
-                      _isDragging = true;
-                      _dragValue = val;
-                    });
-                  },
-                  onChangeStart: (double val) {
-                    setState(() {
-                      _isDragging = true;
-                      _dragValue = val;
-                    });
-                  },
-                  onChangeEnd: (double val) {
-                    if (widget.onSeek != null) {
-                      final int targetMs = (val * totalMs).round();
-                      widget.onSeek!(Duration(milliseconds: targetMs));
-                    }
-                    setState(() {
-                      _isDragging = false;
-                      _dragValue = null;
-                    });
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1824,3 +1824,33 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-05 - Project #12/#13 Architecture And Player UX
+
+Implemented in this increment:
+
+- Split high-frequency playback position updates away from stable playback UI
+  state. `PortraitMusicScaffold` now listens to stable media/status changes,
+  while the full player subscribes to the position stream only where progress
+  and lyrics need it.
+- Extended `PlaybackUiState` with buffered position and processing state so the
+  player can show resolving and buffering states inline.
+- Extracted `PlayerSeekBar` and `PlayerLyricsView` into focused player
+  components. `portrait_player_view.dart` is reduced from 2200 lines to 1653
+  lines.
+- Rebuilt the player seek bar as a 48px touch target with played progress,
+  buffered progress, drag preview, and seek callback coverage.
+- Added explicit lyric manual-scroll lock and a visible restore-sync control,
+  plus retained the existing retry entry for lyric failures.
+- Changed quality switching to preserve current position and roll back the
+  preferred bitrate when reloading the current track fails.
+
+Verification in this increment:
+
+- `dart format lib/models/playback_ui_state.dart lib/controllers/player_ui_state_controller.dart lib/features/shell/portrait_music_shell.dart lib/features/player/portrait_player_view.dart lib/features/player/player_lyrics_view.dart lib/features/player/player_seek_bar.dart lib/main.dart test/player_ui_state_controller_test.dart test/widget_test.dart test/lyrics_sync_test.dart`
+- `flutter test test/player_ui_state_controller_test.dart test/lyrics_sync_test.dart test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

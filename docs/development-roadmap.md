@@ -210,7 +210,8 @@ Exit criteria:
   recommendation grid, timeline, bottom mini-player/navigation, and immersive
   full-screen player. The portrait shell now pauses visual animation work while
   backgrounded, disables the heaviest glass effects during page motion, removes
-  the waveform seekbar, and uses a paper-style light theme while preserving
+  the waveform seekbar, uses a paper-style light theme, splits high-frequency
+  playback position updates away from stable page rebuilds, and preserves
   dynamic album-color atmosphere in dark mode; full real-device visual
   validation remains pending.
 - `[~]` Use audited API data in the prototype UI: source labels, hot search
@@ -221,7 +222,10 @@ Exit criteria:
 
 - `[x]` The app can search and select real songs without a WebView.
 - `[~]` Song metadata, artwork, paged playlist songs, and synced lyric
-  highlighting appear in the native UI for API-backed playback.
+  highlighting appear in the native UI for API-backed playback. The player now
+  supports draggable seek, inline resolving/buffering state, lyric retry, manual
+  lyric scroll lock/restore, and quality-switch progress preservation; slow-net
+  and real-device validation remains pending.
 
 ### Phase 3: Complete Native Queue
 

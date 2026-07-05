@@ -47,6 +47,10 @@ class PlayerUiStateController {
 
   final StreamController<PlaybackUiState> _controller =
       StreamController<PlaybackUiState>.broadcast();
+  final StreamController<PlaybackUiState> _stableController =
+      StreamController<PlaybackUiState>.broadcast();
+  final StreamController<PlaybackUiState> _positionController =
+      StreamController<PlaybackUiState>.broadcast();
 
   StreamSubscription<PlaybackState>? _playbackStateSub;
   StreamSubscription<MediaItem?>? _mediaItemSub;
@@ -54,6 +58,10 @@ class PlayerUiStateController {
   PlaybackUiState _value = const PlaybackUiState();
 
   Stream<PlaybackUiState> get stream => _controller.stream;
+
+  Stream<PlaybackUiState> get stableStream => _stableController.stream;
+
+  Stream<PlaybackUiState> get positionStream => _positionController.stream;
 
   PlaybackUiState get value => _value;
 
@@ -96,11 +104,20 @@ class PlayerUiStateController {
   }
 
   void _emit(PlaybackUiState state) {
+    final PlaybackUiState previous = _value;
+    final bool stableChanged = !state.hasSameStableFields(previous);
+    final bool positionChanged = !state.hasSamePositionFields(previous);
     _value = state;
     if (_controller.isClosed) {
       return;
     }
     _controller.add(state);
+    if (stableChanged) {
+      _stableController.add(state);
+    }
+    if (positionChanged || stableChanged) {
+      _positionController.add(state);
+    }
   }
 
   void dispose() {
@@ -110,5 +127,7 @@ class PlayerUiStateController {
     _mediaItemSub = null;
     _source = null;
     _controller.close();
+    _stableController.close();
+    _positionController.close();
   }
 }
