@@ -71,8 +71,8 @@ class PlatformMediaBridge {
     return handled;
   }
 
-  Future<void> _handlePause() async {
-    await _playbackController.pauseNativePlayback();
+  Future<bool> _handlePause() async {
+    return _playbackController.pauseNativePlayback();
   }
 
   Future<bool> _handleNext() async {
@@ -127,8 +127,11 @@ class PlatformMediaBridge {
         await _handlePlay();
         return CarLifeControlResult(handled: true, reason: 'played');
       case CarLifeControlAction.pause:
-        await _handlePause();
-        return CarLifeControlResult(handled: true, reason: 'paused');
+        final bool handled = await _handlePause();
+        return CarLifeControlResult(
+          handled: handled,
+          reason: handled ? 'paused' : 'pause_unavailable',
+        );
       case CarLifeControlAction.next:
         final bool handled = await _handleNext();
         return CarLifeControlResult(

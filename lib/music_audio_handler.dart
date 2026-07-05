@@ -68,7 +68,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   late final Timer _stallTimer;
   Timer? _continuousSeekTimer;
   Future<bool> Function()? onPlayTrack;
-  Future<void> Function()? onPauseTrack;
+  Future<bool> Function()? onPauseTrack;
   Future<bool> Function()? onSkipToNextTrack;
   Future<bool> Function()? onSkipToPreviousTrack;
   Future<void> Function(int index)? onSkipToQueueItem;
@@ -163,9 +163,12 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         _handlingPlayCallback = false;
       }
     }
-    // 始终调用 playDirect()，因为测试和某些场景需要它
-    debugPrint('[audio-handler] calling playDirect() (handled: $handled)');
-    await playDirect();
+    if (!handled) {
+      debugPrint('[audio-handler] calling playDirect() fallback');
+      await playDirect();
+    } else {
+      _broadcastPlaybackState(_player.playbackEvent);
+    }
   }
 
   @override
@@ -177,19 +180,22 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   @override
   Future<void> pause() async {
     _resetPlaybackStallMonitor();
+    bool handled = false;
     if (!_handlingPauseCallback && onPauseTrack != null) {
       _handlingPauseCallback = true;
       try {
-        await onPauseTrack!.call();
+        handled = await onPauseTrack!.call();
       } catch (error) {
         debugPrint('[audio-handler] onPauseTrack failed: $error');
       } finally {
         _handlingPauseCallback = false;
       }
     }
-    await pauseDirect();
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    _broadcastPlaybackState(_player.playbackEvent);
+    if (!handled) {
+      await pauseDirect();
+    } else {
+      _broadcastPlaybackState(_player.playbackEvent);
+    }
   }
 
   @override

@@ -1854,3 +1854,28 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-05 - Notification Media Control Sync
+
+Implemented in this increment:
+
+- Fixed notification/media-session play handling so a platform callback that
+  already resumed native playback is not followed by a second direct play call.
+- Changed pause handling to return a handled result from the platform bridge,
+  avoiding a second direct pause after the native controller has already paused.
+- Kept direct play/pause fallback behavior for cases where no platform callback
+  exists or the callback reports that it cannot handle the command.
+- Updated CarLife pause control results to report `pause_unavailable` when the
+  shared media bridge cannot pause the active native session.
+- Added focused `MusicAudioHandler` tests to lock down handled callback versus
+  fallback behavior for notification play/pause actions.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart lib/services/platform_media_bridge.dart test/music_audio_handler_test.dart`
+- `flutter test test/music_audio_handler_test.dart test/playback_controller_test.dart test/carlife_service_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and push.

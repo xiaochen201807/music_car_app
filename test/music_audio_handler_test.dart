@@ -9,6 +9,8 @@ import 'package:music_car_app/native_audio_controller.dart';
 
 class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   bool isPlaying = false;
+  int playCalls = 0;
+  int pauseCalls = 0;
   int stopCalls = 0;
   Duration currentPosition = Duration.zero;
   final Set<String> failSetUrl = <String>{};
@@ -46,6 +48,7 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
 
   @override
   Future<void> pause() async {
+    pauseCalls += 1;
     isPlaying = false;
   }
 
@@ -56,6 +59,7 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
 
   @override
   Future<void> play() async {
+    playCalls += 1;
     isPlaying = true;
   }
 
@@ -308,6 +312,7 @@ void main() {
     int callbackCalls = 0;
     handler.onPlayTrack = () async {
       callbackCalls += 1;
+      player.isPlaying = true;
       return true;
     };
 
@@ -315,6 +320,7 @@ void main() {
 
     expect(callbackCalls, 1);
     expect(player.isPlaying, isTrue);
+    expect(player.playCalls, 0);
 
     await handler.dispose();
   });
@@ -334,29 +340,55 @@ void main() {
 
       expect(callbackCalls, 1);
       expect(player.isPlaying, isTrue);
+      expect(player.playCalls, 1);
 
       await handler.dispose();
     },
   );
 
-  test('pause callback can pause the same handler without recursion', () async {
+  test('pause uses external callback when it handles playback', () async {
     final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
       ..isPlaying = true;
     final MusicAudioHandler handler = MusicAudioHandler(player: player);
     int callbackCalls = 0;
     handler.onPauseTrack = () async {
       callbackCalls += 1;
-      await handler.pause();
+      player.isPlaying = false;
+      return true;
     };
 
     await handler.pause();
 
     expect(callbackCalls, 1);
     expect(player.isPlaying, isFalse);
+    expect(player.pauseCalls, 0);
     expect(handler.playbackState.value.playing, isFalse);
 
     await handler.dispose();
   });
+
+  test(
+    'pause falls back to native player when pause callback cannot handle',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+        ..isPlaying = true;
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+      int callbackCalls = 0;
+      handler.onPauseTrack = () async {
+        callbackCalls += 1;
+        return false;
+      };
+
+      await handler.pause();
+
+      expect(callbackCalls, 1);
+      expect(player.isPlaying, isFalse);
+      expect(player.pauseCalls, 1);
+      expect(handler.playbackState.value.playing, isFalse);
+
+      await handler.dispose();
+    },
+  );
 
   test('playback state suppresses unchanged broadcasts', () async {
     final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
