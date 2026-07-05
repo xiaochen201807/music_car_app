@@ -248,6 +248,25 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   }
 
   @override
+  Future<void> click([MediaButton button = MediaButton.media]) async {
+    switch (button) {
+      case MediaButton.media:
+        if (_player.playing) {
+          await pause();
+        } else {
+          await play();
+        }
+        break;
+      case MediaButton.next:
+        await skipToNext();
+        break;
+      case MediaButton.previous:
+        await skipToPrevious();
+        break;
+    }
+  }
+
+  @override
   Future<void> skipToNext() async {
     try {
       await onSkipToNextTrack?.call();

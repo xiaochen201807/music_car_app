@@ -412,6 +412,64 @@ void main() {
     },
   );
 
+  test(
+    'media button click uses real player state when cached state is stale',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+      handler.playbackState.add(PlaybackState(playing: true));
+      await handler.click();
+
+      expect(player.isPlaying, isTrue);
+      expect(player.playCalls, 1);
+      expect(player.pauseCalls, 0);
+      expect(handler.playbackState.value.playing, isTrue);
+
+      await handler.dispose();
+    },
+  );
+
+  test('media button click pauses from real player state', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+      ..isPlaying = true;
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+    handler.playbackState.add(PlaybackState(playing: false));
+    await handler.click();
+
+    expect(player.isPlaying, isFalse);
+    expect(player.pauseCalls, 1);
+    expect(player.playCalls, 0);
+    expect(handler.playbackState.value.playing, isFalse);
+
+    await handler.dispose();
+  });
+
+  test('media next and previous clicks delegate to skip callbacks', () async {
+    final MusicAudioHandler handler = MusicAudioHandler(
+      player: _FakeNativeAudioPlayer(),
+    );
+    int nextCalls = 0;
+    int previousCalls = 0;
+    handler.onSkipToNextTrack = () async {
+      nextCalls += 1;
+      return true;
+    };
+    handler.onSkipToPreviousTrack = () async {
+      previousCalls += 1;
+      return true;
+    };
+
+    await handler.click(MediaButton.next);
+    await handler.click(MediaButton.previous);
+
+    expect(nextCalls, 1);
+    expect(previousCalls, 1);
+
+    await handler.dispose();
+  });
+
   test('playback state suppresses unchanged broadcasts', () async {
     final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
     final MusicAudioHandler handler = MusicAudioHandler(player: player);

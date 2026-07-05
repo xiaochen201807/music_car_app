@@ -1945,3 +1945,52 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after tag push.
+
+## 2026-07-05 - Media Button Toggle Alignment
+
+Implemented in this increment:
+
+- Compared the media-session flow against LX Music Mobile and RiMusic. Both
+  route remote media commands directly to the active playback backend and use
+  the backend playback state as the source of truth.
+- Overrode `MusicAudioHandler.click()` so Android media-button and play-pause
+  toggle events use the real player state instead of the cached
+  `playbackState` value.
+- Kept explicit notification `play` and `pause` actions on the existing
+  `play()` / `pause()` methods, while routing `MediaButton.next` and
+  `MediaButton.previous` through the same skip callbacks.
+- Added regression coverage for stale cached notification state versus real
+  player state, plus next/previous click delegation.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart`
+- `flutter test test/music_audio_handler_test.dart`
+- `adb devices` returned no connected Android device, so live notification
+  click validation is still pending on hardware.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
+## 2026-07-05 - v1.0.76 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.76+10076` for the media-button toggle release.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.76`.
+- Kept release packaging remote-first through the `v1.0.76` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.

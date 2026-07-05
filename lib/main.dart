@@ -307,8 +307,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.75 (Build 10075)');
-    debugPrint('✅ Fixes: 通知栏恢复播放兜底修复');
+    debugPrint('🚀 App Version: 1.0.76 (Build 10076)');
+    debugPrint('✅ Fixes: 蓝牙/通知栏播放暂停同步修复');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
@@ -1905,8 +1905,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.75',
-        'build': 10075,
+        'version': '1.0.76',
+        'build': 10076,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,
