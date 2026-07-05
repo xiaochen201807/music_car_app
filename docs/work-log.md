@@ -1879,3 +1879,24 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and push.
+
+## 2026-07-05 - v1.0.74 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.74+10074` for the follow-up tag release.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.74`.
+- Kept release packaging remote-first through the `v1.0.74` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/widget_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.
