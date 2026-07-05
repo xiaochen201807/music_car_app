@@ -2046,3 +2046,50 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after tag push.
+
+## 2026-07-05 - Stable Notification Play-Pause Action
+
+Implemented in this increment:
+
+- Replaced the notification center play/pause slot with a stable
+  `MediaAction.playPause` control. The icon and label still switch between
+  pause and play, but the Android action/PendingIntent no longer changes after
+  pausing.
+- This targets the vivo status-bar behavior seen on device where explicit
+  `MediaAction.play` did not reach the Dart handler after the notification had
+  entered the paused state, while standard media-key play/pause commands did.
+- Added regression coverage to assert the middle notification control always
+  uses `MediaAction.playPause` across playing and paused states.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.
+
+## 2026-07-05 - v1.0.78 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.78+10078` for the stable notification
+  play-pause action release.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.78`.
+- Kept release packaging remote-first through the `v1.0.78` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.

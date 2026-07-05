@@ -307,8 +307,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.77 (Build 10077)');
-    debugPrint('✅ Fixes: 播放暂停命令延迟与状态同步修复');
+    debugPrint('🚀 App Version: 1.0.78 (Build 10078)');
+    debugPrint('✅ Fixes: vivo 通知栏播放/暂停 PendingIntent 稳定化');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
@@ -1905,8 +1905,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.77',
-        'build': 10077,
+        'version': '1.0.78',
+        'build': 10078,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

@@ -470,6 +470,28 @@ void main() {
     await handler.dispose();
   });
 
+  test(
+    'playback notification center control always uses playPause action',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+      await handler.playDirect();
+      PlaybackState state = handler.playbackState.value;
+      expect(state.playing, isTrue);
+      expect(state.controls[1].action, MediaAction.playPause);
+      expect(state.controls[1].label, 'Pause');
+
+      await handler.pauseDirect();
+      state = handler.playbackState.value;
+      expect(state.playing, isFalse);
+      expect(state.controls[1].action, MediaAction.playPause);
+      expect(state.controls[1].label, 'Play');
+
+      await handler.dispose();
+    },
+  );
+
   test('playback state suppresses unchanged broadcasts', () async {
     final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer();
     final MusicAudioHandler handler = MusicAudioHandler(player: player);

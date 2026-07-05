@@ -55,6 +55,16 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     milliseconds: 500,
   );
   static const Duration _bufferedPositionChangeThreshold = Duration(seconds: 1);
+  static const MediaControl _playPauseControl = MediaControl(
+    androidIcon: 'drawable/audio_service_play_arrow',
+    label: 'Play',
+    action: MediaAction.playPause,
+  );
+  static const MediaControl _pausePlayControl = MediaControl(
+    androidIcon: 'drawable/audio_service_pause',
+    label: 'Pause',
+    action: MediaAction.playPause,
+  );
 
   static const MethodChannel _carLifeChannel = MethodChannel(
     'music_car_app/carlife',
@@ -437,7 +447,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     final PlaybackState nextState = PlaybackState(
       controls: <MediaControl>[
         MediaControl.skipToPrevious,
-        if (playing) MediaControl.pause else MediaControl.play,
+        if (playing) _pausePlayControl else _playPauseControl,
         MediaControl.skipToNext,
         MediaControl.stop,
       ],
