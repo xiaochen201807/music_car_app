@@ -55,6 +55,10 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     milliseconds: 500,
   );
   static const Duration _bufferedPositionChangeThreshold = Duration(seconds: 1);
+  static const int _bluetoothLyricMaxLength = 120;
+  static const String _androidLyricMetadataKey = 'android.media.metadata.LYRIC';
+  static const String _musicCarLyricMetadataKey =
+      'com.sy110.music_car_app.metadata.LYRIC';
   static const MediaControl _playPauseControl = MediaControl(
     androidIcon: 'drawable/audio_service_play_arrow',
     label: 'Play',
@@ -71,6 +75,8 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   );
   List<FreeMusicLyricLine> _currentLyricLines = const [];
   String _lastBroadcastLyric = '';
+  String _lastPublishedBluetoothLyric = '';
+  String? _lastPublishedBluetoothLyricMediaId;
   late final Timer _lyricTimer;
 
   final NativeAudioPlayer _player;
@@ -152,6 +158,10 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       fallbackItem: item,
     );
     await setUrl(url);
+    _currentLyricLines = const [];
+    _lastBroadcastLyric = '';
+    _lastPublishedBluetoothLyric = '';
+    _lastPublishedBluetoothLyricMediaId = null;
     mediaItem.add(item);
     queueTitle.add('当前播放');
     _activeQueueIndex = activeQueueIndex;
@@ -381,6 +391,11 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   void updateLyrics(List<FreeMusicLyricLine> lines) {
     _currentLyricLines = lines;
     _lastBroadcastLyric = '';
+    if (lines.isEmpty) {
+      _publishBluetoothLyric('');
+      return;
+    }
+    _publishBluetoothLyric(_activeLyricForPosition(_player.position));
   }
 
   void _checkAndUpdateCarLifeLyric() {
@@ -389,24 +404,51 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         _lastBroadcastLyric = '暂无歌词';
         _sendLyricBroadcast('暂无歌词');
       }
+      _publishBluetoothLyric('');
       return;
     }
     if (!_player.playing) {
       return;
     }
-    final Duration currentPos = _player.position;
+    final String lyric = _activeLyricForPosition(_player.position);
+    if (lyric.isNotEmpty && lyric != _lastBroadcastLyric) {
+      _lastBroadcastLyric = lyric;
+      _sendLyricBroadcast(lyric);
+      _publishBluetoothLyric(lyric);
+    }
+  }
+
+  String _activeLyricForPosition(Duration position) {
     final int index = activeLyricLineIndex(
       _currentLyricLines,
-      currentPos,
+      position,
       lead: lyricHighlightLead,
     );
-    if (index >= 0 && index < _currentLyricLines.length) {
-      final String lyric = _currentLyricLines[index].text;
-      if (lyric != _lastBroadcastLyric) {
-        _lastBroadcastLyric = lyric;
-        _sendLyricBroadcast(lyric);
-      }
+    if (index < 0 || index >= _currentLyricLines.length) {
+      return '';
     }
+    return _currentLyricLines[index].text;
+  }
+
+  void _publishBluetoothLyric(String lyric) {
+    final MediaItem? currentItem = mediaItem.valueOrNull;
+    if (currentItem == null) {
+      return;
+    }
+    final String normalizedLyric = _normalizeBluetoothLyric(lyric);
+    if (currentItem.id == _lastPublishedBluetoothLyricMediaId &&
+        normalizedLyric == _lastPublishedBluetoothLyric) {
+      return;
+    }
+    _lastPublishedBluetoothLyricMediaId = currentItem.id;
+    _lastPublishedBluetoothLyric = normalizedLyric;
+    mediaItem.add(
+      _mediaItemWithBluetoothLyric(
+        currentItem,
+        lyric: normalizedLyric,
+        position: _player.position,
+      ),
+    );
   }
 
   void _sendLyricBroadcast(String lyric) {
@@ -428,6 +470,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
             'duration': durationMs,
             'position': positionMs,
             'playing': playing,
+          })
+          .catchError((Object error) {
+            debugPrint('[audio-handler] lyric broadcast ignored: $error');
           }),
     );
   }
@@ -682,6 +727,66 @@ int? _queueIndexFromSnapshot(
     (MediaItem item) => item.id == fallbackItem.id,
   );
   return fallbackIndex >= 0 ? fallbackIndex : 0;
+}
+
+MediaItem _mediaItemWithBluetoothLyric(
+  MediaItem item, {
+  required String lyric,
+  required Duration position,
+}) {
+  final Map<String, dynamic> extras = <String, dynamic>{
+    if (item.extras != null) ...item.extras!,
+  };
+  extras.remove('lyric');
+  extras.remove('currentLyric');
+  extras.remove('lyricPositionMs');
+  extras.remove(MusicAudioHandler._androidLyricMetadataKey);
+  extras.remove(MusicAudioHandler._musicCarLyricMetadataKey);
+
+  if (lyric.isEmpty) {
+    return item.copyWith(
+      displayTitle: item.title,
+      displaySubtitle: item.artist,
+      displayDescription: _artistAlbumDescription(item),
+      extras: extras,
+    );
+  }
+
+  extras['lyric'] = lyric;
+  extras['currentLyric'] = lyric;
+  extras['lyricPositionMs'] = position.inMilliseconds;
+  extras[MusicAudioHandler._androidLyricMetadataKey] = lyric;
+  extras[MusicAudioHandler._musicCarLyricMetadataKey] = lyric;
+
+  return item.copyWith(
+    displayTitle: item.title,
+    displaySubtitle: lyric,
+    displayDescription: _artistAlbumDescription(item),
+    extras: extras,
+  );
+}
+
+String _normalizeBluetoothLyric(String lyric) {
+  final String normalized = lyric.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (normalized.length <= MusicAudioHandler._bluetoothLyricMaxLength) {
+    return normalized;
+  }
+  return normalized.substring(0, MusicAudioHandler._bluetoothLyricMaxLength);
+}
+
+String? _artistAlbumDescription(MediaItem item) {
+  final String artist = item.artist?.trim() ?? '';
+  final String album = item.album?.trim() ?? '';
+  if (artist.isEmpty && album.isEmpty) {
+    return null;
+  }
+  if (artist.isEmpty) {
+    return album;
+  }
+  if (album.isEmpty) {
+    return artist;
+  }
+  return '$artist · $album';
 }
 
 AudioProcessingState _mapProcessingState(ProcessingState state) {

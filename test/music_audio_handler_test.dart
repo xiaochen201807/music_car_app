@@ -254,6 +254,121 @@ void main() {
     await handler.dispose();
   });
 
+  test('updateLyrics publishes current lyric to bluetooth metadata', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+      ..currentPosition = const Duration(seconds: 5);
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+    await handler.loadFromSnapshot(
+      'https://example.com/song.mp3',
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/song.mp3',
+        playing: true,
+        title: '晴天',
+        artist: '周杰伦',
+        duration: Duration(seconds: 60),
+      ),
+    );
+
+    handler.updateLyrics(const <FreeMusicLyricLine>[
+      FreeMusicLyricLine(time: Duration.zero, text: '第一句歌词'),
+      FreeMusicLyricLine(time: Duration(seconds: 4), text: '第二句歌词'),
+    ]);
+
+    final MediaItem item = handler.mediaItem.value!;
+    expect(item.title, '晴天');
+    expect(item.artist, '周杰伦');
+    expect(item.displayTitle, '晴天');
+    expect(item.displaySubtitle, '第二句歌词');
+    expect(item.displayDescription, '周杰伦');
+    expect(item.extras?['audioUrl'], 'https://example.com/song.mp3');
+    expect(item.extras?['lyric'], '第二句歌词');
+    expect(item.extras?['currentLyric'], '第二句歌词');
+    expect(item.extras?['lyricPositionMs'], 5000);
+    expect(item.extras?['android.media.metadata.LYRIC'], '第二句歌词');
+    expect(item.extras?['com.sy110.music_car_app.metadata.LYRIC'], '第二句歌词');
+
+    await handler.dispose();
+  });
+
+  test(
+    'updateLyrics clears bluetooth lyric metadata for empty lyrics',
+    () async {
+      final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+        ..currentPosition = const Duration(seconds: 1);
+      final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+      await handler.loadFromSnapshot(
+        'https://example.com/song.mp3',
+        const PlayerProbeSnapshot(
+          audioUrl: 'https://example.com/song.mp3',
+          playing: true,
+          title: '晴天',
+          artist: '周杰伦',
+        ),
+      );
+      handler.updateLyrics(const <FreeMusicLyricLine>[
+        FreeMusicLyricLine(time: Duration.zero, text: '第一句歌词'),
+      ]);
+
+      handler.updateLyrics(const <FreeMusicLyricLine>[]);
+
+      final MediaItem item = handler.mediaItem.value!;
+      expect(item.displayTitle, '晴天');
+      expect(item.displaySubtitle, '周杰伦');
+      expect(item.extras?['audioUrl'], 'https://example.com/song.mp3');
+      expect(item.extras?.containsKey('lyric'), isFalse);
+      expect(item.extras?.containsKey('currentLyric'), isFalse);
+      expect(item.extras?.containsKey('lyricPositionMs'), isFalse);
+      expect(item.extras?.containsKey('android.media.metadata.LYRIC'), isFalse);
+      expect(
+        item.extras?.containsKey('com.sy110.music_car_app.metadata.LYRIC'),
+        isFalse,
+      );
+
+      await handler.dispose();
+    },
+  );
+
+  test('loadFromSnapshot clears stale bluetooth lyric cache', () async {
+    final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
+      ..isPlaying = true
+      ..currentPosition = const Duration(seconds: 2);
+    final MusicAudioHandler handler = MusicAudioHandler(player: player);
+
+    await handler.loadFromSnapshot(
+      'https://example.com/one.mp3',
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/one.mp3',
+        playing: true,
+        title: '第一首',
+        artist: '歌手',
+      ),
+    );
+    handler.updateLyrics(const <FreeMusicLyricLine>[
+      FreeMusicLyricLine(time: Duration.zero, text: '旧歌词'),
+    ]);
+    expect(handler.mediaItem.value?.extras?['lyric'], '旧歌词');
+
+    await handler.loadFromSnapshot(
+      'https://example.com/two.mp3',
+      const PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/two.mp3',
+        playing: true,
+        title: '第二首',
+        artist: '歌手',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+
+    final MediaItem item = handler.mediaItem.value!;
+    expect(item.title, '第二首');
+    expect(item.extras?.containsKey('lyric'), isFalse);
+    expect(item.extras?.containsKey('android.media.metadata.LYRIC'), isFalse);
+
+    await handler.dispose();
+  });
+
   test(
     'skipToQueueItem calls native queue callback for another item',
     () async {

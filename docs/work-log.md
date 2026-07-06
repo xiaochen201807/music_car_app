@@ -2093,3 +2093,35 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after tag push.
+
+## 2026-07-06 - Bluetooth Lyric Metadata
+
+Implemented in this increment:
+
+- Added Bluetooth/media-session lyric metadata publishing in
+  `MusicAudioHandler`. Loaded lyrics now update the current `MediaItem` with the
+  active lyric line, and playback-position lyric changes refresh the metadata.
+- Exposed the active lyric through both visible media metadata
+  (`displaySubtitle`) and compatibility extras (`lyric`, `currentLyric`,
+  `android.media.metadata.LYRIC`, and
+  `com.sy110.music_car_app.metadata.LYRIC`) so Bluetooth/AVRCP head units that
+  read either display fields or custom metadata have a chance to show lyrics.
+- Cleared lyric metadata when a track has no lyrics, preventing old lyric lines
+  from staying visible on Bluetooth devices after a song change.
+- Guarded the native lyric broadcast call so missing Android platform handlers
+  do not break tests, desktop runs, or media-session metadata updates.
+- Added regression coverage for publishing and clearing Bluetooth lyric
+  metadata while preserving existing song metadata and audio URL extras.
+
+Verification in this increment:
+
+- `dart format lib/music_audio_handler.dart test/music_audio_handler_test.dart`
+- `flutter test test/music_audio_handler_test.dart test/lyrics_sync_test.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/lyrics_sync_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
