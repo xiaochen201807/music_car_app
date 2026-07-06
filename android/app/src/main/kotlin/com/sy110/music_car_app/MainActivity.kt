@@ -1,17 +1,16 @@
 package com.sy110.music_car_app
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.media.audiofx.BassBoost
+import android.media.audiofx.Equalizer
+import android.media.audiofx.Virtualizer
+import androidx.core.content.FileProvider
 import com.baidu.carlife.platform.CLPlatformCallback
 import com.baidu.carlife.platform.CLPlatformManager
 import com.baidu.carlife.platform.model.CLAlbum
@@ -29,16 +28,19 @@ import com.baidu.carlife.platform.response.CLUnsupportAPIResp
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.util.ArrayList
+import kotlin.math.roundToInt
 
 class MainActivity : AudioServiceActivity() {
     private val installerChannelName = "music_car_app/app_installer"
     private val carLifeChannelName = "music_car_app/carlife"
-    private val downloadIds = mutableSetOf<Long>()
-    private val installingDownloadIds = mutableSetOf<Long>()
-    private val downloadPollHandler = Handler(Looper.getMainLooper())
-    private val downloadPollTasks = mutableMapOf<Long, Runnable>()
-    private var downloadReceiver: BroadcastReceiver? = null
+    private val audioEffectsChannelName = "music_car_app/audio_effects"
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var equalizer: Equalizer? = null
+    private var bassBoost: BassBoost? = null
+    private var virtualizer: Virtualizer? = null
+    private var effectsSessionId: Int? = null
     private var lastCarLifePlaybackContext: Map<String, Any?> = emptyMap()
     private var carLifeChannel: MethodChannel? = null
     private val carLifeManager: CLPlatformManager by lazy { CLPlatformManager.getInstance() }
@@ -56,14 +58,15 @@ class MainActivity : AudioServiceActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "supportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
-                "downloadAndInstallApk" -> {
-                    val url = call.argument<String>("url")?.trim().orEmpty()
+                "ensureInstallPermission" -> ensureInstallPermission(result)
+                "installApkFile" -> {
+                    val filePath = call.argument<String>("filePath")?.trim().orEmpty()
                     val fileName = call.argument<String>("fileName")?.trim().orEmpty()
-                    if (url.isEmpty()) {
-                        result.error("missing_url", "APK 下载地址为空。", null)
+                    if (filePath.isEmpty()) {
+                        result.error("missing_file_path", "APK 文件路径为空。", null)
                         return@setMethodCallHandler
                     }
-                    downloadAndInstallApk(url, fileName, result)
+                    installApkFile(filePath, fileName, result)
                 }
                 else -> result.notImplemented()
             }
@@ -90,6 +93,29 @@ class MainActivity : AudioServiceActivity() {
                     val position = call.argument<Number>("position")?.toLong() ?: 0L
                     val playing = call.argument<Boolean>("playing") ?: false
                     sendLyricBroadcast(lyric, title, artist, album, duration, position, playing)
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            audioEffectsChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "applySettings" -> {
+                    val sessionId = call.argument<Number>("audioSessionId")?.toInt() ?: 0
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    val bass = call.argument<Number>("bassBoost")?.toInt() ?: 0
+                    val surround = call.argument<Number>("surround")?.toInt() ?: 0
+                    val clarity = call.argument<Number>("clarity")?.toInt() ?: 0
+                    val gains = (call.argument<List<Number>>("eqGains") ?: emptyList())
+                        .map { it.toInt() }
+                    applyAudioEffects(sessionId, enabled, bass, surround, clarity, gains, result)
+                }
+                "release" -> {
+                    releaseAudioEffects()
                     result.success(true)
                 }
                 else -> result.notImplemented()
@@ -424,7 +450,7 @@ class MainActivity : AudioServiceActivity() {
             "source" to stringArgument(item["source"]),
             "songId" to stringArgument(item["id"]),
         )
-        downloadPollHandler.post {
+        mainHandler.post {
             carLifeChannel?.invokeMethod(
                 "onCarLifeControl",
                 payload,
@@ -627,157 +653,66 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    private fun downloadAndInstallApk(
-        url: String,
+    private fun installApkFile(
+        filePath: String,
         fileName: String,
         result: MethodChannel.Result,
     ) {
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            !packageManager.canRequestPackageInstalls()
-        ) {
-            val settingsIntent = Intent(
-                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:$packageName"),
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(settingsIntent)
-            result.error(
-                "install_permission_required",
-                "请先允许本应用安装未知来源应用，然后重新点击立即更新。",
-                null,
-            )
+        if (!hasInstallPermission(result)) {
             return
         }
 
         try {
-            val apkName = sanitizeApkFileName(fileName)
-            val request = DownloadManager.Request(Uri.parse(url))
-                .setTitle(apkName)
-                .setDescription("正在下载车载音乐更新包")
-                .setMimeType("application/vnd.android.package-archive")
-                .setNotificationVisibility(
-                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED,
-                )
-                .setDestinationInExternalFilesDir(
-                    this,
-                    Environment.DIRECTORY_DOWNLOADS,
-                    apkName,
-                )
+            val apkFile = File(filePath)
+            if (!apkFile.exists() || !apkFile.isFile || apkFile.length() <= 0L) {
+                result.error("missing_apk", "安装包不存在或为空：${fileName.ifBlank { filePath }}", null)
+                return
+            }
 
-            val downloadManager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            val downloadId = downloadManager.enqueue(request)
-            downloadIds.add(downloadId)
-            ensureDownloadReceiver()
-            scheduleDownloadPoll(downloadId)
-            result.success(null)
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apkFile,
+            )
+            openApkInstaller(apkUri)
+            result.success(true)
         } catch (error: Exception) {
             result.error(
-                "download_failed",
-                error.message ?: "下载安装包失败。",
+                "install_failed",
+                error.message ?: "打开安装界面失败。",
                 null,
             )
         }
     }
 
-    private fun ensureDownloadReceiver() {
-        if (downloadReceiver != null) {
-            return
-        }
-
-        downloadReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val downloadId = intent.getLongExtra(
-                    DownloadManager.EXTRA_DOWNLOAD_ID,
-                    -1L,
-                )
-                if (!downloadIds.remove(downloadId)) {
-                    return
-                }
-                if (!installDownloadedApk(downloadId)) {
-                    downloadIds.add(downloadId)
-                    scheduleDownloadPoll(downloadId)
-                }
-            }
-        }
-
-        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(downloadReceiver, filter)
+    private fun ensureInstallPermission(result: MethodChannel.Result) {
+        if (hasInstallPermission(result)) {
+            result.success(true)
         }
     }
 
-    private fun scheduleDownloadPoll(downloadId: Long, attempt: Int = 0) {
-        if (!downloadIds.contains(downloadId) || downloadPollTasks.containsKey(downloadId)) {
-            return
-        }
-
-        val task = Runnable {
-            downloadPollTasks.remove(downloadId)
-            if (!downloadIds.contains(downloadId)) {
-                return@Runnable
-            }
-
-            when (downloadStatus(downloadId)) {
-                DownloadManager.STATUS_SUCCESSFUL -> {
-                    downloadIds.remove(downloadId)
-                    if (!installDownloadedApk(downloadId)) {
-                        downloadIds.add(downloadId)
-                        scheduleDownloadPoll(downloadId, attempt + 1)
-                    }
-                }
-                DownloadManager.STATUS_FAILED -> {
-                    downloadIds.remove(downloadId)
-                }
-                else -> {
-                    if (attempt < 1800) {
-                        scheduleDownloadPoll(downloadId, attempt + 1)
-                    }
-                }
-            }
-        }
-
-        downloadPollTasks[downloadId] = task
-        downloadPollHandler.postDelayed(task, 2_000L)
-    }
-
-    private fun downloadStatus(downloadId: Long): Int? {
-        val downloadManager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-        val query = DownloadManager.Query().setFilterById(downloadId)
-        downloadManager.query(query)?.use { cursor ->
-            if (!cursor.moveToFirst()) {
-                return null
-            }
-
-            val statusColumn = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-            return cursor.getInt(statusColumn)
-        }
-        return null
-    }
-
-    private fun installDownloadedApk(downloadId: Long): Boolean {
-        if (!installingDownloadIds.add(downloadId)) {
+    private fun hasInstallPermission(result: MethodChannel.Result): Boolean {
+        if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            packageManager.canRequestPackageInstalls()
+        ) {
             return true
         }
 
-        if (downloadStatus(downloadId) != DownloadManager.STATUS_SUCCESSFUL) {
-            installingDownloadIds.remove(downloadId)
-            return false
-        }
+        val settingsIntent = Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:$packageName"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(settingsIntent)
+        result.error(
+            "install_permission_required",
+            "请先允许本应用安装未知来源应用，然后重新点击立即更新。",
+            null,
+        )
+        return false
+    }
 
-        val task = downloadPollTasks.remove(downloadId)
-        if (task != null) {
-            downloadPollHandler.removeCallbacks(task)
-        }
-
-        val downloadManager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-        val apkUri = downloadManager.getUriForDownloadedFile(downloadId)
-        if (apkUri == null) {
-            installingDownloadIds.remove(downloadId)
-            return false
-        }
+    private fun openApkInstaller(apkUri: Uri) {
         val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
             data = apkUri
             putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
@@ -791,29 +726,128 @@ class MainActivity : AudioServiceActivity() {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
-        return try {
+        try {
             startActivity(installIntent)
-            true
         } catch (_: Exception) {
-            try {
-                startActivity(fallbackIntent)
-                true
-            } catch (_: Exception) {
-                installingDownloadIds.remove(downloadId)
-                false
-            }
+            startActivity(fallbackIntent)
         }
     }
 
-    private fun sanitizeApkFileName(fileName: String): String {
-        val normalized = fileName
-            .ifBlank { "music-car-app-update.apk" }
-            .replace(Regex("[^A-Za-z0-9._-]"), "-")
-        return if (normalized.endsWith(".apk", ignoreCase = true)) {
-            normalized
-        } else {
-            "$normalized.apk"
+    private fun applyAudioEffects(
+        sessionId: Int,
+        enabled: Boolean,
+        bass: Int,
+        surround: Int,
+        clarity: Int,
+        gains: List<Int>,
+        result: MethodChannel.Result,
+    ) {
+        if (sessionId <= 0) {
+            result.error("missing_audio_session", "音频会话尚未就绪。", null)
+            return
         }
+
+        try {
+            ensureAudioEffects(sessionId)
+            if (!enabled) {
+                equalizer?.enabled = false
+                bassBoost?.enabled = false
+                virtualizer?.enabled = false
+                result.success(true)
+                return
+            }
+
+            applyEqualizerGains(gains.ifEmpty { listOf(0, 0, 0, 0, 0) })
+            bassBoost?.let { effect ->
+                effect.setStrength(percentToStrength(bass))
+                effect.enabled = bass > 0
+            }
+            virtualizer?.let { effect ->
+                effect.setStrength(percentToStrength(maxOf(surround, clarity / 2)))
+                effect.enabled = surround > 0 || clarity > 70
+            }
+            result.success(true)
+        } catch (error: Exception) {
+            result.error(
+                "audio_effects_failed",
+                error.message ?: "应用音效失败。",
+                null,
+            )
+        }
+    }
+
+    private fun ensureAudioEffects(sessionId: Int) {
+        if (
+            effectsSessionId == sessionId &&
+            (equalizer != null || bassBoost != null || virtualizer != null)
+        ) {
+            return
+        }
+        releaseAudioEffects()
+        effectsSessionId = sessionId
+        equalizer = try {
+            Equalizer(0, sessionId).apply { enabled = false }
+        } catch (_: Exception) {
+            null
+        }
+        bassBoost = try {
+            BassBoost(0, sessionId).apply { enabled = false }
+        } catch (_: Exception) {
+            null
+        }
+        virtualizer = try {
+            Virtualizer(0, sessionId).apply { enabled = false }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun applyEqualizerGains(gains: List<Int>) {
+        val effect = equalizer ?: return
+        val bandCount = effect.numberOfBands.toInt()
+        if (bandCount <= 0) {
+            return
+        }
+        val levelRange = effect.bandLevelRange
+        val minLevel = levelRange[0].toInt()
+        val maxLevel = levelRange[1].toInt()
+        val maxBoost = minOf(maxLevel, 700)
+        val maxCut = maxOf(minLevel, -700)
+        for (band in 0 until bandCount) {
+            val sourceIndex = ((band.toDouble() / maxOf(1, bandCount - 1)) *
+                (gains.size - 1)).roundToInt().coerceIn(0, gains.size - 1)
+            val milliBel = (gains[sourceIndex] * 100).coerceIn(maxCut, maxBoost)
+            effect.setBandLevel(band.toShort(), milliBel.toShort())
+        }
+        effect.enabled = true
+    }
+
+    private fun percentToStrength(value: Int): Short {
+        return (value.coerceIn(0, 100) * 10).toShort()
+    }
+
+    private fun releaseAudioEffects() {
+        try {
+            equalizer?.release()
+        } catch (_: Exception) {
+        }
+        try {
+            bassBoost?.release()
+        } catch (_: Exception) {
+        }
+        try {
+            virtualizer?.release()
+        } catch (_: Exception) {
+        }
+        equalizer = null
+        bassBoost = null
+        virtualizer = null
+        effectsSessionId = null
+    }
+
+    override fun onDestroy() {
+        releaseAudioEffects()
+        super.onDestroy()
     }
 
     companion object {
@@ -829,18 +863,4 @@ class MainActivity : AudioServiceActivity() {
         )
     }
 
-    override fun onDestroy() {
-        downloadReceiver?.let { receiver ->
-            try {
-                unregisterReceiver(receiver)
-            } catch (_: Exception) {
-            }
-        }
-        downloadReceiver = null
-        downloadPollTasks.values.forEach { task ->
-            downloadPollHandler.removeCallbacks(task)
-        }
-        downloadPollTasks.clear()
-        super.onDestroy()
-    }
 }

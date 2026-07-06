@@ -78,6 +78,7 @@ flutter {
 }
 
 dependencies {
+    implementation("androidx.core:core:1.13.1")
     implementation(files("libs/Carlife_android_platformsdk_2.2.0.jar"))
     implementation("com.google.code.gson:gson:2.11.0")
 }

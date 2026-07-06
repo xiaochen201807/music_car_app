@@ -315,7 +315,8 @@ Exit criteria:
 - `[x]` The app falls back to the GitHub latest release API when no custom
   manifest is configured.
 - `[x]` The app chooses the best APK for the device ABI before downloading.
-- `[x]` Android uses `DownloadManager` plus a polling fallback to open the
-  system installer after download.
+- `[x]` Android downloads update APKs inside the Flutter app with visible
+  progress, then hands the local file to the system installer through
+  `FileProvider`.
 - `[~]` iOS unsigned IPA artifacts are built by GitHub Actions, but installation
   still requires a separate Apple signing flow.

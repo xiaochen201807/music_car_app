@@ -18,6 +18,7 @@ import 'native_audio_controller.dart';
 import 'services/app_installer_service.dart';
 import 'services/app_settings_controller.dart';
 import 'services/app_telemetry.dart';
+import 'services/audio_effects_controller.dart';
 import 'controllers/download_controller.dart';
 import 'controllers/library_controller.dart';
 import 'controllers/music_search_controller.dart';
@@ -229,6 +230,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   late final PlaybackController _playbackController;
   late final DownloadService _downloadService;
   late final DownloadController _downloadController;
+  late final AudioEffectsController _audioEffectsController;
   late final MusicSearchController _musicSearchController;
   late final TrackMetadataController _trackMetadataController;
   late final PlatformMediaBridge _mediaBridge;
@@ -303,12 +305,18 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
+  void _handleAudioEffectsChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.79 (Build 10079)');
-    debugPrint('✅ Fixes: 蓝牙/媒体会话歌词 metadata 同步');
+    debugPrint('🚀 App Version: 1.0.80 (Build 10080)');
+    debugPrint('✅ Fixes: 应用内更新进度与固定音效预设');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
@@ -323,6 +331,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       backend: DownloadServiceBackend(_downloadService),
       qualityClient: FreeMusicDownloadQualityClient(_freeMusicApi),
     )..addListener(_handleDownloadChanged);
+    _audioEffectsController = AudioEffectsController()
+      ..addListener(_handleAudioEffectsChanged);
     _nativeAudioController = NativeAudioController(
       player: widget.audioHandler,
       api: _freeMusicApi,
@@ -337,6 +347,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
           ? null
           : AudioHandlerPlayerUiStateSource(widget.audioHandler!),
     );
+    unawaited(_audioEffectsController.init(audioHandler: widget.audioHandler));
     _mediaBridge =
         PlatformMediaBridge(
             playbackController: _playbackController,
@@ -399,6 +410,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _downloadController
       ..removeListener(_handleDownloadChanged)
       ..dispose();
+    _audioEffectsController
+      ..removeListener(_handleAudioEffectsChanged)
+      ..dispose();
     _trackMetadataController
       ..removeListener(_handleTrackMetadataChanged)
       ..dispose();
@@ -431,12 +445,24 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   ThemeMode get themeMode => widget.settingsController.themeMode;
 
+  AudioEffectsSettings get audioEffectsSettings {
+    return _audioEffectsController.settings;
+  }
+
+  bool get audioEffectsSupported {
+    return _audioEffectsController.supported;
+  }
+
   Future<void> setThemeMode(ThemeMode mode) async {
     await widget.settingsController.setThemeMode(mode);
   }
 
   Future<void> setPreferredBitrate(String br) async {
     await widget.settingsController.setPreferredBitrate(br);
+  }
+
+  Future<void> setAudioEffectPreset(String presetId) async {
+    await _audioEffectsController.setPreset(presetId);
   }
 
   FreeMusicSong? _lastLoadedLyricsSong;
@@ -1694,21 +1720,41 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (_isInstallingUpdate) {
       return;
     }
+    final ValueNotifier<AppInstallProgress?> installProgress =
+        ValueNotifier<AppInstallProgress?>(null);
+    final NavigatorState rootNavigator = Navigator.of(
+      context,
+      rootNavigator: true,
+    );
     setState(() {
       _isInstallingUpdate = true;
     });
 
     try {
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext dialogContext) {
+            return _UpdateInstallProgressDialog(progress: installProgress);
+          },
+        ),
+      );
       await _appInstallerService.downloadAndInstallBestApk(
         updateInfo.apkAssets,
+        onProgress: (AppInstallProgress progress) {
+          installProgress.value = progress;
+        },
       );
       if (mounted) {
-        _showSnack('安装包开始下载，完成后会自动打开安装界面。');
+        _dismissDialog(rootNavigator);
+        _showSnack('安装包下载完成，请在系统安装界面确认更新。');
       }
     } on PlatformException catch (error) {
       if (!mounted) {
         return;
       }
+      _dismissDialog(rootNavigator);
       if (error.code == 'install_permission_required') {
         _showSnack(error.message ?? '请允许安装未知来源应用后重试。');
       } else if (updateInfo.releaseUrl.isNotEmpty) {
@@ -1719,14 +1765,22 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       }
     } on AppInstallerException catch (error) {
       if (mounted) {
+        _dismissDialog(rootNavigator);
         _showSnack(error.message);
       }
     } finally {
+      installProgress.dispose();
       if (mounted) {
         setState(() {
           _isInstallingUpdate = false;
         });
       }
+    }
+  }
+
+  void _dismissDialog(NavigatorState navigator) {
+    if (navigator.canPop()) {
+      navigator.pop();
     }
   }
 
@@ -1905,8 +1959,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.79',
-        'build': 10079,
+        'version': '1.0.80',
+        'build': 10080,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,
@@ -1964,6 +2018,87 @@ class _QualitySheetOption {
   final String label;
   final String subtitle;
   final FreeMusicQuality quality;
+}
+
+class _UpdateInstallProgressDialog extends StatelessWidget {
+  const _UpdateInstallProgressDialog({required this.progress});
+
+  final ValueListenable<AppInstallProgress?> progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<AppInstallProgress?>(
+      valueListenable: progress,
+      builder:
+          (BuildContext context, AppInstallProgress? value, Widget? child) {
+            final bool openingInstaller =
+                value?.stage == AppInstallProgressStage.openingInstaller;
+            final double? progressValue = value?.fraction;
+            final String title = openingInstaller ? '正在打开安装界面' : '正在下载更新包';
+            final String statusText = value == null
+                ? '正在选择适合当前设备的安装包'
+                : openingInstaller
+                ? '下载完成，请在系统安装界面确认更新'
+                : _installProgressText(value);
+
+            return AlertDialog(
+              title: Text(title),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      value?.assetName ?? '车载音乐更新',
+                      style: AppType.body.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    LinearProgressIndicator(
+                      value: openingInstaller ? 1 : progressValue,
+                      minHeight: AppSpace.xs,
+                      backgroundColor: AppColor.progressTrack,
+                      color: AppColor.spotifyGreen,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    Text(
+                      statusText,
+                      style: AppType.caption.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+    );
+  }
+}
+
+String _installProgressText(AppInstallProgress progress) {
+  final String downloaded = _formatInstallBytes(progress.downloadedBytes);
+  if (progress.totalBytes <= 0) {
+    return '已下载 $downloaded';
+  }
+  final String total = _formatInstallBytes(progress.totalBytes);
+  final int percent = progress.percent ?? 0;
+  return '$percent% · $downloaded / $total';
+}
+
+String _formatInstallBytes(int bytes) {
+  if (bytes <= 0) {
+    return '0 MB';
+  }
+  final double mib = bytes / 1024 / 1024;
+  if (mib >= 1) {
+    return '${mib.toStringAsFixed(mib >= 10 ? 0 : 1)} MB';
+  }
+  final double kib = bytes / 1024;
+  return '${kib.toStringAsFixed(kib >= 10 ? 0 : 1)} KB';
 }
 
 // ==========================================

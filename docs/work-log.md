@@ -2147,3 +2147,98 @@ Packaging note:
 
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and tag push.
+
+## 2026-07-06 - In-App Update Download Progress
+
+Implemented in this increment:
+
+- Moved APK downloading from Android `DownloadManager` into
+  `AppInstallerService`, streaming the selected APK through Flutter so the app
+  can render live byte progress before opening the installer.
+- Added an in-app update progress dialog with determinate progress when the
+  server reports a size, an indeterminate fallback when size is unknown, and a
+  final state while the system installer is opening.
+- Replaced the native `downloadAndInstallApk` channel call with
+  `installApkFile`, keeping Android native code focused on unknown-source
+  permission handling and installer launch.
+- Added a native `ensureInstallPermission` preflight so the app opens the
+  Android unknown-source permission screen before downloading a large APK when
+  permission is missing.
+- Added an Android `FileProvider` and provider paths so locally downloaded APKs
+  can be handed to the system installer through a content URI.
+- Added service-level regression coverage for ABI selection, streamed APK
+  download, native local-file installer invocation, and APK filename
+  sanitization.
+
+Verification in this increment:
+
+- `dart format lib/services/app_installer_service.dart lib/main.dart test/app_installer_service_test.dart`
+- `flutter test test/app_installer_service_test.dart`
+- `flutter analyze`
+- `git diff --check`
+- `./gradlew :app:compileDebugKotlin` was attempted for native verification,
+  but local Android SDK setup stopped during project configuration because the
+  NDK 28.2 license is not accepted on this machine.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
+## 2026-07-06 - Preset Audio Effects
+
+Implemented in this increment:
+
+- Added Android native audio effects on top of the existing `just_audio`
+  playback path by binding `Equalizer`, `BassBoost`, and `Virtualizer` to the
+  active Android audio session ID.
+- Added fixed, product-style presets instead of exposing manual equalizer
+  controls: AI intelligent, one-tap HiFi, 3D surround, super bass, virtual
+  live, vocal clarity, plus original sound as the off state.
+- Added a settings-page audio effects section modeled after mobile music apps:
+  current effect hero card, preset rows, icons, and right-side switches with one
+  active preset at a time.
+- Persisted the selected preset and automatically reapplied it when the player
+  publishes a new Android audio session.
+- Kept the native implementation tolerant of ROM/device differences: unsupported
+  individual effects fail closed without disabling the whole preset path.
+
+Verification in this increment:
+
+- `dart format lib/services/audio_effects_controller.dart lib/native_audio_controller.dart lib/music_audio_handler.dart lib/main.dart lib/features/shell/portrait_music_shell.dart lib/features/settings/portrait_settings_view.dart test/audio_effects_controller_test.dart test/music_audio_handler_test.dart test/native_audio_controller_test.dart test/playback_controller_test.dart`
+- `flutter test test/audio_effects_controller_test.dart`
+- `flutter test test/music_audio_handler_test.dart test/native_audio_controller_test.dart test/playback_controller_test.dart`
+- `flutter analyze`
+- `git diff --check`
+- `./gradlew :app:compileDebugKotlin` was attempted for native verification,
+  but local Android SDK setup stopped during project configuration because the
+  NDK 28.2 license is not accepted on this machine.
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
+## 2026-07-06 - v1.0.80 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.80+10080` for the in-app update progress and
+  preset audio effects release.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.80`.
+- Kept release packaging remote-first through the `v1.0.80` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `flutter test test/audio_effects_controller_test.dart test/app_installer_service_test.dart`
+- `flutter test test/widget_test.dart`
+- `flutter test`
+- `flutter analyze`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.

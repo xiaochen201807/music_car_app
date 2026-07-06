@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/carlife_service.dart';
+import '../../services/audio_effects_controller.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/portrait_segmented_tab.dart';
@@ -11,11 +12,14 @@ class PortraitSettingsView extends StatelessWidget {
     super.key,
     required this.themeMode,
     required this.preferredBitrate,
+    required this.audioEffectsSettings,
+    required this.audioEffectsSupported,
     required this.updateBusy,
     required this.carLifeStatus,
     required this.carLifeSyncing,
     required this.onThemeModeChanged,
     required this.onPreferredBitrateChanged,
+    required this.onAudioEffectPresetChanged,
     required this.onCheckUpdate,
     required this.onOpenDownloads,
     required this.onSyncCarLife,
@@ -24,11 +28,14 @@ class PortraitSettingsView extends StatelessWidget {
 
   final ThemeMode themeMode;
   final String preferredBitrate;
+  final AudioEffectsSettings audioEffectsSettings;
+  final bool audioEffectsSupported;
   final bool updateBusy;
   final CarLifeStatus carLifeStatus;
   final bool carLifeSyncing;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<String> onPreferredBitrateChanged;
+  final ValueChanged<String> onAudioEffectPresetChanged;
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
   final VoidCallback onSyncCarLife;
@@ -85,6 +92,12 @@ class PortraitSettingsView extends StatelessWidget {
                 icon: Icons.spatial_audio_off_rounded,
               ),
             ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _AudioEffectsSection(
+            settings: audioEffectsSettings,
+            supported: audioEffectsSupported,
+            onPresetChanged: onAudioEffectPresetChanged,
           ),
           const SizedBox(height: AppSpace.lg),
           _SettingsSection(
@@ -155,7 +168,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.79 · 车载音乐播放器',
+                subtitle: '版本 1.0.80 · 车载音乐播放器',
               ),
             ],
           ),
@@ -264,6 +277,228 @@ class PortraitSettingsView extends StatelessWidget {
       return '128kmp3';
     }
     return '48kaac';
+  }
+}
+
+class _AudioEffectsSection extends StatelessWidget {
+  const _AudioEffectsSection({
+    required this.settings,
+    required this.supported,
+    required this.onPresetChanged,
+  });
+
+  final AudioEffectsSettings settings;
+  final bool supported;
+  final ValueChanged<String> onPresetChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final AudioEffectPreset activePreset = _activePreset(settings.presetId);
+    return _SettingsSection(
+      title: '音效',
+      subtitle: supported ? '选择一种车内听感增强' : '当前平台暂不支持原生音效',
+      framed: false,
+      children: <Widget>[
+        _AudioEffectHeroCard(preset: activePreset, enabled: settings.enabled),
+        const SizedBox(height: AppSpace.md),
+        ...AudioEffectPreset.presets.map((AudioEffectPreset preset) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.sm),
+            child: _AudioEffectPresetTile(
+              preset: preset,
+              selected: settings.presetId == preset.id,
+              enabled: supported,
+              onTap: () {
+                if (!supported) {
+                  return;
+                }
+                HapticFeedback.selectionClick();
+                onPresetChanged(preset.id);
+              },
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  AudioEffectPreset _activePreset(String presetId) {
+    return AudioEffectPreset.presets.firstWhere(
+      (AudioEffectPreset preset) => preset.id == presetId,
+      orElse: () => AudioEffectPreset.presets.last,
+    );
+  }
+}
+
+class _AudioEffectHeroCard extends StatelessWidget {
+  const _AudioEffectHeroCard({required this.preset, required this.enabled});
+
+  final AudioEffectPreset preset;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.lg),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.panel),
+        color: isLight ? colors.primaryContainer : AppColor.glassTint,
+        border: Border.all(
+          color: isLight
+              ? colors.outlineVariant
+              : AppColor.spotifyGreen.withValues(alpha: 0.32),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.tile),
+              color: colors.primary.withValues(alpha: isLight ? 0.14 : 0.18),
+            ),
+            child: Icon(
+              _audioEffectIcon(preset.id),
+              color: colors.primary,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  enabled ? preset.label : '原声',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  enabled ? preset.subtitle : '关闭增强，保留歌曲原始听感',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            enabled ? '使用中' : '已关闭',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colors.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudioEffectPresetTile extends StatelessWidget {
+  const _AudioEffectPresetTile({
+    required this.preset,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final AudioEffectPreset preset;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.tile),
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.md,
+          vertical: AppSpace.md,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? colors.primary.withValues(alpha: isLight ? 0.10 : 0.14)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(
+            color: selected
+                ? colors.primary
+                : colors.outlineVariant.withValues(alpha: isLight ? 1 : 0.4),
+          ),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              _audioEffectIcon(preset.id),
+              color: selected ? colors.primary : colors.onSurfaceVariant,
+              size: 34,
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    preset.label,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: selected ? colors.primary : colors.onSurface,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    preset.subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: preset.id != AudioEffectPresetId.off && selected,
+              onChanged: enabled
+                  ? (_) {
+                      onTap();
+                    }
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+IconData _audioEffectIcon(String presetId) {
+  switch (presetId) {
+    case AudioEffectPresetId.ai:
+      return Icons.auto_awesome_rounded;
+    case AudioEffectPresetId.hifi:
+      return Icons.graphic_eq_rounded;
+    case AudioEffectPresetId.surround:
+      return Icons.spatial_audio_rounded;
+    case AudioEffectPresetId.bass:
+      return Icons.speaker_rounded;
+    case AudioEffectPresetId.live:
+      return Icons.event_seat_rounded;
+    case AudioEffectPresetId.vocal:
+      return Icons.record_voice_over_rounded;
+    default:
+      return Icons.music_note_rounded;
   }
 }
 

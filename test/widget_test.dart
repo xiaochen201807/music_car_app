@@ -112,11 +112,12 @@ void main() {
     await pumpUi();
 
     expect(find.text('设置'), findsWidgets);
-    expect(find.text('外观'), findsOneWidget);
-    await tester.drag(
-      find.text('标准'),
-      const Offset(0, -520),
-      warnIfMissed: false,
+    expect(find.text('音效'), findsOneWidget);
+    expect(find.text('AI智能音效'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('应用'),
+      700,
+      scrollable: find.byType(Scrollable).last,
     );
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('应用'), findsOneWidget);

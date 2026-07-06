@@ -375,12 +375,15 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
     return PortraitSettingsView(
       themeMode: appState.themeMode,
       preferredBitrate: appState.preferredBitrate,
+      audioEffectsSettings: appState.audioEffectsSettings,
+      audioEffectsSupported: appState.audioEffectsSupported,
       updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
       carLifeStatus: appState.carLifeStatus,
       carLifeSyncing: appState.isSyncingCarLife,
       onThemeModeChanged: appState.setThemeMode,
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
+      onAudioEffectPresetChanged: appState.setAudioEffectPreset,
       onCheckUpdate: () => appState.checkForUpdate(),
       onOpenDownloads: () => appState.openDownloads(),
       onSyncCarLife: () => appState.syncCarLifeManually(),

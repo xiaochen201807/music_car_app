@@ -127,6 +127,10 @@ abstract class NativeAudioPlayer {
 
   double get speed;
 
+  int? get androidAudioSessionId;
+
+  Stream<int?> get androidAudioSessionIdStream;
+
   Future<Duration?> setUrl(String url);
 
   Future<void> loadFromSnapshot(String url, PlayerProbeSnapshot snapshot);
@@ -183,6 +187,13 @@ class JustAudioNativePlayer implements NativeAudioPlayer {
 
   @override
   double get speed => _player.speed;
+
+  @override
+  int? get androidAudioSessionId => _player.androidAudioSessionId;
+
+  @override
+  Stream<int?> get androidAudioSessionIdStream =>
+      _player.androidAudioSessionIdStream;
 
   @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);

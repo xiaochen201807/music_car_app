@@ -123,6 +123,13 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   double get speed => _player.speed;
 
   @override
+  int? get androidAudioSessionId => _player.androidAudioSessionId;
+
+  @override
+  Stream<int?> get androidAudioSessionIdStream =>
+      _player.androidAudioSessionIdStream;
+
+  @override
   Future<Duration?> setUrl(String url) => _player.setUrl(url);
 
   @override

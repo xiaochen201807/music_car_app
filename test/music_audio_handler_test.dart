@@ -38,6 +38,12 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   double get speed => 1;
 
   @override
+  int? get androidAudioSessionId => 7;
+
+  @override
+  Stream<int?> get androidAudioSessionIdStream => Stream<int?>.value(7);
+
+  @override
   Future<void> dispose() async {}
 
   @override
