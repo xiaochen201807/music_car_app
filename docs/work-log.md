@@ -1977,6 +1977,28 @@ Packaging note:
 - No local release package was built. Release packaging remains delegated to
   GitHub Actions after commit and tag push.
 
+## 2026-07-06 - v1.0.79 Version Bump
+
+Implemented in this increment:
+
+- Bumped the app version to `1.0.79+10079` for the Bluetooth lyric metadata
+  release.
+- Updated startup diagnostic logs, exported diagnostics metadata, and the
+  settings page visible version string to `1.0.79`.
+- Kept release packaging remote-first through the `v1.0.79` tag workflows.
+
+Verification in this increment:
+
+- `dart format lib/main.dart lib/features/settings/portrait_settings_view.dart`
+- `git diff --check`
+- `flutter analyze`
+- `flutter test test/music_audio_handler_test.dart test/lyrics_sync_test.dart test/playback_controller_test.dart test/native_audio_controller_test.dart`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after tag push.
+
 ## 2026-07-05 - v1.0.75 Version Bump
 
 Implemented in this increment:
