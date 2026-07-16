@@ -286,58 +286,33 @@ class PortraitPlayerView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpace.lg),
-                    _PlayerIdentityCard(
-                      title: title,
-                      artist: artist,
+                    _PlayerMetaRow(
                       duration: duration,
                       playbackState: playbackState,
                       qualities: qualities,
                       qualitiesBusy: qualitiesBusy,
                       qualityError: qualityError,
                     ),
-                    const SizedBox(height: AppSpace.lg),
-                    GlassCard(
-                      radius: AppRadius.panel,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpace.md,
-                        vertical: AppSpace.sm,
-                      ),
-                      shadows: const <BoxShadow>[],
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              left: AppSpace.xs,
-                              top: AppSpace.xs,
-                            ),
-                            child: Text(
-                              '歌词',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: AppSpace.sm),
-                          _PlaybackPositionBuilder(
-                            stream: playbackPositionStream,
-                            initialState: playbackState,
-                            builder:
-                                (BuildContext context, PlaybackUiState state) {
-                                  return PlayerLyricsView(
-                                    lyrics: lyrics,
-                                    position: state.position,
-                                    playing: state.playing,
-                                    lyricsBusy: lyricsBusy,
-                                    lyricsError: lyricsError,
-                                    currentSong: currentSong,
-                                    onSeek: onSeek,
-                                    onRetry: onRetryLyrics,
-                                  );
-                                },
-                          ),
-                        ],
-                      ),
+                    if (playbackState.isBusy) ...<Widget>[
+                      const SizedBox(height: AppSpace.md),
+                      _PlaybackLoadingBanner(playbackState: playbackState),
+                    ],
+                    const SizedBox(height: AppSpace.xl),
+                    _PlaybackPositionBuilder(
+                      stream: playbackPositionStream,
+                      initialState: playbackState,
+                      builder: (BuildContext context, PlaybackUiState state) {
+                        return PlayerLyricsView(
+                          lyrics: lyrics,
+                          position: state.position,
+                          playing: state.playing,
+                          lyricsBusy: lyricsBusy,
+                          lyricsError: lyricsError,
+                          currentSong: currentSong,
+                          onSeek: onSeek,
+                          onRetry: onRetryLyrics,
+                        );
+                      },
                     ),
                     const SizedBox(height: AppSpace.xl2),
                     Padding(
@@ -493,10 +468,8 @@ class QualityChips extends StatelessWidget {
   }
 }
 
-class _PlayerIdentityCard extends StatelessWidget {
-  const _PlayerIdentityCard({
-    required this.title,
-    required this.artist,
+class _PlayerMetaRow extends StatelessWidget {
+  const _PlayerMetaRow({
     required this.duration,
     required this.playbackState,
     required this.qualities,
@@ -504,8 +477,6 @@ class _PlayerIdentityCard extends StatelessWidget {
     required this.qualityError,
   });
 
-  final String title;
-  final String artist;
   final Duration duration;
   final PlaybackUiState playbackState;
   final List<FreeMusicQuality> qualities;
@@ -514,69 +485,26 @@ class _PlayerIdentityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return GlassCard(
-      radius: AppRadius.panel,
-      padding: const EdgeInsets.all(AppSpace.lg),
-      shadows: const <BoxShadow>[],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpace.xs),
-                    Text(
-                      artist.isEmpty ? '未知艺人' : artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpace.md),
-              _PlaybackStatusPill(playbackState: playbackState),
-            ],
+    // Flat metadata row (no card). Song title/artist already live in the
+    // header marquee, so here we only surface transport status, duration and
+    // available quality tiers.
+    return Row(
+      children: <Widget>[
+        _PlaybackStatusPill(playbackState: playbackState),
+        const SizedBox(width: AppSpace.sm),
+        _PlayerInfoPill(
+          icon: Icons.schedule_rounded,
+          label: formatDuration(duration),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: QualityChips(
+            qualities: qualities,
+            busy: qualitiesBusy,
+            error: qualityError,
           ),
-          if (playbackState.isBusy) ...<Widget>[
-            const SizedBox(height: AppSpace.md),
-            _PlaybackLoadingBanner(playbackState: playbackState),
-          ],
-          const SizedBox(height: AppSpace.lg),
-          Row(
-            children: <Widget>[
-              _PlayerInfoPill(
-                icon: Icons.schedule_rounded,
-                label: formatDuration(duration),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              Expanded(
-                child: QualityChips(
-                  qualities: qualities,
-                  busy: qualitiesBusy,
-                  error: qualityError,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -259,6 +259,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool _visualAnimationsEnabled = true;
   String _apiBootstrapError = '';
   FreeMusicSources? _musicSources;
+  String _playlistSource = 'netease';
   List<String> _hotSearchKeywords = const <String>[];
   int _selectedTab = 0;
   final LibraryController _libraryController = LibraryController();
@@ -315,8 +316,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.81 (Build 10081)');
-    debugPrint('✅ Fixes: 统一 BMW 蓝设计语言、恢复卡片层级、底部导航常驻');
+    debugPrint('🚀 App Version: 1.0.82 (Build 10082)');
+    debugPrint('✅ Fixes: 首页推荐歌单瀑布流与多源切换、音效单选网格、切歌歌词错位修复');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
@@ -688,8 +689,18 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> _loadRecommendations() async {
     await _musicSearchController.loadRecommendations(
-      sources: const <String>['netease'],
+      sources: <String>[_playlistSource],
     );
+  }
+
+  Future<void> setPlaylistSource(String source) async {
+    if (_playlistSource == source) {
+      return;
+    }
+    setState(() {
+      _playlistSource = source;
+    });
+    await _loadRecommendations();
   }
 
   Set<String> get _downloadedSongKeys {
@@ -1843,6 +1854,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> syncCarLifeManually() =>
       _syncCarLifePlaybackContext(showResult: true);
   FreeMusicSources? get musicSources => _musicSources;
+  String get playlistSource => _playlistSource;
   bool get isLoadingApiBootstrap => _isLoadingApiBootstrap;
   String get apiBootstrapError => _apiBootstrapError;
   List<String> get hotSearchKeywords => _hotSearchKeywords;
@@ -1856,8 +1868,31 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   String get recommendationError => _musicSearchController.recommendationError;
   NativePlaybackMode get playbackMode => _queueController.playbackMode;
-  FreeMusicLyrics? get currentLyrics => _trackMetadataController.currentLyrics;
-  bool get isLoadingLyrics => _trackMetadataController.isLoadingLyrics;
+  // 仅当歌词归属当前歌曲时才返回，避免切歌竞态导致歌词与歌曲错位
+  FreeMusicLyrics? get currentLyrics {
+    final FreeMusicSong? song = _queueController.currentSong;
+    if (song == null) {
+      return null;
+    }
+    if (_trackMetadataController.currentLyricsKey !=
+        TrackMetadataController.lyricsKeyFor(song)) {
+      return null;
+    }
+    return _trackMetadataController.currentLyrics;
+  }
+  // 歌词归属与当前歌曲不符时也视为加载中，避免切歌瞬间出现空白或错位
+  bool get isLoadingLyrics {
+    if (_trackMetadataController.isLoadingLyrics) {
+      return true;
+    }
+    final FreeMusicSong? song = _queueController.currentSong;
+    if (song == null) {
+      return false;
+    }
+    return _trackMetadataController.currentLyricsKey !=
+            TrackMetadataController.lyricsKeyFor(song) &&
+        _trackMetadataController.lyricsError.isEmpty;
+  }
   String get lyricsError => _trackMetadataController.lyricsError;
   List<FreeMusicQuality> get currentQualities =>
       _trackMetadataController.currentQualities;
@@ -1959,8 +1994,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.80',
-        'build': 10080,
+        'version': '1.0.82',
+        'build': 10082,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

@@ -16,18 +16,22 @@ class AudioEffectsController extends ChangeNotifier {
   AudioEffectsController({
     MethodChannel channel = const MethodChannel('music_car_app/audio_effects'),
     SharedPreferences? preferences,
+    Future<SharedPreferences> Function()? preferencesLoader,
     bool? supportedOverride,
   }) : _channel = channel,
        _preferences = preferences,
+       _preferencesLoader = preferencesLoader,
        _supportedOverride = supportedOverride;
 
   final MethodChannel _channel;
   final SharedPreferences? _preferences;
+  final Future<SharedPreferences> Function()? _preferencesLoader;
   final bool? _supportedOverride;
   StreamSubscription<int?>? _audioSessionSub;
   int? _audioSessionId;
   AudioEffectsSettings _settings = AudioEffectsSettings.off;
   bool _applying = false;
+  int _settingsRevision = 0;
 
   AudioEffectsSettings get settings => _settings;
 
@@ -45,7 +49,11 @@ class AudioEffectsController extends ChangeNotifier {
 
   Future<void> load() async {
     try {
+      final int revisionAtStart = _settingsRevision;
       final SharedPreferences preferences = await _getPreferences();
+      if (revisionAtStart != _settingsRevision) {
+        return;
+      }
       _settings = AudioEffectsSettings(
         presetId:
             preferences.getString(audioEffectPresetPreferenceKey) ??
@@ -96,6 +104,7 @@ class AudioEffectsController extends ChangeNotifier {
     if (_settings == normalized) {
       return;
     }
+    _settingsRevision += 1;
     _settings = normalized;
     notifyListeners();
     await _persist();
@@ -157,6 +166,10 @@ class AudioEffectsController extends ChangeNotifier {
   }
 
   Future<SharedPreferences> _getPreferences() async {
+    final Future<SharedPreferences> Function()? loader = _preferencesLoader;
+    if (loader != null) {
+      return loader();
+    }
     return _preferences ?? SharedPreferences.getInstance();
   }
 

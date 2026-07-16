@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:music_car_app/services/audio_effects_controller.dart';
@@ -76,5 +78,38 @@ void main() {
         calls.single.arguments as Map<dynamic, dynamic>;
     expect(arguments['enabled'], isFalse);
     expect(arguments['presetId'], AudioEffectPresetId.off);
+  });
+
+  test('stale async load cannot overwrite a user selected preset', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      audioEffectPresetPreferenceKey: AudioEffectPresetId.off,
+      audioEffectsEnabledPreferenceKey: false,
+    });
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final Completer<SharedPreferences> preferencesGate =
+        Completer<SharedPreferences>();
+    final AudioEffectsController controller = AudioEffectsController(
+      channel: channel,
+      preferencesLoader: () => preferencesGate.future,
+      supportedOverride: true,
+    );
+
+    final Future<void> loadFuture = controller.load();
+    final Future<void> setPresetFuture = controller.setPreset(
+      AudioEffectPresetId.surround,
+    );
+
+    expect(controller.settings.presetId, AudioEffectPresetId.surround);
+    expect(controller.settings.enabled, isTrue);
+
+    preferencesGate.complete(preferences);
+    await Future.wait(<Future<void>>[loadFuture, setPresetFuture]);
+
+    expect(controller.settings.presetId, AudioEffectPresetId.surround);
+    expect(controller.settings.enabled, isTrue);
+    expect(
+      preferences.getString(audioEffectPresetPreferenceKey),
+      AudioEffectPresetId.surround,
+    );
   });
 }

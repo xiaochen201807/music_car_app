@@ -315,6 +315,8 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       musicSources: appState.musicSources,
       sourceBusy: appState.isLoadingApiBootstrap,
       sourceError: appState.apiBootstrapError,
+      playlistSource: appState.playlistSource,
+      onPlaylistSourceChanged: appState.setPlaylistSource,
       onSearch: runSearchFromHome,
       onHotKeyword: (String keyword) {
         appState.searchController.text = keyword;

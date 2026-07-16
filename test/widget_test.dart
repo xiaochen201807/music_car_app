@@ -27,7 +27,7 @@ void main() {
     expect(find.text('想听什么？'), findsOneWidget);
     expect(find.text('继续播放'), findsOneWidget);
     expect(find.text('Portrait streaming deck'), findsNothing);
-    expect(find.text('为你推荐'), findsOneWidget);
+    expect(find.text('推荐歌单'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsNothing);
     expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
     // Navigation bar is always visible now (no collapse/expand handle).
@@ -54,7 +54,7 @@ void main() {
     );
     await pumpUi();
     expect(find.text('想听什么？'), findsOneWidget);
-    expect(find.text('为你推荐'), findsOneWidget);
+    expect(find.text('推荐歌单'), findsOneWidget);
 
     await tester.drag(
       find.byType(CustomScrollView).first,
@@ -62,7 +62,8 @@ void main() {
       warnIfMissed: false,
     );
     await pumpUi();
-    expect(find.text('最近播放'), findsOneWidget);
+    // 首页推荐歌单区提供音源切换（网易云/酷狗/QQ/酷我）
+    expect(find.text('网易云'), findsWidgets);
 
     await tester.tap(
       find.descendant(

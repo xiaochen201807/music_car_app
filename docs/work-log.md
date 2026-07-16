@@ -3,6 +3,37 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-16 - Home Redesign, Audio Effect Grid, Lyrics Sync Fix
+
+Implemented in this increment:
+
+- Reworked the audio-effect settings section into a compact two-column single-
+  select grid, removing the duplicated hero card and the semantically wrong
+  per-preset switch. All presets are now selectable on every platform.
+- Redesigned the portrait home view: removed the "recent played" timeline and
+  the two-tier hero/shelf recommendation layout, replacing them with a playlist
+  source selector (网易云/酷狗/QQ/酷我) plus a dependency-free two-column
+  waterfall grid. Switching source reloads recommendations via
+  `setPlaylistSource` on the app state.
+- Fixed lyrics/song mismatch after manual or automatic track changes. Lyrics are
+  now tagged with the owning song (`source:id`); `currentLyrics` only returns
+  when the tag matches the current song, and `isLoadingLyrics` reports busy on a
+  mismatch to avoid a blank flash. This closes the race where a late-arriving
+  lyric response for the previous song could remain on screen.
+
+Verification in this increment:
+
+- `flutter test test/track_metadata_controller_test.dart` (new coverage for
+  lyrics ownership and stale-response drop)
+- `flutter test test/widget_test.dart`
+- `flutter test`
+- `flutter analyze`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
 ## 2026-07-04 - Roadmap P0/P1 Quality Foundation
 
 Implemented in this increment:
@@ -2235,6 +2266,30 @@ Verification in this increment:
 - `flutter test test/audio_effects_controller_test.dart test/app_installer_service_test.dart`
 - `flutter test test/widget_test.dart`
 - `flutter test`
+- `flutter analyze`
+- `git diff --check`
+
+Packaging note:
+
+- No local release package was built. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
+## 2026-07-06 - Audio Effect Selection Stability
+
+Implemented in this increment:
+
+- Fixed a race where the asynchronous startup load for persisted audio-effect
+  settings could finish after the user selected a new preset and overwrite the
+  fresh choice with the previously saved `off` state.
+- Added a settings revision guard so stale preference loads are ignored once the
+  user has changed the active preset.
+- Added regression coverage for selecting `3D surround` while a delayed
+  preference load still contains `off`.
+
+Verification in this increment:
+
+- `dart format lib/services/audio_effects_controller.dart test/audio_effects_controller_test.dart`
+- `flutter test test/audio_effects_controller_test.dart`
 - `flutter analyze`
 - `git diff --check`
 

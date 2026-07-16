@@ -31,6 +31,8 @@ class PortraitHomeView extends StatefulWidget {
     required this.musicSources,
     required this.sourceBusy,
     required this.sourceError,
+    required this.playlistSource,
+    required this.onPlaylistSourceChanged,
     required this.onSearch,
     required this.onHotKeyword,
     required this.onSelectPlaylist,
@@ -56,6 +58,8 @@ class PortraitHomeView extends StatefulWidget {
   final FreeMusicSources? musicSources;
   final bool sourceBusy;
   final String sourceError;
+  final String playlistSource;
+  final ValueChanged<String> onPlaylistSourceChanged;
   final VoidCallback onSearch;
   final ValueChanged<String> onHotKeyword;
   final ValueChanged<FreeMusicPlaylist> onSelectPlaylist;
@@ -72,7 +76,6 @@ class PortraitHomeView extends StatefulWidget {
 
 class _PortraitHomeViewState extends State<PortraitHomeView> {
   List<String>? _history;
-  bool _showAllTimeline = false;
 
   @override
   void didUpdateWidget(covariant PortraitHomeView oldWidget) {
@@ -82,22 +85,6 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final List<FreeMusicSong> allTimeline = widget.queueSongs.isNotEmpty
-        ? widget.queueSongs.take(20).toList(growable: false)
-        : widget.searchResults.take(20).toList(growable: false);
-
-    final List<FreeMusicSong> timelineSongs = _showAllTimeline
-        ? allTimeline
-        : allTimeline.take(5).toList(growable: false);
-    final List<FreeMusicPlaylist> heroPlaylists = widget.recommendedPlaylists
-        .take(3)
-        .toList(growable: false);
-    final List<FreeMusicPlaylist> shelfPlaylists = widget.recommendedPlaylists
-        .skip(heroPlaylists.length)
-        .take(8)
-        .toList(growable: false);
-
     _history ??= <String>[];
 
     return SafeArea(
@@ -201,7 +188,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                   ],
                   const SizedBox(height: AppSpace.xl2),
                   PortraitSectionHeader(
-                    title: '为你推荐',
+                    title: '推荐歌单',
                     showLoading:
                         widget.recommendationsBusy || widget.playlistSongsBusy,
                     label:
@@ -210,6 +197,11 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                         : null,
                   ),
                   const SizedBox(height: AppSpace.md),
+                  _PlaylistSourceSelector(
+                    selected: widget.playlistSource,
+                    onSelected: widget.onPlaylistSourceChanged,
+                  ),
+                  const SizedBox(height: AppSpace.lg),
                   if (widget.recommendationError.isNotEmpty &&
                       widget.recommendedPlaylists.isEmpty)
                     PortraitMessageCard(
@@ -226,95 +218,14 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                             )
                           : null,
                     )
+                  else if (widget.recommendedPlaylists.isEmpty &&
+                      widget.recommendationsBusy)
+                    const PortraitFallbackGrid()
                   else
-                    PortraitHeroPlaylistShelf(
-                      playlists: heroPlaylists,
+                    PortraitPlaylistWaterfall(
+                      playlists: widget.recommendedPlaylists,
                       busy: widget.playlistSongsBusy,
                       onSelect: widget.onSelectPlaylist,
-                    ),
-                  if (shelfPlaylists.isNotEmpty) ...[
-                    const SizedBox(height: AppSpace.xl2),
-                    PortraitSectionHeader(title: '更多歌单'),
-                    const SizedBox(height: AppSpace.md),
-                    PortraitPlaylistHorizontalShelf(
-                      playlists: shelfPlaylists,
-                      busy: widget.playlistSongsBusy,
-                      onSelect: widget.onSelectPlaylist,
-                    ),
-                  ],
-                  const SizedBox(height: AppSpace.xl2),
-                  PortraitSectionHeader(
-                    title: '最近播放',
-                    label: timelineSongs.isEmpty ? '待生成' : null,
-                  ),
-                  const SizedBox(height: AppSpace.md),
-                  if (timelineSongs.isEmpty)
-                    const PortraitMessageCard(
-                      icon: Icons.history_rounded,
-                      title: '暂无最近播放',
-                      message: '搜索并播放歌曲后，这里会显示最近听过的内容。',
-                    )
-                  else
-                    for (
-                      int index = 0;
-                      index < timelineSongs.length;
-                      index += 1
-                    )
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                        child: StaggeredAnimatedItem(
-                          index: index,
-                          child: PortraitTimelineTile(
-                            song: timelineSongs[index],
-                            index: index,
-                          ),
-                        ),
-                      ),
-                  if (allTimeline.length > 5)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        top: AppSpace.xs,
-                        bottom: AppSpace.md,
-                      ),
-                      child: Center(
-                        child: GlassPill(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            setState(() {
-                              _showAllTimeline = !_showAllTimeline;
-                            });
-                          },
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpace.lg,
-                          ),
-                          child: Center(
-                            widthFactor: 1.0,
-                            heightFactor: 1.0,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Icon(
-                                  _showAllTimeline
-                                      ? Icons.expand_less_rounded
-                                      : Icons.expand_more_rounded,
-                                  size: 18,
-                                  color: theme.colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _showAllTimeline
-                                      ? '收起时间线'
-                                      : '查看全部时间线 (${allTimeline.length})',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                 ],
               ),
@@ -356,6 +267,250 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
         _history!.removeRange(8, _history!.length);
       }
     });
+  }
+}
+
+class _PlaylistSourceSelector extends StatelessWidget {
+  const _PlaylistSourceSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  static const List<_PlaylistSourceOption> _options = <_PlaylistSourceOption>[
+    _PlaylistSourceOption(id: 'netease', label: '网易云'),
+    _PlaylistSourceOption(id: 'kugou', label: '酷狗'),
+    _PlaylistSourceOption(id: 'qq', label: 'QQ'),
+    _PlaylistSourceOption(id: 'kuwo', label: '酷我'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.sm),
+        itemBuilder: (BuildContext context, int index) {
+          final _PlaylistSourceOption option = _options[index];
+          final bool isSelected = option.id == selected;
+          return GestureDetector(
+            onTap: () {
+              if (!isSelected) {
+                HapticFeedback.selectionClick();
+                onSelected(option.id);
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colors.primary
+                    : isLight
+                    ? colors.surfaceContainerHighest.withValues(alpha: 0.5)
+                    : colors.surfaceContainerHighest.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: isSelected
+                      ? colors.primary
+                      : colors.outlineVariant.withValues(alpha: isLight ? 1 : 0.4),
+                ),
+              ),
+              child: Text(
+                option.label,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: isSelected ? colors.onPrimary : colors.onSurface,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlaylistSourceOption {
+  const _PlaylistSourceOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
+
+class PortraitPlaylistWaterfall extends StatelessWidget {
+  const PortraitPlaylistWaterfall({
+    super.key,
+    required this.playlists,
+    required this.busy,
+    required this.onSelect,
+  });
+
+  final List<FreeMusicPlaylist> playlists;
+  final bool busy;
+  final ValueChanged<FreeMusicPlaylist> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (playlists.isEmpty) {
+      return const PortraitFallbackGrid();
+    }
+    final List<FreeMusicPlaylist> left = <FreeMusicPlaylist>[];
+    final List<FreeMusicPlaylist> right = <FreeMusicPlaylist>[];
+    for (int index = 0; index < playlists.length; index += 1) {
+      (index.isEven ? left : right).add(playlists[index]);
+    }
+    Widget buildColumn(List<FreeMusicPlaylist> column, int columnOffset) {
+      return Expanded(
+        child: Column(
+          children: <Widget>[
+            for (int index = 0; index < column.length; index += 1)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpace.md),
+                child: StaggeredAnimatedItem(
+                  index: index * 2 + columnOffset,
+                  child: PortraitPlaylistWaterfallCard(
+                    playlist: column[index],
+                    visual: demoQueue[
+                        (index * 2 + columnOffset) % demoQueue.length],
+                    // 交错高度营造瀑布流层次
+                    tall: (index + columnOffset).isEven,
+                    onTap: busy ? null : () => onSelect(column[index]),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        buildColumn(left, 0),
+        const SizedBox(width: AppSpace.md),
+        buildColumn(right, 1),
+      ],
+    );
+  }
+}
+
+class PortraitPlaylistWaterfallCard extends StatelessWidget {
+  const PortraitPlaylistWaterfallCard({
+    super.key,
+    required this.playlist,
+    required this.visual,
+    required this.tall,
+    required this.onTap,
+  });
+
+  final FreeMusicPlaylist playlist;
+  final DemoTrack visual;
+  final bool tall;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            child: AspectRatio(
+              aspectRatio: tall ? 0.78 : 1.0,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    child: PortraitArtwork(
+                      visual: visual,
+                      imageUrl: playlist.cover,
+                      icon: Icons.queue_music_rounded,
+                    ),
+                  ),
+                  if (playlist.playCount > 0)
+                    Positioned(
+                      right: AppSpace.xs,
+                      top: AppSpace.xs,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpace.sm,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.scrim.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.play_arrow_rounded,
+                              size: 12,
+                              color: AppColor.textPrimary,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              _formatPlayCount(playlist.playCount),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: AppColor.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            playlist.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (playlist.creator.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 2),
+            Text(
+              playlist.creator,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatPlayCount(int count) {
+    if (count >= 100000000) {
+      return '${(count / 100000000).toStringAsFixed(1)}亿';
+    }
+    if (count >= 10000) {
+      return '${(count / 10000).toStringAsFixed(1)}万';
+    }
+    return '$count';
   }
 }
 

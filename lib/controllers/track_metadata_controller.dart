@@ -37,6 +37,8 @@ class TrackMetadataController extends ChangeNotifier {
   String _lyricsError = '';
   String _qualityError = '';
   FreeMusicLyrics? _currentLyrics;
+  // 记录当前歌词所属歌曲，切歌后用于校验归属，避免歌词与歌曲错位
+  String _currentLyricsKey = '';
   List<FreeMusicQuality> _currentQualities = const <FreeMusicQuality>[];
 
   bool get isLoadingLyrics => _isLoadingLyrics;
@@ -49,6 +51,11 @@ class TrackMetadataController extends ChangeNotifier {
 
   FreeMusicLyrics? get currentLyrics => _currentLyrics;
 
+  /// 当前歌词所属歌曲的标识（source:id），空表示无归属。
+  String get currentLyricsKey => _currentLyricsKey;
+
+  static String lyricsKeyFor(FreeMusicSong song) => '${song.source}:${song.id}';
+
   List<FreeMusicQuality> get currentQualities => _currentQualities;
 
   void reset() {
@@ -59,6 +66,7 @@ class TrackMetadataController extends ChangeNotifier {
     _lyricsError = '';
     _qualityError = '';
     _currentLyrics = null;
+    _currentLyricsKey = '';
     _currentQualities = const <FreeMusicQuality>[];
     notifyListeners();
   }
@@ -69,13 +77,16 @@ class TrackMetadataController extends ChangeNotifier {
       _isLoadingLyrics = false;
       _lyricsError = '';
       _currentLyrics = null;
+      _currentLyricsKey = '';
       notifyListeners();
       return true;
     }
 
     _isLoadingLyrics = true;
     _lyricsError = '';
+    // 立即清空旧歌词与归属标识，避免切歌后短暂显示上一首
     _currentLyrics = null;
+    _currentLyricsKey = '';
     notifyListeners();
 
     try {
@@ -84,6 +95,7 @@ class TrackMetadataController extends ChangeNotifier {
         return false;
       }
       _currentLyrics = lyrics;
+      _currentLyricsKey = lyricsKeyFor(song);
       _isLoadingLyrics = false;
       notifyListeners();
       return true;

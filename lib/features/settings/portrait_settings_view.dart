@@ -168,7 +168,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.80 · 车载音乐播放器',
+                subtitle: '版本 1.0.82 · 车载音乐播放器',
               ),
             ],
           ),
@@ -293,111 +293,38 @@ class _AudioEffectsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AudioEffectPreset activePreset = _activePreset(settings.presetId);
+    final String activeId = settings.enabled
+        ? settings.presetId
+        : AudioEffectPresetId.off;
     return _SettingsSection(
       title: '音效',
       subtitle: supported ? '选择一种车内听感增强' : '当前平台暂不支持原生音效',
       framed: false,
       children: <Widget>[
-        _AudioEffectHeroCard(preset: activePreset, enabled: settings.enabled),
-        const SizedBox(height: AppSpace.md),
-        ...AudioEffectPreset.presets.map((AudioEffectPreset preset) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpace.sm),
-            child: _AudioEffectPresetTile(
-              preset: preset,
-              selected: settings.presetId == preset.id,
-              enabled: supported,
-              onTap: () {
-                if (!supported) {
-                  return;
-                }
-                HapticFeedback.selectionClick();
-                onPresetChanged(preset.id);
-              },
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  AudioEffectPreset _activePreset(String presetId) {
-    return AudioEffectPreset.presets.firstWhere(
-      (AudioEffectPreset preset) => preset.id == presetId,
-      orElse: () => AudioEffectPreset.presets.last,
-    );
-  }
-}
-
-class _AudioEffectHeroCard extends StatelessWidget {
-  const _AudioEffectHeroCard({required this.preset, required this.enabled});
-
-  final AudioEffectPreset preset;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    final bool isLight = theme.brightness == Brightness.light;
-    return Container(
-      padding: const EdgeInsets.all(AppSpace.lg),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.panel),
-        color: isLight ? colors.primaryContainer : AppColor.glassTint,
-        border: Border.all(
-          color: isLight
-              ? colors.outlineVariant
-              : AppColor.bmwBlueDark.withValues(alpha: 0.32),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            const double spacing = AppSpace.sm;
+            final double tileWidth = (constraints.maxWidth - spacing) / 2;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: AudioEffectPreset.presets.map((AudioEffectPreset preset) {
+                return SizedBox(
+                  width: tileWidth,
+                  child: _AudioEffectPresetTile(
+                    preset: preset,
+                    selected: activeId == preset.id,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onPresetChanged(preset.id);
+                    },
+                  ),
+                );
+              }).toList(),
+            );
+          },
         ),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.tile),
-              color: colors.primary.withValues(alpha: isLight ? 0.14 : 0.18),
-            ),
-            child: Icon(
-              _audioEffectIcon(preset.id),
-              color: colors.primary,
-              size: 30,
-            ),
-          ),
-          const SizedBox(width: AppSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  enabled ? preset.label : '原声',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: AppSpace.xs),
-                Text(
-                  enabled ? preset.subtitle : '关闭增强，保留歌曲原始听感',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            enabled ? '使用中' : '已关闭',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: colors.primary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -406,13 +333,11 @@ class _AudioEffectPresetTile extends StatelessWidget {
   const _AudioEffectPresetTile({
     required this.preset,
     required this.selected,
-    required this.enabled,
     required this.onTap,
   });
 
   final AudioEffectPreset preset;
   final bool selected;
-  final bool enabled;
   final VoidCallback onTap;
 
   @override
@@ -422,11 +347,11 @@ class _AudioEffectPresetTile extends StatelessWidget {
     final bool isLight = theme.brightness == Brightness.light;
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.tile),
-      onTap: enabled ? onTap : null,
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpace.md,
-          vertical: AppSpace.md,
+          vertical: AppSpace.sm,
         ),
         decoration: BoxDecoration(
           color: selected
@@ -437,6 +362,7 @@ class _AudioEffectPresetTile extends StatelessWidget {
             color: selected
                 ? colors.primary
                 : colors.outlineVariant.withValues(alpha: isLight ? 1 : 0.4),
+            width: selected ? 1.5 : 1,
           ),
         ),
         child: Row(
@@ -444,38 +370,26 @@ class _AudioEffectPresetTile extends StatelessWidget {
             Icon(
               _audioEffectIcon(preset.id),
               color: selected ? colors.primary : colors.onSurfaceVariant,
-              size: 34,
+              size: 26,
             ),
-            const SizedBox(width: AppSpace.md),
+            const SizedBox(width: AppSpace.sm),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    preset.label,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: selected ? colors.primary : colors.onSurface,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpace.xs),
-                  Text(
-                    preset.subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+              child: Text(
+                preset.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: selected ? colors.primary : colors.onSurface,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                ),
               ),
             ),
-            Switch(
-              value: preset.id != AudioEffectPresetId.off && selected,
-              onChanged: enabled
-                  ? (_) {
-                      onTap();
-                    }
-                  : null,
-            ),
+            if (selected)
+              Icon(
+                Icons.check_circle_rounded,
+                color: colors.primary,
+                size: 18,
+              ),
           ],
         ),
       ),
