@@ -315,8 +315,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.80 (Build 10080)');
-    debugPrint('✅ Fixes: 应用内更新进度与固定音效预设');
+    debugPrint('🚀 App Version: 1.0.81 (Build 10081)');
+    debugPrint('✅ Fixes: 统一 BMW 蓝设计语言、恢复卡片层级、底部导航常驻');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
