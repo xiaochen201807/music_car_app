@@ -49,7 +49,7 @@ class PortraitSettingsView extends StatelessWidget {
           AppSpace.xl,
           AppSpace.lg,
           AppSpace.xl,
-          140,
+          152,
         ),
         children: <Widget>[
           _SettingsHeroHeader(
@@ -349,7 +349,7 @@ class _AudioEffectHeroCard extends StatelessWidget {
         border: Border.all(
           color: isLight
               ? colors.outlineVariant
-              : AppColor.spotifyGreen.withValues(alpha: 0.32),
+              : AppColor.bmwBlueDark.withValues(alpha: 0.32),
         ),
       ),
       child: Row(

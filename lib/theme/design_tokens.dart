@@ -35,12 +35,16 @@ class AppColor {
   static const spotifyGreenPressed = Color(0xFF1DB954);
   static const bmwBlue = Color(0xFF1C69D4);
   static const bmwBlueActive = Color(0xFF0653B6);
+  // Brightened BMW blue for dark surfaces (near-black backgrounds sink the base
+  // blue below a comfortable contrast ratio, so the dark theme steps it up).
+  static const bmwBlueDark = Color(0xFF4C8DF0);
+  static const bmwBlueDarkActive = Color(0xFF2E77E6);
 
-  // Compatibility names used by existing widgets. Primary transport controls
-  // stay Spotify green; light-theme navigation and settings use BMW blue via
-  // ColorScheme.
-  static const accentSteelStart = spotifyGreen;
-  static const accentPlatinumEnd = spotifyGreenPressed;
+  // Unified BMW-blue accent system. All transport controls, gradients, seek
+  // bars and dynamic seed fallbacks resolve to BMW blue so light and dark
+  // themes share one design language.
+  static const accentSteelStart = bmwBlue;
+  static const accentPlatinumEnd = bmwBlueActive;
   static const accentVioletStart = accentSteelStart;
   static const accentRoseEnd = accentPlatinumEnd;
   static const carlife = Color(0xFF539DF5);
@@ -151,10 +155,27 @@ class AppType {
 class AppShadow {
   const AppShadow._();
 
+  // Sentinel default. GlassCard rewrites this to the brightness-appropriate
+  // shadow below, so a single `AppShadow.card` default adapts to light/dark.
   static const card = BoxShadow(
     color: Color(0x66000000),
     blurRadius: 34,
     offset: Offset(0, 18),
+  );
+
+  // Soft ambient lift for panels on the light (paper) theme. Kept low-contrast
+  // and tight so cards read as a calm dashboard layer, not a floating popup.
+  static const cardLight = BoxShadow(
+    color: Color(0x1A1C2740),
+    blurRadius: 20,
+    offset: Offset(0, 8),
+  );
+
+  // Deeper shadow on near-black surfaces where a subtle blur would vanish.
+  static const cardDark = BoxShadow(
+    color: Color(0x59000000),
+    blurRadius: 24,
+    offset: Offset(0, 12),
   );
 
   static BoxShadow get controlPrimary => BoxShadow(
@@ -167,7 +188,7 @@ class AppShadow {
 class AppGlass {
   const AppGlass._();
 
-  static const tintAlpha = 0.48;
+  static const tintAlpha = 0.82;
   static const glowVioletAlpha = 0.30;
   static const glowCyanAlpha = 0.16;
   static const ribbonWhiteAlpha = 0.10;

@@ -27,8 +27,20 @@ class GlassCard extends StatelessWidget {
     final BorderRadiusGeometry borderRadius = BorderRadius.circular(radius);
     final bool isLight = Theme.of(context).brightness == Brightness.light;
     final bool ancestorHasFrame = GlassBackdropScope.hasBlur(context);
-    final List<BoxShadow> effectiveShadows = const <BoxShadow>[];
+    // Honor the caller's shadows. Elements that want to stay flush (pills,
+    // inline chips) pass an empty list; panels keep the default soft shadow so
+    // cards read as a distinct layer above the background instead of blending
+    // into it.
+    final List<BoxShadow> effectiveShadows = shadows
+        .map(
+          (BoxShadow shadow) => shadow == AppShadow.card
+              ? (isLight ? AppShadow.cardLight : AppShadow.cardDark)
+              : shadow,
+        )
+        .toList(growable: false);
     final BoxDecoration decoration = BoxDecoration(
+      // A more opaque fill on dark surfaces so stacked cards separate cleanly
+      // instead of muddying together over the tinted background.
       color: isLight
           ? AppColor.paperGlassTint
           : AppColor.glassTint.withValues(alpha: AppGlass.tintAlpha),

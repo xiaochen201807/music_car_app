@@ -111,7 +111,7 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                 AppSpace.xl,
                 AppSpace.lg,
                 AppSpace.xl,
-                118,
+                152,
               ),
               sliver: SliverList.list(
                 children: <Widget>[

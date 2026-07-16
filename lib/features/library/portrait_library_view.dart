@@ -429,7 +429,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                 AppSpace.xl,
                 0,
                 AppSpace.xl,
-                140,
+                152,
               ),
               sliver: SliverToBoxAdapter(
                 child: const PortraitMessageCard(
@@ -445,7 +445,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
                 AppSpace.xl,
                 0,
                 AppSpace.xl,
-                140,
+                152,
               ),
               sliver: SliverReorderableList(
                 itemCount: widget.queueSongs.length,
@@ -510,7 +510,7 @@ class _PortraitLibraryViewState extends State<PortraitLibraryView> {
         Positioned.fill(child: mainContent),
         if (_isBatchMode)
           Positioned(
-            bottom: 140,
+            bottom: 168,
             left: AppSpace.xl,
             right: AppSpace.xl,
             child: GlassCard(

@@ -138,7 +138,7 @@ class _MusicCarAppState extends State<MusicCarApp> {
     );
     final ThemeData darkTheme = _buildAppTheme(
       brightness: Brightness.dark,
-      seedColor: AppColor.spotifyGreen,
+      seedColor: AppColor.bmwBlue,
     );
     return MaterialApp(
       title: '车载音乐',
@@ -184,8 +184,8 @@ ThemeData _buildAppTheme({
           surface: AppColor.bgBase,
           surfaceContainer: AppColor.glassTint,
           surfaceContainerHighest: AppColor.glowCyan,
-          primary: AppColor.spotifyGreen,
-          secondary: AppColor.spotifyGreenPressed,
+          primary: AppColor.bmwBlueDark,
+          secondary: AppColor.bmwBlue,
           primaryContainer: AppColor.fillNeutralHover,
           onPrimaryContainer: AppColor.textPrimary,
           onSurface: AppColor.textPrimary,
@@ -2060,7 +2060,7 @@ class _UpdateInstallProgressDialog extends StatelessWidget {
                       value: openingInstaller ? 1 : progressValue,
                       minHeight: AppSpace.xs,
                       backgroundColor: AppColor.progressTrack,
-                      color: AppColor.spotifyGreen,
+                      color: AppColor.bmwBlueDark,
                       borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     const SizedBox(height: AppSpace.md),

@@ -30,12 +30,9 @@ void main() {
     expect(find.text('为你推荐'), findsOneWidget);
     expect(find.text('百度 CarLife'), findsNothing);
     expect(find.byIcon(Icons.equalizer_rounded), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    // Navigation bar is always visible now (no collapse/expand handle).
+    expect(find.byType(NavigationBar), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const ValueKey<String>('portrait-bottom-chrome-handle')),
-    );
-    await pumpUi();
     // Bottom nav has 首页, 搜索, 音乐库, 设置 (no longer 播放)
     expect(
       find.descendant(
@@ -99,10 +96,6 @@ void main() {
       warnIfMissed: false,
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(
-      find.byKey(const ValueKey<String>('portrait-bottom-chrome-handle')),
-    );
-    await pumpUi();
     await tester.tap(
       find.descendant(
         of: find.byType(NavigationBar),

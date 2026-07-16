@@ -723,8 +723,6 @@ class PortraitBottomChrome extends StatefulWidget {
 }
 
 class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
-  bool _isMinimized = true;
-
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -735,6 +733,9 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
       5 => 3,
       _ => 0,
     };
+    // Mini player and navigation bar are both always visible. The mini player
+    // sits above a persistent navigation rail so tab switching is one tap with
+    // no hidden collapse/expand state.
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(
         AppSpace.md,
@@ -742,220 +743,107 @@ class _PortraitBottomChromeState extends State<PortraitBottomChrome> {
         AppSpace.md,
         AppSpace.md,
       ),
-      child: GestureDetector(
+      child: GlassCard(
         key: const ValueKey<String>('portrait-bottom-chrome'),
-        onVerticalDragEnd: (DragEndDetails details) {
-          if (details.primaryVelocity != null) {
-            if (details.primaryVelocity! > 200 && !_isMinimized) {
-              setState(() {
-                _isMinimized = true;
-              });
-            } else if (details.primaryVelocity! < -200 && _isMinimized) {
-              setState(() {
-                _isMinimized = false;
-              });
-            }
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.fastOutSlowIn,
-          child: GlassCard(
-            radius: AppRadius.panel,
-            shadows: const <BoxShadow>[],
-            child: InkWell(
-              onTap: _isMinimized
-                  ? () {
-                      setState(() {
-                        _isMinimized = false;
-                      });
+        radius: AppRadius.panel,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              PortraitMiniPlayerBar(
+                currentSong: widget.currentSong,
+                fallbackTrack: widget.fallbackTrack,
+                playbackState: widget.playbackState,
+                playbackMode: widget.playbackMode,
+                coverSeedColor: widget.coverSeedColor,
+                onOpenPlayer: () {
+                  HapticFeedback.lightImpact();
+                  widget.onSelectTab(4);
+                },
+                onPlayPause: widget.onPlayPause,
+                onPlaybackMode: widget.onPlaybackMode,
+                onQuality: widget.onQuality,
+                onPrevious: widget.onPrevious,
+                onNext: widget.onNext,
+                transparent: true,
+              ),
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                color: colors.onSurface.withValues(alpha: 0.08),
+              ),
+              Theme(
+                data: Theme.of(context).copyWith(
+                  navigationBarTheme: NavigationBarThemeData(
+                    indicatorColor: Colors.transparent,
+                    labelTextStyle: WidgetStateProperty.resolveWith((
+                      Set<WidgetState> states,
+                    ) {
+                      if (states.contains(WidgetState.selected)) {
+                        return theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: colors.primary,
+                        );
+                      }
+                      return theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurfaceVariant,
+                      );
+                    }),
+                    iconTheme: WidgetStateProperty.resolveWith((
+                      Set<WidgetState> states,
+                    ) {
+                      if (states.contains(WidgetState.selected)) {
+                        return IconThemeData(color: colors.primary, size: 24);
+                      }
+                      return IconThemeData(
+                        color: colors.onSurfaceVariant,
+                        size: 24,
+                      );
+                    }),
+                  ),
+                ),
+                child: NavigationBar(
+                  height: 60,
+                  selectedIndex: navigationIndex,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  onDestinationSelected: (int index) {
+                    final int target = switch (index) {
+                      1 => 1,
+                      2 => 2,
+                      3 => 5,
+                      _ => 0,
+                    };
+                    if (widget.selectedTab == target) {
+                      HapticFeedback.mediumImpact();
+                    } else {
+                      HapticFeedback.lightImpact();
+                      widget.onSelectTab(target);
                     }
-                  : null,
-              borderRadius: BorderRadius.circular(AppRadius.panel),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Center(
-                      child: GestureDetector(
-                        key: const ValueKey<String>(
-                          'portrait-bottom-chrome-handle',
-                        ),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _isMinimized
-                            ? () {
-                                setState(() {
-                                  _isMinimized = false;
-                                });
-                              }
-                            : null,
-                        child: SizedBox(
-                          width: 64,
-                          height: 18,
-                          child: Center(
-                            child: Container(
-                              width: 32,
-                              height: 3,
-                              decoration: BoxDecoration(
-                                color: colors.onSurface.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.pill,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                  },
+                  destinations: const <NavigationDestination>[
+                    NavigationDestination(
+                      icon: Icon(Icons.home_rounded),
+                      label: '首页',
                     ),
-                    PortraitMiniPlayerBar(
-                      currentSong: widget.currentSong,
-                      fallbackTrack: widget.fallbackTrack,
-                      playbackState: widget.playbackState,
-                      playbackMode: widget.playbackMode,
-                      coverSeedColor: widget.coverSeedColor,
-                      onOpenPlayer: () {
-                        HapticFeedback.lightImpact();
-                        widget.onSelectTab(4);
-                      },
-                      onPlayPause: widget.onPlayPause,
-                      onPlaybackMode: widget.onPlaybackMode,
-                      onQuality: widget.onQuality,
-                      onPrevious: widget.onPrevious,
-                      onNext: widget.onNext,
-                      transparent: true,
+                    NavigationDestination(
+                      icon: Icon(Icons.search_rounded),
+                      label: '搜索',
                     ),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 240),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder:
-                          (Widget child, Animation<double> animation) {
-                            return AnimatedBuilder(
-                              animation: animation,
-                              child: child,
-                              builder: (BuildContext context, Widget? child) {
-                                return ClipRect(
-                                  child: Align(
-                                    alignment: AlignmentDirectional.topStart,
-                                    heightFactor: animation.value,
-                                    child: FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                      child: _isMinimized
-                          ? const SizedBox.shrink(
-                              key: ValueKey<String>('bottom-chrome-collapsed'),
-                            )
-                          : Column(
-                              key: const ValueKey<String>(
-                                'bottom-chrome-expanded',
-                              ),
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                Container(
-                                  height: 1,
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: AppSpace.md,
-                                  ),
-                                  color: colors.onSurface.withValues(
-                                    alpha: 0.08,
-                                  ),
-                                ),
-                                Theme(
-                                  data: Theme.of(context).copyWith(
-                                    navigationBarTheme: NavigationBarThemeData(
-                                      indicatorColor: Colors.transparent,
-                                      labelTextStyle:
-                                          WidgetStateProperty.resolveWith((
-                                            Set<WidgetState> states,
-                                          ) {
-                                            if (states.contains(
-                                              WidgetState.selected,
-                                            )) {
-                                              return theme.textTheme.labelMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w900,
-                                                    color: colors.primary,
-                                                  );
-                                            }
-                                            return theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                );
-                                          }),
-                                      iconTheme:
-                                          WidgetStateProperty.resolveWith((
-                                            Set<WidgetState> states,
-                                          ) {
-                                            if (states.contains(
-                                              WidgetState.selected,
-                                            )) {
-                                              return IconThemeData(
-                                                color: colors.primary,
-                                                size: 24,
-                                              );
-                                            }
-                                            return IconThemeData(
-                                              color: colors.onSurfaceVariant,
-                                              size: 24,
-                                            );
-                                          }),
-                                    ),
-                                  ),
-                                  child: NavigationBar(
-                                    height: 60,
-                                    selectedIndex: navigationIndex,
-                                    backgroundColor: Colors.transparent,
-                                    elevation: 0,
-                                    onDestinationSelected: (int index) {
-                                      final int target = switch (index) {
-                                        1 => 1,
-                                        2 => 2,
-                                        3 => 5,
-                                        _ => 0,
-                                      };
-                                      if (widget.selectedTab == target) {
-                                        HapticFeedback.mediumImpact();
-                                      } else {
-                                        HapticFeedback.lightImpact();
-                                        widget.onSelectTab(target);
-                                      }
-                                    },
-                                    destinations: const <NavigationDestination>[
-                                      NavigationDestination(
-                                        icon: Icon(Icons.home_rounded),
-                                        label: '首页',
-                                      ),
-                                      NavigationDestination(
-                                        icon: Icon(Icons.search_rounded),
-                                        label: '搜索',
-                                      ),
-                                      NavigationDestination(
-                                        icon: Icon(Icons.library_music_rounded),
-                                        label: '音乐库',
-                                      ),
-                                      NavigationDestination(
-                                        icon: Icon(Icons.settings_rounded),
-                                        label: '设置',
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                    NavigationDestination(
+                      icon: Icon(Icons.library_music_rounded),
+                      label: '音乐库',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.settings_rounded),
+                      label: '设置',
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

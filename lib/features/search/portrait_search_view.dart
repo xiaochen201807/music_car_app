@@ -142,7 +142,7 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool showList = widget.songs.isNotEmpty && !widget.busy;
-    final double topSliverBottomPadding = showList ? AppSpace.md : 140.0;
+    final double topSliverBottomPadding = showList ? AppSpace.md : 152.0;
 
     return SafeArea(
       child: CustomScrollView(
@@ -243,7 +243,7 @@ class _PortraitSearchViewState extends State<PortraitSearchView> {
                 AppSpace.xl,
                 AppSpace.md,
                 AppSpace.xl,
-                140,
+                152,
               ),
               sliver: SliverToBoxAdapter(
                 child: Center(
