@@ -73,6 +73,7 @@ class TrackMetadataController extends ChangeNotifier {
 
   Future<bool> loadLyricsForSong(FreeMusicSong song) async {
     final int requestId = ++_lyricsRequestId;
+    final String songKey = lyricsKeyFor(song);
     if (!song.canResolve) {
       _isLoadingLyrics = false;
       _lyricsError = '';
@@ -95,7 +96,8 @@ class TrackMetadataController extends ChangeNotifier {
         return false;
       }
       _currentLyrics = lyrics;
-      _currentLyricsKey = lyricsKeyFor(song);
+      // 用发起请求时的 songKey 写回，避免闭包持有的 song 对象与 UI 对不上
+      _currentLyricsKey = songKey;
       _isLoadingLyrics = false;
       notifyListeners();
       return true;
@@ -104,6 +106,8 @@ class TrackMetadataController extends ChangeNotifier {
         return false;
       }
       _lyricsError = error.message;
+      _currentLyrics = null;
+      _currentLyricsKey = '';
       _isLoadingLyrics = false;
       notifyListeners();
       return true;
@@ -112,6 +116,8 @@ class TrackMetadataController extends ChangeNotifier {
         return false;
       }
       _lyricsError = '歌词加载失败：$error';
+      _currentLyrics = null;
+      _currentLyricsKey = '';
       _isLoadingLyrics = false;
       notifyListeners();
       return true;

@@ -316,7 +316,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.82 (Build 10082)');
+    debugPrint('🚀 App Version: 1.0.83 (Build 10083)');
     debugPrint('✅ Fixes: 首页推荐歌单瀑布流与多源切换、音效单选网格、切歌歌词错位修复');
     debugPrint('════════════════════════════════════════════════════════════');
     _libraryController.addListener(_handleLibraryChanged);
@@ -468,25 +468,53 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   FreeMusicSong? _lastLoadedLyricsSong;
 
-  void _handlePlaybackStateChanged() {
-    debugPrint('[main] 🔄 QueueController changed, checking song switch');
-    final FreeMusicSong? currentSong = _queueController.currentSong;
-    if (currentSong != null && currentSong != _lastLoadedLyricsSong) {
-      debugPrint(
-        '[main] 🎵 Song switched: ${currentSong.name} - ${currentSong.artist}',
-      );
-      _lastLoadedLyricsSong = currentSong;
-      unawaited(_loadLyricsForSong(currentSong));
-    }
-  }
+  String _songIdentityKey(FreeMusicSong song) =>
+      TrackMetadataController.lyricsKeyFor(song);
 
-  void _handleTrackChangedFromPlatform(FreeMusicSong song) {
-    if (!mounted) return;
-    _syncSelectedQueueIndexFromAudioController();
+  /// Marks [song] as the lyrics/quality target and kicks off loads.
+  /// Idempotent when the identity is unchanged (avoids double-fetch thrash
+  /// when both the queue listener and an explicit skip path fire).
+  ///
+  /// [force] re-issues the bind even if the identity matches, but only when
+  /// the controller does not already hold that song's lyrics (so a successful
+  /// play after the queue listener already loaded will not flash empty).
+  void _bindMetadataForSong(FreeMusicSong song, {bool force = false}) {
+    final String key = _songIdentityKey(song);
+    final String? lastKey = _lastLoadedLyricsSong == null
+        ? null
+        : _songIdentityKey(_lastLoadedLyricsSong!);
+    if (key == lastKey) {
+      if (!force) {
+        return;
+      }
+      final bool alreadyBound =
+          _trackMetadataController.currentLyricsKey == key ||
+          _trackMetadataController.isLoadingLyrics;
+      if (alreadyBound) {
+        return;
+      }
+    }
+    debugPrint('[main] 🎵 Metadata bind: ${song.name} - ${song.artist}');
+    _lastLoadedLyricsSong = song;
     unawaited(_updateCoverSeed(song));
     unawaited(_loadLyricsForSong(song));
     unawaited(_loadQualitiesForSong(song));
-    unawaited(_syncCarLifePlaybackContext(showResult: false));
+  }
+
+  void _handlePlaybackStateChanged() {
+    debugPrint('[main] 🔄 QueueController changed, checking song switch');
+    final FreeMusicSong? currentSong = _queueController.currentSong;
+    if (currentSong == null) {
+      return;
+    }
+    _bindMetadataForSong(currentSong);
+  }
+
+  void _handleTrackChangedFromPlatform() {
+    if (!mounted) return;
+    // Re-sync from the native controller only. Never trust a song passed from
+    // the bridge: after skip the UI queue often still holds the previous song.
+    _syncSelectedQueueIndexFromAudioController();
   }
 
   void _syncSelectedQueueIndexFromAudioController() {
@@ -504,8 +532,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     setState(() {
       _queueController.syncCurrentFromExternalQueue(controllerQueue, index);
     });
-    unawaited(_loadLyricsForSong(song));
-    unawaited(_loadQualitiesForSong(song));
+    // force: external skips always re-bind so a previous in-flight load for
+    // the same key (rare) or a missed clear cannot leave stale lyrics up.
+    _bindMetadataForSong(song, force: true);
     unawaited(_syncCarLifePlaybackContext(showResult: false));
   }
 
@@ -665,9 +694,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     setState(() {
       _queueController.replace(restored, restoredIndex);
     });
-    unawaited(_updateCoverSeed(song));
-    unawaited(_loadLyricsForSong(song));
-    unawaited(_loadQualitiesForSong(song));
+    _bindMetadataForSong(song, force: true);
     // Resume playback — NativeAudioController will re-resolve the audio URL
     // if needed, so this is safe to fire-and-forget.
     unawaited(_playbackController.resumeNativePlayback());
@@ -824,9 +851,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     });
     _showToast('已加入播放队列：${song.name}');
     if (isQueueEmpty) {
-      unawaited(_updateCoverSeed(song));
-      unawaited(_loadLyricsForSong(song));
-      unawaited(_loadQualitiesForSong(song));
+      _bindMetadataForSong(song, force: true);
     }
   }
 
@@ -879,15 +904,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
             }
           });
           if (oldSnapshot.currentSong != null) {
-            unawaited(_loadLyricsForSong(oldSnapshot.currentSong!));
-            unawaited(_loadQualitiesForSong(oldSnapshot.currentSong!));
+            _bindMetadataForSong(oldSnapshot.currentSong!, force: true);
           }
         }
         return;
       }
-      unawaited(_updateCoverSeed(song));
-      unawaited(_loadLyricsForSong(song));
-      unawaited(_loadQualitiesForSong(song));
+      _bindMetadataForSong(song, force: true);
       unawaited(_syncCarLifePlaybackContext(showResult: false));
     } catch (e) {
       debugPrint('[main] _playSongQueue error: $e');
@@ -948,15 +970,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
           }
         });
         if (oldSnapshot.currentSong != null) {
-          unawaited(_loadLyricsForSong(oldSnapshot.currentSong!));
-          unawaited(_loadQualitiesForSong(oldSnapshot.currentSong!));
+          _bindMetadataForSong(oldSnapshot.currentSong!, force: true);
         }
       }
       return false;
     }
-    unawaited(_updateCoverSeed(targetSong));
-    unawaited(_loadLyricsForSong(targetSong));
-    unawaited(_loadQualitiesForSong(targetSong));
+    _bindMetadataForSong(targetSong, force: true);
     unawaited(_syncCarLifePlaybackContext(showResult: false));
     return true;
   }
@@ -1595,7 +1614,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   void _sendLyricBroadcast() {
     final FreeMusicSong? song = _currentSong;
-    final FreeMusicLyrics? lyrics = _trackMetadataController.currentLyrics;
+    // Use the gated getter so we never broadcast lyrics that belong to a
+    // different song after a skip race.
+    final FreeMusicLyrics? lyrics = currentLyrics;
     if (song == null) return;
 
     final PlaybackUiState state = playbackState;
@@ -1983,8 +2004,21 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> cyclePlaybackMode() => _cyclePlaybackMode();
   void showQualitySheet() => _showQualitySheet();
   Future<void> seekPlayback(Duration position) => _seekPlayback(position);
-  Future<bool> skipToPreviousTrack() => _playbackController.skipToPrevious();
-  Future<bool> skipToNextTrack() => _playbackController.skipToNext();
+  Future<bool> skipToPreviousTrack() async {
+    final bool handled = await _playbackController.skipToPrevious();
+    if (handled) {
+      _syncSelectedQueueIndexFromAudioController();
+    }
+    return handled;
+  }
+
+  Future<bool> skipToNextTrack() async {
+    final bool handled = await _playbackController.skipToNext();
+    if (handled) {
+      _syncSelectedQueueIndexFromAudioController();
+    }
+    return handled;
+  }
   Future<void> openCarLife() => _openCarLife();
   Future<void> syncCarLifePlaybackContext({required bool showResult}) =>
       _syncCarLifePlaybackContext(showResult: showResult);
@@ -1994,8 +2028,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.82',
-        'build': 10082,
+        'version': '1.0.83',
+        'build': 10083,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

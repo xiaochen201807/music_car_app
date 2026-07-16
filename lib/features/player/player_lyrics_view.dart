@@ -91,13 +91,46 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
     );
   }
 
+  bool _sameSong(FreeMusicSong? a, FreeMusicSong? b) {
+    if (identical(a, b)) {
+      return true;
+    }
+    if (a == null || b == null) {
+      return false;
+    }
+    return a.source == b.source && a.id == b.id;
+  }
+
   @override
   void didUpdateWidget(PlayerLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.position != oldWidget.position ||
+
+    final bool songChanged = !_sameSong(widget.currentSong, oldWidget.currentSong);
+    final bool lyricsChanged = !identical(widget.lyrics, oldWidget.lyrics);
+
+    // On track switch, drop the previous song's scroll position / local offset
+    // so the ticker does not keep highlighting against the wrong lyrics.
+    if (songChanged) {
+      _userScrollTimer?.cancel();
+      _isUserScrolling = false;
+      _lyricsScrollLocked = false;
+      _lastIndex = -1;
+      _centerIndex = 0;
+      _offset = Duration.zero;
+      _currentPosition = widget.position;
+      _updateTicker();
+      unawaited(_loadOffset());
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    } else if (widget.position != oldWidget.position ||
         widget.playing != oldWidget.playing) {
       _currentPosition = widget.position;
       _updateTicker();
+    }
+
+    if (songChanged || lyricsChanged) {
+      _lastIndex = -1;
     }
 
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
@@ -147,7 +180,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
         final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
         final int activeIndex = activeLyricLineIndex(
           lines,
-          _currentPosition,
+          _currentPosition + _offset,
           lead: lyricHighlightLead,
         );
         if (activeIndex != _lastIndex && activeIndex >= 0) {

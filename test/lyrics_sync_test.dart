@@ -138,4 +138,75 @@ void main() {
 
     expect(retried, isTrue);
   });
+
+  testWidgets('PlayerLyricsView resets scroll state when the song changes', (
+    WidgetTester tester,
+  ) async {
+    final FreeMusicLyrics firstLyrics = FreeMusicLyrics(
+      raw: 'raw1',
+      lines: lines,
+    );
+    final FreeMusicLyrics secondLyrics = FreeMusicLyrics(
+      raw: 'raw2',
+      lines: const <FreeMusicLyricLine>[
+        FreeMusicLyricLine(time: Duration(seconds: 1), text: '新歌第一句'),
+        FreeMusicLyricLine(time: Duration(seconds: 5), text: '新歌第二句'),
+      ],
+    );
+    final FreeMusicSong firstSong = FreeMusicSong(
+      id: 'a',
+      source: 'netease',
+      name: 'Song A',
+      artist: 'Artist',
+      duration: 200,
+    );
+    final FreeMusicSong secondSong = FreeMusicSong(
+      id: 'b',
+      source: 'netease',
+      name: 'Song B',
+      artist: 'Artist',
+      duration: 200,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlayerLyricsView(
+            lyrics: firstLyrics,
+            position: const Duration(seconds: 5),
+            playing: false,
+            lyricsBusy: false,
+            lyricsError: '',
+            currentSong: firstSong,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Manually scroll so the view locks auto-scroll — must unlock on song switch.
+    await tester.drag(find.byType(ListView), const Offset(0, -80));
+    await tester.pump();
+    expect(find.text('恢复同步'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlayerLyricsView(
+            lyrics: secondLyrics,
+            position: Duration.zero,
+            playing: false,
+            lyricsBusy: false,
+            lyricsError: '',
+            currentSong: secondSong,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('新歌第一句'), findsOneWidget);
+    // Scroll lock from the previous song must not carry over.
+    expect(find.text('恢复同步'), findsNothing);
+  });
 }

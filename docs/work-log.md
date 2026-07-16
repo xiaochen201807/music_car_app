@@ -3,6 +3,35 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-16 - Fix Manual Skip Lyric Mismatch (v1.0.83)
+
+Implemented in this increment:
+
+- Manual next/previous on the player overlay now re-syncs `QueueController` from
+  `NativeAudioController` after a successful skip, then rebinds lyrics /
+  qualities / cover for the native current track.
+- Unified metadata binding through `_bindMetadataForSong` so restore, play,
+  queue-index skip, and external skips share one identity-gated path.
+- `PlatformMediaBridge` no longer passes the stale UI-queue song after external
+  skips (notification / CarLife / headset). It fires a no-arg track-changed
+  callback; the UI re-reads the authoritative playlist/index from native.
+- `PlayerLyricsView` resets scroll lock, local offset, and position when the
+  song identity changes so the previous track's highlight state cannot stick.
+- Bluetooth lyric broadcast now uses the identity-gated `currentLyrics` getter.
+- Queue notify coalescing no longer recurses infinitely when throttling bursts.
+
+Verification in this increment:
+
+- `flutter test test/platform_media_bridge_test.dart`
+- `flutter test test/lyrics_sync_test.dart`
+- `flutter test test/track_metadata_controller_test.dart`
+- `flutter analyze` on the touched files
+
+Packaging note:
+
+- Version bumped to `1.0.83+10083`. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
 ## 2026-07-16 - Home Redesign, Audio Effect Grid, Lyrics Sync Fix
 
 Implemented in this increment:

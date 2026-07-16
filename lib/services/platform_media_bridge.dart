@@ -1,17 +1,14 @@
-import 'dart:async';
-
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 
 import '../controllers/playback_controller.dart';
-import '../controllers/queue_controller.dart';
-import '../controllers/track_metadata_controller.dart';
 import '../music_audio_handler.dart';
 import '../services/carlife_service.dart';
-import '../services/carplay_service.dart';
-import '../free_music_api.dart';
 
-typedef TrackChangedCallback = void Function(FreeMusicSong song);
+/// Fired after a platform/external skip succeeds. The handler must re-read the
+/// authoritative playlist/index from the native controller — the UI queue may
+/// still point at the previous song when this fires.
+typedef TrackChangedCallback = void Function();
 typedef QueueItemSelectedCallback = Future<bool> Function(int index);
 typedef RepeatModeCallback = Future<void> Function(AudioServiceRepeatMode mode);
 typedef ShuffleModeCallback =
@@ -20,16 +17,16 @@ typedef ShuffleModeCallback =
 class PlatformMediaBridge {
   PlatformMediaBridge({
     required PlaybackController playbackController,
-    required QueueController queueController,
-    required TrackMetadataController trackMetadataController,
     required CarLifeService carLifeService,
-    CarPlayService? carPlayService,
+    // Kept for call-site stability; queue/metadata are no longer read here
+    // because they lag behind NativeAudioController after skip.
+    Object? queueController,
+    Object? trackMetadataController,
+    Object? carPlayService,
   }) : _playbackController = playbackController,
-       _queueController = queueController,
        _carLifeService = carLifeService;
 
   final PlaybackController _playbackController;
-  final QueueController _queueController;
   final CarLifeService _carLifeService;
 
   TrackChangedCallback? onTrackChanged;
@@ -64,6 +61,15 @@ class PlatformMediaBridge {
     _carLifeService.setControlHandler(_handleCarLifeControl);
   }
 
+  /// Test/integration entry for the skip-next + track-changed path used by
+  /// notification / CarLife / headset controls.
+  @visibleForTesting
+  Future<bool> handleExternalSkipNext() => _handleNext();
+
+  /// Test/integration entry for the skip-previous + track-changed path.
+  @visibleForTesting
+  Future<bool> handleExternalSkipPrevious() => _handlePrevious();
+
   Future<bool> _handlePlay() async {
     debugPrint('[platform-bridge] play button pressed');
     final bool handled = await _playbackController.resumeNativePlayback();
@@ -78,10 +84,9 @@ class PlatformMediaBridge {
   Future<bool> _handleNext() async {
     final bool handled = await _playbackController.skipToNext();
     if (handled) {
-      final FreeMusicSong? song = _queueController.currentSong;
-      if (song != null) {
-        onTrackChanged?.call(song);
-      }
+      // Always notify: QueueController is often still on the previous song
+      // until the UI re-syncs from NativeAudioController.
+      onTrackChanged?.call();
     }
     return handled;
   }
@@ -89,10 +94,7 @@ class PlatformMediaBridge {
   Future<bool> _handlePrevious() async {
     final bool handled = await _playbackController.skipToPrevious();
     if (handled) {
-      final FreeMusicSong? song = _queueController.currentSong;
-      if (song != null) {
-        onTrackChanged?.call(song);
-      }
+      onTrackChanged?.call();
     }
     return handled;
   }

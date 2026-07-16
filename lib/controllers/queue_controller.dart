@@ -64,8 +64,12 @@ class QueueController extends ChangeNotifier {
 
   void _notifyWithThrottle() {
     _notifyTimer?.cancel();
+    // Coalesce bursty queue mutations into a single listener notify so the
+    // shell does not rebuild thrice during a single skip / replace path.
     _notifyTimer = Timer(const Duration(milliseconds: 120), () {
-      _notifyWithThrottle();
+      if (hasListeners) {
+        notifyListeners();
+      }
     });
   }
 
