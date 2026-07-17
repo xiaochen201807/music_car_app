@@ -219,12 +219,24 @@ class AudioEffectsSettings {
     if (!enabled) {
       return const <int>[0, 0, 0, 0, 0];
     }
-    final int bass = ((bassBoost - 40) / 12).round().clamp(-3, 5);
-    final int lowMid = ((bassBoost - 50) / 25).round().clamp(-2, 3);
-    final int mid = ((clarity - 50) / 18).round().clamp(-2, 3);
-    final int treble = ((clarity - 35) / 14).round().clamp(-2, 5);
-    final int air = ((surround + clarity - 90) / 22).round().clamp(-2, 4);
-    return <int>[bass, lowMid, mid, treble, air];
+    // Band units: whole dB, applied as milliBel on the native Equalizer.
+    // Important: avoid net-negative curves. Android AudioEffect/Equalizer often
+    // engages headroom limiting when effects are enabled, so a "boost some /
+    // cut some" shape still sounds quieter than dry. Keep cuts mild and bias
+    // the whole curve upward so every preset is at least as loud as off.
+    final int bass = ((bassBoost - 25) / 12).round().clamp(0, 6);
+    final int lowMid = ((bassBoost - 35) / 18).round().clamp(0, 4);
+    final int mid = ((clarity - 30) / 16).round().clamp(0, 5);
+    final int treble = ((clarity - 20) / 12).round().clamp(0, 6);
+    final int air = ((surround + clarity - 60) / 18).round().clamp(0, 5);
+    final List<int> shaped = <int>[bass, lowMid, mid, treble, air];
+
+    // Loudness floor: ensure average gain is at least +2 dB when effects are on.
+    final double avg = shaped.reduce((int a, int b) => a + b) / shaped.length;
+    final int lift = avg < 2 ? (2 - avg).ceil() : 0;
+    return shaped
+        .map((int g) => (g + lift).clamp(0, 7))
+        .toList(growable: false);
   }
 
   AudioEffectsSettings copyWith({

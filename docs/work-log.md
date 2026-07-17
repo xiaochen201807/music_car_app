@@ -3,6 +3,14 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Audio effect loudness parity with dry (v1.0.94)
+
+All effect presets sounded quieter than "原声" because EQ curves mixed cuts with
+boosts and Android applies headroom when AudioEffect is enabled.
+
+- `eqGains` no longer uses negative band levels; average lift >= +2 dB.
+- Native Equalizer allows up to +10 dB boost and only mild cuts (-2 dB).
+
 ## 2026-07-17 - Fix Android 15 media notification crash (v1.0.93)
 
 Crash on vivo V2284A / Android 15 while publishing audio_service notification:

@@ -412,8 +412,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.93 (Build 10093)');
-    debugPrint('✅ Fixes: 修复 Android 15 通知 small icon 无效导致播放闪退');
+    debugPrint('🚀 App Version: 1.0.94 (Build 10094)');
+    debugPrint('✅ Fixes: 音效预设响度不低于原声（EQ 去负增益+抬升）');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -2085,7 +2085,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   DeviceAuthSnapshot get deviceAuthSnapshot => _deviceAuthSnapshot;
   DeviceAuthService get deviceAuthService => _deviceAuthService;
   // Keep in sync with pubspec / tag; used by share QR + diagnostics.
-  String get appVersionLabel => '1.0.93';
+  String get appVersionLabel => '1.0.94';
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2244,8 +2244,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.93',
-        'build': 10093,
+        'version': '1.0.94',
+        'build': 10094,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

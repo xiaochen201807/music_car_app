@@ -852,8 +852,10 @@ class MainActivity : AudioServiceActivity() {
         val levelRange = effect.bandLevelRange
         val minLevel = levelRange[0].toInt()
         val maxLevel = levelRange[1].toInt()
-        val maxBoost = minOf(maxLevel, 700)
-        val maxCut = maxOf(minLevel, -700)
+        // Prefer boost headroom; avoid deep cuts that make every preset quieter
+        // than dry/off due to system limiter + negative band levels.
+        val maxBoost = minOf(maxLevel, 1000) // +10 dB cap
+        val maxCut = maxOf(minLevel, -200) // only mild cuts if ever needed
         for (band in 0 until bandCount) {
             val sourceIndex = ((band.toDouble() / maxOf(1, bandCount - 1)) *
                 (gains.size - 1)).roundToInt().coerceIn(0, gains.size - 1)
