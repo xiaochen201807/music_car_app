@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -16,12 +15,21 @@ Future<MusicAudioHandler> initMusicAudioHandler() async {
 
   return AudioService.init<MusicAudioHandler>(
     builder: MusicAudioHandler.new,
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       androidNotificationChannelId: 'com.sy110.music_car_app.audio',
       androidNotificationChannelName: '车载音乐播放',
+      androidNotificationChannelDescription: '播放控制与当前曲目',
+      // Monochrome status-bar glyph (not the full launcher icon).
+      androidNotificationIcon: 'drawable/ic_stat_music_car',
+      // BMW blue accent for MediaStyle notification on supported OEMs.
+      notificationColor: const Color(0xFF1C69D4),
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: false,
-      androidBrowsableRootExtras: <String, Object>{
+      androidNotificationClickStartsActivity: true,
+      preloadArtwork: true,
+      artDownscaleWidth: 300,
+      artDownscaleHeight: 300,
+      androidBrowsableRootExtras: const <String, Object>{
         AndroidContentStyle.supportedKey: true,
         AndroidContentStyle.playableHintKey:
             AndroidContentStyle.listItemHintValue,
@@ -61,13 +69,23 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       'com.sy110.music_car_app.metadata.LYRIC';
   static const MediaControl _playPauseControl = MediaControl(
     androidIcon: 'drawable/audio_service_play_arrow',
-    label: 'Play',
+    label: '播放',
     action: MediaAction.playPause,
   );
   static const MediaControl _pausePlayControl = MediaControl(
     androidIcon: 'drawable/audio_service_pause',
-    label: 'Pause',
+    label: '暂停',
     action: MediaAction.playPause,
+  );
+  static const MediaControl _skipPreviousControl = MediaControl(
+    androidIcon: 'drawable/audio_service_skip_previous',
+    label: '上一首',
+    action: MediaAction.skipToPrevious,
+  );
+  static const MediaControl _skipNextControl = MediaControl(
+    androidIcon: 'drawable/audio_service_skip_next',
+    label: '下一首',
+    action: MediaAction.skipToNext,
   );
 
   static const MethodChannel _carLifeChannel = MethodChannel(
@@ -142,10 +160,15 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
       id: url,
       title: snapshot.title.isEmpty ? '未知歌曲' : snapshot.title,
       artist: snapshot.artist.isEmpty ? null : snapshot.artist,
+      album: snapshot.song?.album.isNotEmpty == true
+          ? snapshot.song!.album
+          : null,
       artUri: snapshot.coverUrl.isEmpty
           ? null
           : Uri.tryParse(snapshot.coverUrl),
       duration: snapshot.duration > Duration.zero ? snapshot.duration : null,
+      displayTitle: snapshot.title.isEmpty ? '未知歌曲' : snapshot.title,
+      displaySubtitle: snapshot.artist.isEmpty ? null : snapshot.artist,
       playable: true,
       extras: <String, Object?>{
         'source': snapshot.song?.source,
@@ -496,12 +519,12 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _isBroadcastingPlaybackState = true;
 
     final bool playing = _player.playing;
+    // Compact MediaStyle: previous · play/pause · next (no stop — cleaner card).
     final PlaybackState nextState = PlaybackState(
       controls: <MediaControl>[
-        MediaControl.skipToPrevious,
+        _skipPreviousControl,
         if (playing) _pausePlayControl else _playPauseControl,
-        MediaControl.skipToNext,
-        MediaControl.stop,
+        _skipNextControl,
       ],
       systemActions: const <MediaAction>{
         MediaAction.seek,
@@ -512,7 +535,6 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
         MediaAction.play,
         MediaAction.pause,
         MediaAction.playPause,
-        MediaAction.stop,
       },
       androidCompactActionIndices: const <int>[0, 1, 2],
       processingState: _mapProcessingState(event.processingState),
@@ -692,14 +714,18 @@ List<MediaItem> _mediaQueueFromSnapshot(
           id: isCurrent ? fallbackItem.id : '${song.source}:${song.id}',
           title: song.name.isEmpty ? '未知歌曲' : song.name,
           artist: song.artist.isEmpty ? null : song.artist,
-          album: song.album.isEmpty ? null : song.album,
+          album: song.album.isNotEmpty ? song.album : null,
           artUri: song.cover.isEmpty ? null : Uri.tryParse(song.cover),
-          duration: song.duration > 0 ? Duration(seconds: song.duration) : null,
+          duration: song.duration > 0
+              ? Duration(seconds: song.duration)
+              : null,
+          displayTitle: song.name.isEmpty ? '未知歌曲' : song.name,
+          displaySubtitle: song.artist.isEmpty ? null : song.artist,
           playable: true,
           extras: <String, Object?>{
             'source': song.source,
             'songId': song.id,
-            if (isCurrent) 'audioUrl': fallbackItem.id,
+            if (isCurrent) 'audioUrl': fallbackItem.extras?['audioUrl'],
             AndroidContentStyle.playableHintKey:
                 AndroidContentStyle.listItemHintValue,
           },

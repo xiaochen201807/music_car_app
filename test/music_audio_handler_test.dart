@@ -602,13 +602,13 @@ void main() {
       PlaybackState state = handler.playbackState.value;
       expect(state.playing, isTrue);
       expect(state.controls[1].action, MediaAction.playPause);
-      expect(state.controls[1].label, 'Pause');
+      expect(state.controls[1].label, '暂停');
 
       await handler.pauseDirect();
       state = handler.playbackState.value;
       expect(state.playing, isFalse);
       expect(state.controls[1].action, MediaAction.playPause);
-      expect(state.controls[1].label, 'Play');
+      expect(state.controls[1].label, '播放');
 
       await handler.dispose();
     },

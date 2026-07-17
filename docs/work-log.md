@@ -3,6 +3,15 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Android media notification polish (v1.0.92)
+
+- Fix MediaStyle control icons: add drawable names expected by audio_service
+  (`play_arrow`, `skip_previous`, `skip_next`, `stop`).
+- Use monochrome `ic_stat_music_car` for status-bar notification icon + BMW blue
+  notificationColor.
+- Compact transport: previous · play/pause · next (drop Stop from the card).
+- Richer MediaItem displayTitle/displaySubtitle for cleaner OEM headers.
+
 ## 2026-07-17 - UI Polish Phases 1–6 (v1.0.91)
 
 Performance-first visual polish per `docs/ui-polish-roadmap.md`:
