@@ -57,6 +57,34 @@ void main() {
     expect(after.updateShouldNotify(before), isFalse);
   });
 
+  test('updateShouldNotify is true when playlistSource changes', () {
+    final MusicAppStateScope before = _scope(
+      effects: AudioEffectsSettings.off,
+      preferredBitrate: '320kmp3',
+    );
+    final MusicAppStateScope after = MusicAppStateScope(
+      state: _UnusedHomeState(),
+      currentSong: null,
+      selectedQueueIndex: 0,
+      playbackQueue: const <FreeMusicSong>[],
+      playbackMode: NativePlaybackMode.repeatAll,
+      searchResults: const <FreeMusicSong>[],
+      favoriteSongs: const <FreeMusicSong>[],
+      selectedTab: 0,
+      isLoadingRecommendations: false,
+      isLoadingApiBootstrap: false,
+      recommendationError: '',
+      apiBootstrapError: '',
+      preferredBitrate: '320kmp3',
+      audioEffectsSettings: AudioEffectsSettings.off,
+      themeMode: ThemeMode.system,
+      playlistSource: 'kugou',
+      recommendedPlaylists: const <FreeMusicPlaylist>[],
+      child: const SizedBox.shrink(),
+    );
+    expect(after.updateShouldNotify(before), isTrue);
+  });
+
   testWidgets(
     'dependent Builder rebuilds when scoped audio effect preset changes',
     (WidgetTester tester) async {
@@ -85,6 +113,8 @@ void main() {
                 preferredBitrate: '320kmp3',
                 audioEffectsSettings: effects,
                 themeMode: ThemeMode.system,
+                playlistSource: 'netease',
+                recommendedPlaylists: const <FreeMusicPlaylist>[],
                 child: Builder(
                   builder: (BuildContext context) {
                     final MusicAppStateScope scope = context
@@ -136,6 +166,8 @@ MusicAppStateScope _scope({
     preferredBitrate: preferredBitrate,
     audioEffectsSettings: effects,
     themeMode: themeMode,
+    playlistSource: 'netease',
+    recommendedPlaylists: const <FreeMusicPlaylist>[],
     child: const SizedBox.shrink(),
   );
 }

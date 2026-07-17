@@ -25,6 +25,8 @@ class MusicAppStateScope extends InheritedWidget {
     required this.preferredBitrate,
     required this.audioEffectsSettings,
     required this.themeMode,
+    required this.playlistSource,
+    required this.recommendedPlaylists,
     required super.child,
   });
 
@@ -43,6 +45,8 @@ class MusicAppStateScope extends InheritedWidget {
   final String preferredBitrate;
   final AudioEffectsSettings audioEffectsSettings;
   final ThemeMode themeMode;
+  final String playlistSource;
+  final List<FreeMusicPlaylist> recommendedPlaylists;
 
   /// 静态便捷获取主状态的方法。
   static NativeMusicHomePageState of(BuildContext context) {
@@ -67,6 +71,9 @@ class MusicAppStateScope extends InheritedWidget {
         oldWidget.apiBootstrapError != apiBootstrapError ||
         oldWidget.preferredBitrate != preferredBitrate ||
         oldWidget.audioEffectsSettings != audioEffectsSettings ||
-        oldWidget.themeMode != themeMode;
+        oldWidget.themeMode != themeMode ||
+        // Catalog source chips + list must rebuild immediately on switch.
+        oldWidget.playlistSource != playlistSource ||
+        oldWidget.recommendedPlaylists != recommendedPlaylists;
   }
 }

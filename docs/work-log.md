@@ -3,6 +3,13 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Fix sticky playlist source chips (v1.0.90)
+
+- Root cause: MusicAppStateScope.updateShouldNotify ignored playlistSource and
+  recommendedPlaylists, so cache-hit source switches did not rebuild home.
+- Scope now includes both fields; setPlaylistSource no longer awaits load so the
+  chip paints immediately.
+
 ## 2026-07-17 - Share APK QR + Playlist Source Switch Fix (v1.0.89)
 
 - Settings → 应用: "分享安装包" shows QR for current arm64 release APK

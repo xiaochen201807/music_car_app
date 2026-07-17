@@ -292,7 +292,7 @@ class _PlaylistSourceSelector extends StatelessWidget {
               }
             },
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 120),
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
               alignment: Alignment.center,

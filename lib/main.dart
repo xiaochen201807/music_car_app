@@ -409,7 +409,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.89 (Build 10089)');
+    debugPrint('🚀 App Version: 1.0.90 (Build 10090)');
     debugPrint('✅ Fixes: 分享安装包二维码、推荐源切换缓存跟手');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
@@ -853,12 +853,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (_playlistSource == source) {
       return;
     }
-    // Update selection immediately so chips feel responsive, then load the
-    // matching catalog (cache hit is sync-fast; miss fetches network).
+    // Paint chip selection first; load catalog without blocking the gesture.
     setState(() {
       _playlistSource = source;
     });
-    await _loadRecommendations(forceRefresh: false);
+    unawaited(_loadRecommendations(forceRefresh: false));
   }
 
   Set<String> get _downloadedSongKeys {
@@ -2083,7 +2082,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   DeviceAuthSnapshot get deviceAuthSnapshot => _deviceAuthSnapshot;
   DeviceAuthService get deviceAuthService => _deviceAuthService;
   // Keep in sync with pubspec / tag; used by share QR + diagnostics.
-  String get appVersionLabel => '1.0.89';
+  String get appVersionLabel => '1.0.90';
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2242,8 +2241,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.89',
-        'build': 10089,
+        'version': '1.0.90',
+        'build': 10090,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,
@@ -2289,6 +2288,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       preferredBitrate: preferredBitrate,
       audioEffectsSettings: audioEffectsSettings,
       themeMode: themeMode,
+      // Home catalog: chips + list must notify on source switch even if only
+      // memory-cache data changes (loading flag may stay false).
+      playlistSource: _playlistSource,
+      recommendedPlaylists: _musicSearchController.recommendedPlaylists,
       child: const PortraitMusicScaffold(),
     );
   }
