@@ -384,6 +384,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       carLifeStatus: appState.carLifeStatus,
       carLifeSyncing: appState.isSyncingCarLife,
       carPlayStatus: appState.carPlayStatus,
+      deviceAuthSnapshot: appState.deviceAuthSnapshot,
       onThemeModeChanged: appState.setThemeMode,
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
@@ -393,6 +394,8 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onOpenCarLife: () => appState.openCarLife(),
       onSyncCarLife: () => appState.syncCarLifeManually(),
       onCopyDiagnostics: () => appState.copyDiagnostics(),
+      onCopyDeviceId: () => appState.copyDeviceId(),
+      onReverifyActivation: () => appState.reverifyActivation(),
     );
   }
 

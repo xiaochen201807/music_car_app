@@ -30,11 +30,13 @@ import 'services/download_service.dart';
 import 'services/carlife_service.dart';
 import 'services/carplay_service.dart';
 import 'services/platform_media_bridge.dart';
+import 'services/device_auth_service.dart';
 import 'services/update_check_service.dart';
 import 'theme/design_tokens.dart';
 import 'widgets/luxury_loading_indicator.dart';
 import 'features/settings/cache_manager_page.dart';
 import 'features/home/playlist_details_page.dart';
+import 'features/activation/device_activation_gate.dart';
 import 'app/music_app_state_scope.dart';
 import 'features/shell/portrait_music_shell.dart';
 import 'utils/cover_palette_manager.dart';
@@ -56,7 +58,17 @@ Future<void> main() async {
 
   unawaited(_clearAudioCache());
 
-  runApp(MusicCarApp(audioHandler: audioHandler));
+  final DeviceAuthService deviceAuthService = DeviceAuthService();
+  // Hard gate: do not mount the music shell until the device is activated.
+  final bool activated = await deviceAuthService.ensureActivated();
+
+  runApp(
+    MusicCarApp(
+      audioHandler: audioHandler,
+      deviceAuthService: deviceAuthService,
+      initiallyActivated: activated,
+    ),
+  );
 }
 
 Future<void> _clearAudioCache() async {
@@ -94,11 +106,15 @@ class MusicCarApp extends StatefulWidget {
     this.homeOverride,
     this.audioHandler,
     this.autoCheckForUpdates = true,
+    this.deviceAuthService,
+    this.initiallyActivated = true,
   });
 
   final Widget? homeOverride;
   final MusicAudioHandler? audioHandler;
   final bool autoCheckForUpdates;
+  final DeviceAuthService? deviceAuthService;
+  final bool initiallyActivated;
 
   @override
   State<MusicCarApp> createState() => _MusicCarAppState();
@@ -106,6 +122,8 @@ class MusicCarApp extends StatefulWidget {
 
 class _MusicCarAppState extends State<MusicCarApp> {
   late final AppSettingsController _settingsController;
+  late final DeviceAuthService _deviceAuthService;
+  late bool _activated;
 
   @override
   void initState() {
@@ -113,6 +131,8 @@ class _MusicCarAppState extends State<MusicCarApp> {
     _settingsController = AppSettingsController()
       ..addListener(_handleSettingsChanged);
     unawaited(_settingsController.load());
+    _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
+    _activated = widget.initiallyActivated;
   }
 
   void _handleSettingsChanged() {
@@ -146,13 +166,22 @@ class _MusicCarAppState extends State<MusicCarApp> {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,
-      home:
-          widget.homeOverride ??
-          NativeMusicHomePage(
-            audioHandler: widget.audioHandler,
-            autoCheckForUpdates: widget.autoCheckForUpdates,
-            settingsController: _settingsController,
-          ),
+      home: !_activated
+          ? DeviceActivationGate(
+              authService: _deviceAuthService,
+              onActivated: () {
+                setState(() {
+                  _activated = true;
+                });
+              },
+            )
+          : (widget.homeOverride ??
+                NativeMusicHomePage(
+                  audioHandler: widget.audioHandler,
+                  autoCheckForUpdates: widget.autoCheckForUpdates,
+                  settingsController: _settingsController,
+                  deviceAuthService: _deviceAuthService,
+                )),
     );
   }
 }
@@ -214,11 +243,13 @@ class NativeMusicHomePage extends StatefulWidget {
     this.audioHandler,
     this.autoCheckForUpdates = true,
     required this.settingsController,
+    this.deviceAuthService,
   });
 
   final MusicAudioHandler? audioHandler;
   final bool autoCheckForUpdates;
   final AppSettingsController settingsController;
+  final DeviceAuthService? deviceAuthService;
 
   @override
   State<NativeMusicHomePage> createState() => NativeMusicHomePageState();
@@ -251,6 +282,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     reason: 'unchecked',
   );
   CarPlayStatus _carPlayStatus = CarPlayStatus.unsupported;
+  late final DeviceAuthService _deviceAuthService;
+  DeviceAuthSnapshot _deviceAuthSnapshot = const DeviceAuthSnapshot(
+    activated: false,
+    deviceId: '',
+  );
   bool _isCheckingUpdate = false;
   bool _isInstallingUpdate = false;
   bool _isCheckingCarLife = false;
@@ -325,9 +361,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   @override
   void initState() {
     super.initState();
+    _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
+    unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.85 (Build 10085)');
-    debugPrint('✅ Fixes: CarLife/CarPlay 对接补齐、蓝牙歌词元数据修正');
+    debugPrint('🚀 App Version: 1.0.86 (Build 10086)');
+    debugPrint('✅ Fixes: 一机一码激活闸门、CarLife 连接回传修复');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -1976,6 +2014,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   String get qualityError => _trackMetadataController.qualityError;
   CarLifeStatus get carLifeStatus => _carLifeStatus;
   CarPlayStatus get carPlayStatus => _carPlayStatus;
+  DeviceAuthSnapshot get deviceAuthSnapshot => _deviceAuthSnapshot;
+  DeviceAuthService get deviceAuthService => _deviceAuthService;
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2075,6 +2115,48 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     return handled;
   }
+  Future<void> _refreshDeviceAuthSnapshot() async {
+    final DeviceAuthSnapshot snapshot =
+        await _deviceAuthService.currentSnapshot();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _deviceAuthSnapshot = snapshot;
+    });
+  }
+
+  Future<void> copyDeviceId() async {
+    final String id = _deviceAuthSnapshot.deviceId.isEmpty
+        ? await _deviceAuthService.getDeviceId()
+        : _deviceAuthSnapshot.deviceId;
+    await Clipboard.setData(ClipboardData(text: id));
+    _showToast('设备码已复制');
+  }
+
+  Future<void> reverifyActivation() async {
+    final DeviceAuthSnapshot current = await _deviceAuthService.currentSnapshot();
+    final String code = current.authCode;
+    if (code.isEmpty) {
+      _showSnack('本地无激活码，请重新激活');
+      return;
+    }
+    final DeviceAuthSnapshot result = await _deviceAuthService.verifyActivation(
+      code,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _deviceAuthSnapshot = result;
+    });
+    if (result.activated && !deviceAuthIsExpired(result)) {
+      _showToast(result.statusText);
+    } else {
+      _showSnack(result.message.isEmpty ? '验证失败' : result.message);
+    }
+  }
+
   Future<void> openCarLife() => _openCarLife();
   Future<void> syncCarLifePlaybackContext({required bool showResult}) =>
       _syncCarLifePlaybackContext(showResult: showResult);
@@ -2084,8 +2166,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.85',
-        'build': 10085,
+        'version': '1.0.86',
+        'build': 10086,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

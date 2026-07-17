@@ -36,6 +36,7 @@ class MainActivity : AudioServiceActivity() {
     private val installerChannelName = "music_car_app/app_installer"
     private val carLifeChannelName = "music_car_app/carlife"
     private val audioEffectsChannelName = "music_car_app/audio_effects"
+    private val deviceAuthChannelName = "music_car_app/device_auth"
     private val mainHandler = Handler(Looper.getMainLooper())
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
@@ -67,6 +68,22 @@ class MainActivity : AudioServiceActivity() {
                         return@setMethodCallHandler
                     }
                     installApkFile(filePath, fileName, result)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            deviceAuthChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getDeviceId" -> {
+                    val androidId = Settings.Secure.getString(
+                        contentResolver,
+                        Settings.Secure.ANDROID_ID,
+                    ).orEmpty()
+                    result.success(androidId)
                 }
                 else -> result.notImplemented()
             }
@@ -140,6 +157,16 @@ class MainActivity : AudioServiceActivity() {
             "reason" to carLifeStatusReason(packageName, appKeyConfigured),
             "lastControlResult" to lastCarLifeControlResult,
         )
+    }
+
+    /** Push CarLife connection status to Flutter so Settings can refresh live. */
+    private fun notifyCarLifeConnectionChanged() {
+        mainHandler.post {
+            carLifeChannel?.invokeMethod(
+                "onConnectionChanged",
+                carLifeStatus(),
+            )
+        }
     }
 
     private fun carLifeStatusReason(packageName: String?, appKeyConfigured: Boolean): String {

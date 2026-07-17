@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/carlife_service.dart';
 import '../../services/carplay_service.dart';
+import '../../services/device_auth_service.dart';
 import '../../services/audio_effects_controller.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/glass_card.dart';
@@ -19,6 +20,7 @@ class PortraitSettingsView extends StatelessWidget {
     required this.carLifeStatus,
     required this.carLifeSyncing,
     required this.carPlayStatus,
+    required this.deviceAuthSnapshot,
     required this.onThemeModeChanged,
     required this.onPreferredBitrateChanged,
     required this.onAudioEffectPresetChanged,
@@ -27,6 +29,8 @@ class PortraitSettingsView extends StatelessWidget {
     required this.onOpenCarLife,
     required this.onSyncCarLife,
     required this.onCopyDiagnostics,
+    required this.onCopyDeviceId,
+    required this.onReverifyActivation,
   });
 
   final ThemeMode themeMode;
@@ -37,6 +41,7 @@ class PortraitSettingsView extends StatelessWidget {
   final CarLifeStatus carLifeStatus;
   final bool carLifeSyncing;
   final CarPlayStatus carPlayStatus;
+  final DeviceAuthSnapshot deviceAuthSnapshot;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<String> onPreferredBitrateChanged;
   final ValueChanged<String> onAudioEffectPresetChanged;
@@ -45,6 +50,8 @@ class PortraitSettingsView extends StatelessWidget {
   final VoidCallback onOpenCarLife;
   final VoidCallback onSyncCarLife;
   final VoidCallback onCopyDiagnostics;
+  final VoidCallback onCopyDeviceId;
+  final VoidCallback onReverifyActivation;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +144,34 @@ class PortraitSettingsView extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.lg),
           _SettingsSection(
+            title: '授权',
+            subtitle: '一机一码 · 月/季/年/终身',
+            children: <Widget>[
+              _SettingsRow(
+                icon: Icons.verified_user_rounded,
+                title: '激活状态',
+                subtitle: deviceAuthSnapshot.statusText,
+              ),
+              _SettingsRow(
+                icon: Icons.phonelink_lock_rounded,
+                title: '设备码',
+                subtitle: deviceAuthSnapshot.deviceId.isEmpty
+                    ? '读取中…'
+                    : deviceAuthSnapshot.deviceId,
+                trailing: const Icon(Icons.copy_rounded),
+                onTap: onCopyDeviceId,
+              ),
+              _SettingsRow(
+                icon: Icons.refresh_rounded,
+                title: '重新在线验证',
+                subtitle: '联网向授权服务器核对激活状态',
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: onReverifyActivation,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
             title: '车载互联',
             subtitle: '百度 CarLife 与 Apple CarPlay 状态',
             children: <Widget>[
@@ -211,7 +246,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.85 · 车载音乐播放器',
+                subtitle: '版本 1.0.86 · 车载音乐播放器',
               ),
             ],
           ),

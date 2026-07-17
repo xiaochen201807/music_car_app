@@ -3,6 +3,27 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Device Activation Gate + CarLife Notify Fix (v1.0.86)
+
+Implemented in this increment:
+
+- One-device activation with hard startup gate (unactivated devices cannot use
+  the app). Plans: month / quarter / year / lifetime.
+- Cloudflare Worker under `cloudflare-workers/` with plan-aware authorize and
+  admin UI; Flutter `DeviceAuthService` + activation screen + settings status.
+- Android/iOS `getDeviceId` channels for stable device codes.
+- Fixed release Kotlin build: added missing `notifyCarLifeConnectionChanged()`.
+
+Verification:
+
+- `flutter analyze lib test`
+- `flutter test test/device_auth_service_test.dart test/widget_test.dart`
+
+Packaging note:
+
+- Version `1.0.86+10086`. Deploy Worker separately and pass
+  `--dart-define=DEVICE_AUTH_BASE_URL=...` for production.
+
 ## 2026-07-17 - CarLife / CarPlay Bridge + Bluetooth Lyric Fix (v1.0.85)
 
 Implemented in this increment:
