@@ -408,7 +408,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.87 (Build 10087)');
+    debugPrint('🚀 App Version: 1.0.88 (Build 10088)');
     debugPrint('✅ Fixes: 缓存分层优化、播放页歌词居中、设备激活地址 music.yosyou.com');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
@@ -2231,8 +2231,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.87',
-        'build': 10087,
+        'version': '1.0.88',
+        'build': 10088,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,
