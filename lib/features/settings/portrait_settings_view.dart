@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/carlife_service.dart';
 import '../../services/carplay_service.dart';
 import '../../services/device_auth_service.dart';
@@ -8,6 +9,23 @@ import '../../theme/design_tokens.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/portrait_segmented_tab.dart';
 import '../../widgets/luxury_loading_indicator.dart';
+
+/// Public CDN base used by GitHub Actions APK uploads.
+const String kReleaseApkCdnBase = 'https://s3.sy110.eu.org/music_car_app';
+
+/// Builds the arm64 release APK URL for a version like `1.0.88` or tag `v1.0.88`.
+String releaseApkUrlForVersion(String version) {
+  String normalized = version.trim();
+  if (normalized.startsWith('v') || normalized.startsWith('V')) {
+    normalized = normalized.substring(1);
+  }
+  // Drop build number suffix from pubspec style `1.0.88+10088`.
+  final int plus = normalized.indexOf('+');
+  if (plus >= 0) {
+    normalized = normalized.substring(0, plus);
+  }
+  return '$kReleaseApkCdnBase/v$normalized/app-arm64-v8a-release.apk';
+}
 
 class PortraitSettingsView extends StatelessWidget {
   const PortraitSettingsView({
@@ -21,6 +39,7 @@ class PortraitSettingsView extends StatelessWidget {
     required this.carLifeSyncing,
     required this.carPlayStatus,
     required this.deviceAuthSnapshot,
+    required this.appVersion,
     required this.onThemeModeChanged,
     required this.onPreferredBitrateChanged,
     required this.onAudioEffectPresetChanged,
@@ -31,6 +50,7 @@ class PortraitSettingsView extends StatelessWidget {
     required this.onCopyDiagnostics,
     required this.onCopyDeviceId,
     required this.onReverifyActivation,
+    required this.onShareReleaseApk,
   });
 
   final ThemeMode themeMode;
@@ -42,6 +62,7 @@ class PortraitSettingsView extends StatelessWidget {
   final bool carLifeSyncing;
   final CarPlayStatus carPlayStatus;
   final DeviceAuthSnapshot deviceAuthSnapshot;
+  final String appVersion;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<String> onPreferredBitrateChanged;
   final ValueChanged<String> onAudioEffectPresetChanged;
@@ -52,6 +73,7 @@ class PortraitSettingsView extends StatelessWidget {
   final VoidCallback onCopyDiagnostics;
   final VoidCallback onCopyDeviceId;
   final VoidCallback onReverifyActivation;
+  final VoidCallback onShareReleaseApk;
 
   @override
   Widget build(BuildContext context) {
@@ -237,6 +259,13 @@ class PortraitSettingsView extends StatelessWidget {
                 onTap: updateBusy ? null : onCheckUpdate,
               ),
               _SettingsRow(
+                icon: Icons.qr_code_2_rounded,
+                title: '分享安装包',
+                subtitle: '展示当前版本 arm64 APK 二维码',
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: onShareReleaseApk,
+              ),
+              _SettingsRow(
                 icon: Icons.bug_report_outlined,
                 title: '复制诊断信息',
                 subtitle: '最近播放、搜索、下载和性能事件',
@@ -246,7 +275,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.88 · 车载音乐播放器',
+                subtitle: '版本 $appVersion · 车载音乐播放器',
               ),
             ],
           ),
@@ -732,4 +761,118 @@ class _SettingsRow extends StatelessWidget {
       child: row,
     );
   }
+}
+
+
+/// Bottom sheet with QR for the current release arm64 APK.
+Future<void> showReleaseApkQrSheet(
+  BuildContext context, {
+  required String version,
+}) async {
+  final String url = releaseApkUrlForVersion(version);
+  final ThemeData theme = Theme.of(context);
+  final ColorScheme colors = theme.colorScheme;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: colors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.panel)),
+    ),
+    builder: (BuildContext context) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.xl,
+            AppSpace.lg,
+            AppSpace.xl,
+            AppSpace.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.outlineVariant,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              Text(
+                '分享安装包',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: AppSpace.xs),
+              Text(
+                'Music Car v$version · arm64-v8a',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpace.xl),
+              Container(
+                padding: const EdgeInsets.all(AppSpace.md),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadius.tile),
+                ),
+                child: QrImageView(
+                  data: url,
+                  version: QrVersions.auto,
+                  size: 220,
+                  backgroundColor: Colors.white,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Colors.black,
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              SelectableText(
+                url,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: url));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('下载链接已复制')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('复制链接'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('关闭'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

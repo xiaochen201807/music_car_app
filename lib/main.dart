@@ -35,6 +35,7 @@ import 'services/update_check_service.dart';
 import 'theme/design_tokens.dart';
 import 'widgets/luxury_loading_indicator.dart';
 import 'features/settings/cache_manager_page.dart';
+import 'features/settings/portrait_settings_view.dart';
 import 'features/home/playlist_details_page.dart';
 import 'features/activation/device_activation_gate.dart';
 import 'app/music_app_state_scope.dart';
@@ -408,8 +409,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.88 (Build 10088)');
-    debugPrint('✅ Fixes: 缓存分层优化、播放页歌词居中、设备激活地址 music.yosyou.com');
+    debugPrint('🚀 App Version: 1.0.89 (Build 10089)');
+    debugPrint('✅ Fixes: 分享安装包二维码、推荐源切换缓存跟手');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -852,10 +853,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (_playlistSource == source) {
       return;
     }
+    // Update selection immediately so chips feel responsive, then load the
+    // matching catalog (cache hit is sync-fast; miss fetches network).
     setState(() {
       _playlistSource = source;
     });
-    // Source switch uses cache when available; pull-to-refresh forces network.
     await _loadRecommendations(forceRefresh: false);
   }
 
@@ -2080,6 +2082,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   CarPlayStatus get carPlayStatus => _carPlayStatus;
   DeviceAuthSnapshot get deviceAuthSnapshot => _deviceAuthSnapshot;
   DeviceAuthService get deviceAuthService => _deviceAuthService;
+  // Keep in sync with pubspec / tag; used by share QR + diagnostics.
+  String get appVersionLabel => '1.0.89';
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2199,6 +2203,13 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _showToast('设备码已复制');
   }
 
+  Future<void> shareReleaseApk() async {
+    if (!mounted) {
+      return;
+    }
+    await showReleaseApkQrSheet(context, version: appVersionLabel);
+  }
+
   Future<void> reverifyActivation() async {
     final DeviceAuthSnapshot current = await _deviceAuthService.currentSnapshot();
     final String code = current.authCode;
@@ -2231,8 +2242,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.88',
-        'build': 10088,
+        'version': '1.0.89',
+        'build': 10089,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

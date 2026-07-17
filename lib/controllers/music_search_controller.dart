@@ -277,21 +277,24 @@ class MusicSearchController extends ChangeNotifier {
     bool forceRefresh = false,
   }) async {
     final String sourceKey = _sourceKey(sources);
-    if (_isLoadingRecommendations) {
-      return;
-    }
 
-    // Spotify-like catalog cache: serve memory/disk immediately, refresh only
-    // when forced (pull-to-refresh / source switch) or when empty.
+    // Spotify-like catalog cache: serve memory/disk immediately when the
+    // requested source already has data. Never no-op just because another
+    // source is mid-fetch — that made source chips feel stuck.
     if (!forceRefresh) {
-      final List<FreeMusicPlaylist>? memory = _recommendationMemoryCache[sourceKey];
+      final List<FreeMusicPlaylist>? memory =
+          _recommendationMemoryCache[sourceKey];
       if (memory != null && memory.isNotEmpty) {
-        _recommendedPlaylists = memory;
-        _lastRecommendationSourceKey = sourceKey;
-        _recommendationError = '';
-        notifyListeners();
+        if (_lastRecommendationSourceKey != sourceKey ||
+            !identical(_recommendedPlaylists, memory)) {
+          _recommendedPlaylists = memory;
+          _lastRecommendationSourceKey = sourceKey;
+          _recommendationError = '';
+          notifyListeners();
+        }
         return;
       }
+      // Disk read even while another source is loading: UI can switch instantly.
       final List<FreeMusicPlaylist>? disk = await _readRecommendationDiskCache(
         sourceKey,
       );
@@ -305,7 +308,26 @@ class MusicSearchController extends ChangeNotifier {
       }
     }
 
+    if (_isLoadingRecommendations) {
+      // Another fetch in flight with no cache for this source: mark selected
+      // source and clear stale playlists so the chip selection is visible.
+      if (_lastRecommendationSourceKey != sourceKey) {
+        _lastRecommendationSourceKey = sourceKey;
+        _recommendedPlaylists = const <FreeMusicPlaylist>[];
+        _recommendationError = '';
+        notifyListeners();
+      }
+      return;
+    }
+
+    // Switching sources without cache: clear previous source's cards first.
+    if (_lastRecommendationSourceKey != sourceKey) {
+      _recommendedPlaylists = const <FreeMusicPlaylist>[];
+      _recommendationError = '';
+    }
+
     _isLoadingRecommendations = true;
+    _lastRecommendationSourceKey = sourceKey;
     _recommendationError = '';
     notifyListeners();
 
@@ -313,25 +335,33 @@ class MusicSearchController extends ChangeNotifier {
     try {
       final FreeMusicRecommendResult result = await _client
           .fetchRecommendations(sources: sources);
+      // If user switched source while this request was in flight, still store
+      // the result in cache but only publish when it matches the latest key.
       final List<FreeMusicPlaylist> playlists =
           List<FreeMusicPlaylist>.unmodifiable(result.playlists);
-      _recommendedPlaylists = playlists;
       _recommendationMemoryCache[sourceKey] = playlists;
-      _lastRecommendationSourceKey = sourceKey;
-      _isLoadingRecommendations = false;
       unawaited(_writeRecommendationDiskCache(sourceKey, playlists));
-      _telemetry.record(
-        'recommendations_load',
-        duration: stopwatch.elapsed,
-        attributes: <String, Object?>{
-          'sources': sources?.join(','),
-          'playlistCount': result.playlists.length,
-          'forceRefresh': forceRefresh,
-        },
-      );
-      notifyListeners();
+      if (_lastRecommendationSourceKey == sourceKey) {
+        _recommendedPlaylists = playlists;
+        _isLoadingRecommendations = false;
+        _telemetry.record(
+          'recommendations_load',
+          duration: stopwatch.elapsed,
+          attributes: <String, Object?>{
+            'sources': sources?.join(','),
+            'playlistCount': result.playlists.length,
+            'forceRefresh': forceRefresh,
+          },
+        );
+        notifyListeners();
+      } else {
+        _isLoadingRecommendations = false;
+        notifyListeners();
+      }
     } on FreeMusicApiException catch (error) {
-      _recommendationError = error.message;
+      if (_lastRecommendationSourceKey == sourceKey) {
+        _recommendationError = error.message;
+      }
       _isLoadingRecommendations = false;
       _telemetry.record(
         'recommendations_load.error',
@@ -342,10 +372,12 @@ class MusicSearchController extends ChangeNotifier {
       notifyListeners();
     } catch (error) {
       final String msg = error.toString();
-      _recommendationError =
-          msg.contains('TimeoutException') || msg.contains('timeout')
-          ? '推荐加载超时，请检查网络后重试'
-          : '推荐加载失败：$error';
+      if (_lastRecommendationSourceKey == sourceKey) {
+        _recommendationError =
+            msg.contains('TimeoutException') || msg.contains('timeout')
+            ? '推荐加载超时，请检查网络后重试'
+            : '推荐加载失败：$error';
+      }
       _isLoadingRecommendations = false;
       _telemetry.record(
         'recommendations_load.error',

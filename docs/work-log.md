@@ -3,6 +3,15 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Share APK QR + Playlist Source Switch Fix (v1.0.89)
+
+- Settings → 应用: "分享安装包" shows QR for current arm64 release APK
+  (`https://s3.sy110.eu.org/music_car_app/v{version}/app-arm64-v8a-release.apk`)
+  with copy-link support.
+- Fix recommended playlist source chips feeling stuck when cache was warm or
+  another source was loading: always publish the selected source's catalog
+  from memory/disk immediately, never no-op solely because a fetch is in flight.
+
 ## 2026-07-17 - Device Auth Domain + Cache + Player Lyrics Layout (v1.0.87)
 
 - Point device activation at production CF custom domain `https://music.yosyou.com`.
