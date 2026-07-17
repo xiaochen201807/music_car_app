@@ -13,32 +13,29 @@ void main() {
     tracker.recordSuccess();
 
     expect(tracker.shouldStop, isFalse);
+    expect(tracker.consecutiveFailures, 0);
   });
 
-  test('recordFailure tracks consecutive failures for same song', () {
+  test('recordFailure counts consecutive failures across different songs', () {
     final tracker = PlaybackErrorTracker(maxConsecutiveFailures: 3);
-    final song = _song('1');
 
-    expect(tracker.recordFailure(song), isFalse);
-    expect(tracker.shouldStop, isFalse);
+    expect(tracker.recordFailure(_song('1')), isFalse);
+    expect(tracker.consecutiveFailures, 1);
 
-    expect(tracker.recordFailure(song), isFalse);
-    expect(tracker.shouldStop, isFalse);
+    expect(tracker.recordFailure(_song('2')), isFalse);
+    expect(tracker.consecutiveFailures, 2);
 
-    expect(tracker.recordFailure(song), isTrue);
+    // Third consecutive failure exhausts the budget.
+    expect(tracker.recordFailure(_song('3')), isTrue);
     expect(tracker.shouldStop, isTrue);
   });
 
-  test('recordFailure resets count for different songs', () {
-    final tracker = PlaybackErrorTracker(maxConsecutiveFailures: 3);
-    final song1 = _song('1');
-    final song2 = _song('2');
+  test('recordFailure also accumulates for the same song', () {
+    final tracker = PlaybackErrorTracker(maxConsecutiveFailures: 2);
+    final song = _song('1');
 
-    tracker.recordFailure(song1);
-    tracker.recordFailure(song1);
-    tracker.recordFailure(song2);
-
-    expect(tracker.shouldStop, isFalse);
+    expect(tracker.recordFailure(song), isFalse);
+    expect(tracker.recordFailure(song), isTrue);
   });
 
   test('reset clears all failure state', () {
@@ -50,6 +47,7 @@ void main() {
     tracker.reset();
 
     expect(tracker.shouldStop, isFalse);
+    expect(tracker.consecutiveFailures, 0);
   });
 }
 

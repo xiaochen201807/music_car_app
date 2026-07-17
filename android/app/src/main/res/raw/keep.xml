@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Force packaging of notification icons referenced only via Dart strings
+     (audio_service androidNotificationIcon / MediaControl.androidIcon). -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_music_car,@drawable/audio_service_play_arrow,@drawable/audio_service_pause,@drawable/audio_service_skip_next,@drawable/audio_service_skip_previous,@drawable/audio_service_stop,@drawable/audio_service_play,@drawable/audio_service_next,@drawable/audio_service_previous" />

@@ -695,8 +695,12 @@ void main() {
         ),
       );
 
-      expect(await controller.skipToNext(), isFalse);
+      // Next track fails to load: chain past it. With repeatAll the walk can
+      // recover onto another playable item (here index 0) instead of leaving a
+      // dead "playing" session stuck on the bad track.
+      expect(await controller.skipToNext(), isTrue);
       expect(controller.currentIndex, 0);
+      expect(player.isPlaying, isTrue);
 
       player.failLoadUrls.clear();
       expect(await controller.skipToNext(), isTrue);

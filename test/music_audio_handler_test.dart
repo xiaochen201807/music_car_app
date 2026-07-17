@@ -12,6 +12,7 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
   int playCalls = 0;
   int pauseCalls = 0;
   int stopCalls = 0;
+  int pauseDirectCalls = 0;
   Duration currentPosition = Duration.zero;
   final Set<String> failSetUrl = <String>{};
 
@@ -60,6 +61,7 @@ class _FakeNativeAudioPlayer implements NativeAudioPlayer {
 
   @override
   Future<void> pauseDirect() async {
+    pauseDirectCalls += 1;
     await pause();
   }
 
@@ -121,7 +123,7 @@ void main() {
   });
 
   test(
-    'autoSkipToNextAfterCompletion stops when no next item exists',
+    'autoSkipToNextAfterCompletion pauses when no next item exists',
     () async {
       final _FakeNativeAudioPlayer player = _FakeNativeAudioPlayer()
         ..isPlaying = true;
@@ -135,7 +137,7 @@ void main() {
       await handler.autoSkipToNextAfterCompletion();
 
       expect(nextCalls, 1);
-      expect(player.stopCalls, 1);
+      expect(player.pauseDirectCalls, 1);
       expect(player.isPlaying, isFalse);
 
       await handler.dispose();

@@ -259,7 +259,7 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   @override
   Future<void> pauseDirect() async {
     _resetPlaybackStallMonitor();
-    await _player.pause();
+    await _player.pauseDirect();
     _broadcastPlaybackState(_player.playbackEvent);
   }
 
@@ -570,7 +570,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     try {
       final bool handled = await onSkipToNextTrack?.call() ?? false;
       if (!handled) {
-        await stop();
+        // Prefer pause over stop so the notification stays visible but shows
+        // the paused transport state instead of a stuck "playing" icon.
+        await pauseDirect();
       }
     } finally {
       _autoSkippingToNext = false;

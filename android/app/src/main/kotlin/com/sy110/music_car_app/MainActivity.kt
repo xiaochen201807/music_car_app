@@ -37,6 +37,19 @@ class MainActivity : AudioServiceActivity() {
     private val carLifeChannelName = "music_car_app/carlife"
     private val audioEffectsChannelName = "music_car_app/audio_effects"
     private val deviceAuthChannelName = "music_car_app/device_auth"
+    /**
+     * Hard references so resource shrinker / R8 cannot strip notification
+     * icons that are only named from Dart strings in audio_service config.
+     */
+    @Suppress("unused")
+    private val notificationIconKeepers: IntArray = intArrayOf(
+        R.drawable.ic_stat_music_car,
+        R.drawable.audio_service_play_arrow,
+        R.drawable.audio_service_pause,
+        R.drawable.audio_service_skip_next,
+        R.drawable.audio_service_skip_previous,
+        R.drawable.audio_service_stop,
+    )
     private val mainHandler = Handler(Looper.getMainLooper())
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null

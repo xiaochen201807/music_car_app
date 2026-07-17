@@ -3,6 +3,20 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Fix Android 15 media notification crash (v1.0.93)
+
+Crash on vivo V2284A / Android 15 while publishing audio_service notification:
+
+```
+IllegalArgumentException: Invalid notification (no valid small icon)
+```
+
+Fix:
+- Replace vector `ic_stat_music_car` with density PNGs (mdpi–xxxhdpi).
+- Keep notification drawables via `res/raw/keep.xml` and hard `R.drawable`
+  references in MainActivity so shrinker cannot strip Dart-string icons.
+- Keep prior MediaStyle control icon name fixes.
+
 ## 2026-07-17 - Android media notification polish (v1.0.92)
 
 - Fix MediaStyle control icons: add drawable names expected by audio_service

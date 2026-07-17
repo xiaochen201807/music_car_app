@@ -554,25 +554,33 @@ class NativeAudioController {
           'queueLength': _playlist.length,
         },
       );
-    } else {
-      _logger.error('Failed to play: ${song.name}');
-      final bool shouldStop = _errorTracker.recordFailure(song);
-      _telemetry.record(
-        'play_request_to_ready.error',
-        duration: stopwatch.elapsed,
-        attributes: <String, Object?>{
-          'source': song.source,
-          'shouldSkip': shouldStop,
-        },
-        error: 'playback_failed',
-      );
-      if (shouldStop) {
-        _logger.warn('Too many failures, skipping to next');
-        unawaited(skipToNext());
-      }
+      return true;
     }
 
-    return handled;
+    _logger.error('Failed to play: ${song.name}');
+    final bool exhausted = _errorTracker.recordFailure(song);
+    _telemetry.record(
+      'play_request_to_ready.error',
+      duration: stopwatch.elapsed,
+      attributes: <String, Object?>{
+        'source': song.source,
+        'exhausted': exhausted,
+        'failures': _errorTracker.consecutiveFailures,
+      },
+      error: 'playback_failed',
+    );
+    // Unplayable track: immediately try the next item (or stop when the
+    // consecutive-failure budget is exhausted). Never leave the session
+    // "playing" with silence.
+    if (exhausted) {
+      await _forcePausedSession(reason: 'too_many_unplayable_tracks');
+      return false;
+    }
+    final bool skipped = await skipToNext();
+    if (!skipped) {
+      await _forcePausedSession(reason: 'no_playable_next_after_failure');
+    }
+    return skipped;
   }
 
   Future<bool> skipToNext() async {
@@ -881,90 +889,169 @@ class NativeAudioController {
     _wantsPlayback = playWhenReady ?? _wantsPlayback;
     _isQueueLoading = true;
     try {
-      final FreeMusicSong song = _playlist[index];
-      if (!song.canResolve) {
-        return false;
-      }
-
-      final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
-        audioUrl: '',
-        playing: true,
-        song: song,
-        playlist: _playlist,
-        currentIndex: index,
-        title: song.name,
-        artist: song.artist,
-        coverUrl: song.cover,
-        duration: Duration(seconds: song.duration),
-      );
-
-      // 检查是否有预加载的 URL
-      String audioUrl = '';
-      if (_preloadedNextIndex == index && _preloadedNextUrl != null) {
-        audioUrl = _preloadedNextUrl!;
-        debugPrint(
-          '[native-audio] using preloaded URL for ${snapshot.debugTitle}',
-        );
-        _preloadedNextUrl = null;
-        _preloadedNextIndex = null;
-      } else {
-        audioUrl = await _resolveAudioUrl(snapshot);
-      }
-
-      if (audioUrl.isEmpty) {
-        debugPrint(
-          '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
-        );
-        return false;
-      }
-
-      final int previousCurrentIndex = _currentIndex;
-      final String previousLoadedUrl = _loadedUrl;
-      final PlayerProbeSnapshot? previousLoadedSnapshot = _loadedSnapshot;
-      final bool wasPlaying = _player.playing;
-      try {
-        if (wasPlaying) {
-          await _fadeOut(const Duration(milliseconds: 250));
+      // Walk the queue until a track resolves+loads, or the failure budget
+      // is exhausted. Prevents "stuck paused while notification still plays".
+      final int maxAttempts = _playlist.isEmpty
+          ? 0
+          : _playlist.length.clamp(1, _errorTracker.maxConsecutiveFailures);
+      int attemptIndex = index;
+      for (int attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (attemptIndex < 0 || attemptIndex >= _playlist.length) {
+          break;
         }
-        await _player.setVolume(_wantsPlayback ? 0.0 : 1.0);
-        await _player.loadFromSnapshot(audioUrl, snapshot);
-        if (_wantsPlayback) {
-          await _player.playDirect();
+        final FreeMusicSong song = _playlist[attemptIndex];
+        if (!song.canResolve) {
+          debugPrint(
+            '[native-audio] unresolvable queue item at $attemptIndex: '
+            '${song.name}',
+          );
+          _currentIndex = attemptIndex;
+          if (_errorTracker.recordFailure(song)) {
+            await _forcePausedSession(reason: 'unresolvable_budget_exhausted');
+            return false;
+          }
+          final int nextIndex = _nextIndexAfter(attemptIndex);
+          if (nextIndex < 0 || nextIndex == attemptIndex) {
+            break;
+          }
+          attemptIndex = nextIndex;
+          continue;
+        }
+
+        final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
+          audioUrl: '',
+          playing: true,
+          song: song,
+          playlist: _playlist,
+          currentIndex: attemptIndex,
+          title: song.name,
+          artist: song.artist,
+          coverUrl: song.cover,
+          duration: Duration(seconds: song.duration),
+        );
+
+        String audioUrl = '';
+        if (_preloadedNextIndex == attemptIndex && _preloadedNextUrl != null) {
+          audioUrl = _preloadedNextUrl!;
+          debugPrint(
+            '[native-audio] using preloaded URL for ${snapshot.debugTitle}',
+          );
+          _preloadedNextUrl = null;
+          _preloadedNextIndex = null;
         } else {
-          await _player.pauseDirect();
+          audioUrl = await _resolveAudioUrl(snapshot);
         }
-      } catch (error, stackTrace) {
-        await _recoverFailedLoad(
-          'queue load ${snapshot.debugTitle}',
-          error,
-          stackTrace,
-          previousLoadedUrl: previousLoadedUrl,
-          previousLoadedSnapshot: previousLoadedSnapshot,
-          previousCurrentIndex: previousCurrentIndex,
-        );
-        return false;
+
+        if (audioUrl.isEmpty) {
+          debugPrint(
+            '[native-audio] skip failed: no URL for ${snapshot.debugTitle}',
+          );
+          _currentIndex = attemptIndex;
+          _updatePlaybackContext();
+          if (_errorTracker.recordFailure(song)) {
+            await _forcePausedSession(reason: 'empty_url_budget_exhausted');
+            return false;
+          }
+          final int nextIndex = _nextIndexAfter(attemptIndex);
+          if (nextIndex < 0 || nextIndex == attemptIndex) {
+            break;
+          }
+          attemptIndex = nextIndex;
+          continue;
+        }
+
+        final int previousCurrentIndex = _currentIndex;
+        final String previousLoadedUrl = _loadedUrl;
+        final PlayerProbeSnapshot? previousLoadedSnapshot = _loadedSnapshot;
+        final bool wasPlaying = _player.playing;
+        try {
+          if (wasPlaying) {
+            await _fadeOut(const Duration(milliseconds: 250));
+          }
+          await _player.setVolume(_wantsPlayback ? 0.0 : 1.0);
+          await _player.loadFromSnapshot(audioUrl, snapshot);
+          if (_wantsPlayback) {
+            await _player.playDirect();
+          } else {
+            await _player.pauseDirect();
+          }
+        } catch (error, stackTrace) {
+          await _recoverFailedLoad(
+            'queue load ${snapshot.debugTitle}',
+            error,
+            stackTrace,
+            previousLoadedUrl: previousLoadedUrl,
+            previousLoadedSnapshot: previousLoadedSnapshot,
+            previousCurrentIndex: previousCurrentIndex,
+          );
+          _currentIndex = attemptIndex;
+          if (_errorTracker.recordFailure(song)) {
+            await _forcePausedSession(reason: 'load_error_budget_exhausted');
+            return false;
+          }
+          final int nextIndex = _nextIndexAfter(attemptIndex);
+          if (nextIndex < 0 || nextIndex == attemptIndex) {
+            break;
+          }
+          attemptIndex = nextIndex;
+          continue;
+        }
+
+        _errorTracker.recordSuccess();
+        _currentIndex = attemptIndex;
+        _updatePlaybackContext();
+        _loadedUrl = audioUrl;
+        _loadedSnapshot = snapshot;
+        await _persistState(immediate: true);
+        debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
+
+        if (_wantsPlayback) {
+          await _fadeIn(const Duration(milliseconds: 250));
+        } else {
+          await _player.setVolume(1.0);
+        }
+
+        unawaited(_preloadNextSong());
+        return true;
       }
 
-      _currentIndex = index;
-      _updatePlaybackContext();
-      _loadedUrl = audioUrl;
-      _loadedSnapshot = snapshot;
-      await _persistState(immediate: true);
-      debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
-
-      if (_wantsPlayback) {
-        await _fadeIn(const Duration(milliseconds: 250));
-      } else {
-        await _player.setVolume(1.0);
-      }
-
-      // 预加载下一首歌曲的 URL
-      unawaited(_preloadNextSong());
-
-      return true;
+      await _forcePausedSession(reason: 'no_playable_track_in_queue_walk');
+      return false;
     } finally {
       _isQueueLoading = false;
     }
+  }
+
+  /// Next queue index strictly after [fromIndex], respecting playback mode.
+  int _nextIndexAfter(int fromIndex) {
+    if (_playlist.isEmpty) {
+      return -1;
+    }
+    final int saved = _currentIndex;
+    _currentIndex = fromIndex;
+    final int next = _targetIndexForOffset(1);
+    _currentIndex = saved;
+    return next;
+  }
+
+  /// Pause transport and clear "wants playback" so the media notification
+  /// cannot stay in a fake playing state after unplayable tracks.
+  Future<void> _forcePausedSession({required String reason}) async {
+    _wantsPlayback = false;
+    _logger.warn('Forcing paused session: $reason');
+    debugPrint('[native-audio] force paused session: $reason');
+    try {
+      await _player.pauseDirect();
+    } catch (error) {
+      debugPrint('[native-audio] force pause failed: $error');
+      try {
+        await _player.stop();
+      } catch (_) {}
+    }
+    try {
+      await _player.setVolume(1.0);
+    } catch (_) {}
+    await _persistState(immediate: true);
   }
 
   Future<bool> _waitForQueueLoadSlot() async {
