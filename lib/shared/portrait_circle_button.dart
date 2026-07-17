@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/design_tokens.dart';
 
 /// 具有物理阻尼回弹效果的交互包装组件
+/// Phase 6: press scale 0.96 (roadmap).
 class BounceTouchable extends StatefulWidget {
   const BounceTouchable({super.key, required this.child, required this.onTap});
 
@@ -23,14 +24,12 @@ class _BounceTouchableState extends State<BounceTouchable>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
-      lowerBound: 0.0,
-      upperBound: 0.1,
+      duration: const Duration(milliseconds: 90),
+      reverseDuration: const Duration(milliseconds: 120),
     );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.92,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
   }
 
   @override

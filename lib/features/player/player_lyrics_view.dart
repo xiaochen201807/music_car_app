@@ -427,6 +427,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
                   ),
                   itemBuilder: (BuildContext context, int index) {
                     final bool active = index == activeIndex;
+                    final bool near = (index - activeIndex).abs() == 1;
                     final FreeMusicLyricLine line = lines[index];
                     return Material(
                       color: Colors.transparent,
@@ -442,24 +443,26 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
                         child: Align(
                           alignment: Alignment.center,
                           child: AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 300),
+                            // Phase 3: clearer active/near hierarchy without heavy glow.
+                            duration: const Duration(milliseconds: 180),
                             style: active
                                 ? theme.textTheme.titleLarge!.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                                    color: colors.onSurface,
                                     shadows: <Shadow>[
                                       Shadow(
-                                        color: AppColor.accentRoseEnd
-                                            .withValues(alpha: 0.35),
+                                        color: colors.primary.withValues(
+                                          alpha: 0.28,
+                                        ),
                                         offset: Offset.zero,
-                                        blurRadius: 14,
+                                        blurRadius: 10,
                                       ),
                                     ],
                                   )
                                 : theme.textTheme.titleMedium!.copyWith(
                                     fontWeight: FontWeight.w500,
                                     color: colors.onSurface.withValues(
-                                      alpha: 0.20,
+                                      alpha: near ? 0.48 : 0.28,
                                     ),
                                   ),
                             child: Text(

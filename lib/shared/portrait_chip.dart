@@ -14,7 +14,7 @@ class PortraitChip extends StatelessWidget {
     final ColorScheme colors = theme.colorScheme;
     return GlassPill(
       onTap: onTap,
-      height: 32,
+      height: 34,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpace.md,
         vertical: AppSpace.xs,
@@ -28,7 +28,8 @@ class PortraitChip extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelMedium?.copyWith(
             color: colors.onSurface,
-            fontWeight: FontWeight.w900,
+            // Chips are secondary chrome — not page titles.
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),

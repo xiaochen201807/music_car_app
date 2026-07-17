@@ -211,6 +211,9 @@ class _MusicCarAppState extends State<MusicCarApp> {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,
+      // Phase 6: theme switch fade ≤200ms.
+      themeAnimationDuration: const Duration(milliseconds: 200),
+      themeAnimationCurve: Curves.easeOutCubic,
       home: !_activated
           ? DeviceActivationGate(
               authService: _deviceAuthService,
@@ -409,8 +412,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.90 (Build 10090)');
-    debugPrint('✅ Fixes: 分享安装包二维码、推荐源切换缓存跟手');
+    debugPrint('🚀 App Version: 1.0.91 (Build 10091)');
+    debugPrint('✅ Fixes: UI Phase 1–6 美化：统一语言/首页/播放/列表/设置微动效');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -2082,7 +2085,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   DeviceAuthSnapshot get deviceAuthSnapshot => _deviceAuthSnapshot;
   DeviceAuthService get deviceAuthService => _deviceAuthService;
   // Keep in sync with pubspec / tag; used by share QR + diagnostics.
-  String get appVersionLabel => '1.0.90';
+  String get appVersionLabel => '1.0.91';
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2241,8 +2244,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.90',
-        'build': 10090,
+        'version': '1.0.91',
+        'build': 10091,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

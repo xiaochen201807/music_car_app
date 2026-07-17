@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/design_tokens.dart';
 import 'portrait_chip.dart';
 
 class PortraitSectionHeader extends StatelessWidget {
@@ -22,7 +23,8 @@ class PortraitSectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: theme.textTheme.titleMedium?.copyWith(
+              // Section headers: w900; body hierarchy starts below this.
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -36,7 +38,7 @@ class PortraitSectionHeader extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
         ],
         if (label != null) PortraitChip(label: label!),
       ],

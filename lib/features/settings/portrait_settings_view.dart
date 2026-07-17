@@ -302,7 +302,8 @@ class PortraitSettingsView extends StatelessWidget {
         onPreferredBitrateChanged(value);
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        // Phase 5: selection border/fill transition ≤150ms.
+        duration: const Duration(milliseconds: 120),
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpace.md,
@@ -315,6 +316,12 @@ class PortraitSettingsView extends StatelessWidget {
                     : colors.primaryContainer.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(
+            color: isSelected
+                ? colors.primary
+                : colors.outlineVariant.withValues(alpha: isLight ? 0.7 : 0.35),
+            width: isSelected ? 1.5 : 1,
+          ),
         ),
         child: Row(
           children: <Widget>[
@@ -346,7 +353,7 @@ class PortraitSettingsView extends StatelessWidget {
                     title,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: isSelected
-                          ? FontWeight.w900
+                          ? FontWeight.w800
                           : FontWeight.w700,
                       color: isSelected ? colors.primary : colors.onSurface,
                     ),
@@ -356,6 +363,7 @@ class PortraitSettingsView extends StatelessWidget {
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
                       fontSize: 11,
                     ),
                   ),
@@ -471,7 +479,9 @@ class _AudioEffectPresetTile extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpace.md,
           vertical: AppSpace.sm,
@@ -503,7 +513,7 @@ class _AudioEffectPresetTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: selected ? colors.primary : colors.onSurface,
-                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
                 ),
               ),
             ),
@@ -781,12 +791,13 @@ Future<void> showReleaseApkQrSheet(
     ),
     builder: (BuildContext context) {
       return SafeArea(
+        minimum: const EdgeInsets.only(bottom: AppSpace.md),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpace.xl,
+            AppSpace.md,
+            AppSpace.xl,
             AppSpace.lg,
-            AppSpace.xl,
-            AppSpace.xl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -811,14 +822,18 @@ Future<void> showReleaseApkQrSheet(
                 'Music Car v$version · arm64-v8a',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: AppSpace.xl),
               Container(
-                padding: const EdgeInsets.all(AppSpace.md),
+                padding: const EdgeInsets.all(AppSpace.lg),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(AppRadius.tile),
+                  borderRadius: BorderRadius.circular(AppRadius.card),
+                  border: Border.all(
+                    color: colors.outlineVariant.withValues(alpha: 0.35),
+                  ),
                 ),
                 child: QrImageView(
                   data: url,
@@ -835,36 +850,43 @@ Future<void> showReleaseApkQrSheet(
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpace.lg),
+              const SizedBox(height: AppSpace.md),
               SelectableText(
                 url,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: AppSpace.lg),
+              const SizedBox(height: AppSpace.xl),
               Row(
                 children: <Widget>[
                   Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        await Clipboard.setData(ClipboardData(text: url));
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('下载链接已复制')),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.copy_rounded),
-                      label: const Text('复制链接'),
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(ClipboardData(text: url));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('下载链接已复制')),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.copy_rounded),
+                        label: const Text('复制链接'),
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpace.md),
                   Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('关闭'),
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('关闭'),
+                      ),
                     ),
                   ),
                 ],

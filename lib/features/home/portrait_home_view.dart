@@ -8,6 +8,7 @@ import '../../shared/portrait_chip.dart';
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_section_header.dart';
 import '../../shared/staggered_animated_item.dart';
+import '../../shared/portrait_circle_button.dart';
 
 class PortraitHomeView extends StatefulWidget {
   const PortraitHomeView({
@@ -306,14 +307,16 @@ class _PlaylistSourceSelector extends StatelessWidget {
                 border: Border.all(
                   color: isSelected
                       ? colors.primary
-                      : colors.outlineVariant.withValues(alpha: isLight ? 1 : 0.4),
+                      : colors.outlineVariant.withValues(
+                          alpha: isLight ? 1 : 0.4,
+                        ),
                 ),
               ),
               child: Text(
                 option.label,
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: isSelected ? colors.onPrimary : colors.onSurface,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                 ),
               ),
             ),
@@ -417,12 +420,31 @@ class PortraitPlaylistWaterfallCard extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: tall ? 0.78 : 1.0,
               child: Stack(
+                fit: StackFit.expand,
                 children: <Widget>[
-                  Positioned.fill(
-                    child: PortraitArtwork(
-                      visual: visual,
-                      imageUrl: playlist.cover,
-                      icon: Icons.queue_music_rounded,
+                  PortraitArtwork(
+                    visual: visual,
+                    imageUrl: playlist.cover,
+                    icon: Icons.queue_music_rounded,
+                  ),
+                  // Soft bottom scrim — lifts contrast for badge / future overlays
+                  // without a full-card blur (Phase 2, performance-safe).
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 48,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            Color(0x00000000),
+                            Color(0x66000000),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   if (playlist.playCount > 0)
@@ -479,6 +501,7 @@ class PortraitPlaylistWaterfallCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -649,7 +672,7 @@ class _HomeChipSection extends StatelessWidget {
               child: Text(
                 title,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -720,6 +743,9 @@ class _HomeQuickAccessGrid extends StatelessWidget {
           icon: Icons.play_circle_fill_rounded,
           title: song == null ? '继续播放' : song.name,
           subtitle: song == null ? '打开播放器' : song.artist,
+          // Phase 2: highlight now-playing with cover thumb when available.
+          coverUrl: song?.cover,
+          emphasize: song != null,
           onTap: onOpenPlayer,
         ),
         _QuickAccessTile(
@@ -753,52 +779,73 @@ class _QuickAccessTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.coverUrl,
+    this.emphasize = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final String? coverUrl;
+  final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
     final bool isLight = theme.brightness == Brightness.light;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.tile),
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
+    final bool hasCover = coverUrl != null && coverUrl!.isNotEmpty;
+    return BounceTouchable(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Material(
+        color: Colors.transparent,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
           decoration: BoxDecoration(
-            color: isLight
+            color: emphasize
+                ? (isLight
+                      ? colors.primaryContainer.withValues(alpha: 0.55)
+                      : colors.primary.withValues(alpha: 0.12))
+                : isLight
                 ? colors.surfaceContainer
                 : colors.surfaceContainerHighest.withValues(alpha: 0.22),
             borderRadius: BorderRadius.circular(AppRadius.tile),
             border: Border.all(
-              color: colors.outlineVariant.withValues(
-                alpha: isLight ? 0.55 : 0.25,
-              ),
+              color: emphasize
+                  ? colors.primary.withValues(alpha: isLight ? 0.35 : 0.45)
+                  : colors.outlineVariant.withValues(
+                      alpha: isLight ? 0.55 : 0.25,
+                    ),
             ),
           ),
           child: Row(
             children: <Widget>[
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
+              if (hasCover)
+                ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.control),
-                  color: isLight
-                      ? colors.primaryContainer
-                      : colors.primary.withValues(alpha: 0.16),
+                  child: PortraitArtwork(
+                    visual: demoQueue.first,
+                    imageUrl: coverUrl!,
+                    size: 44,
+                    icon: Icons.music_note_rounded,
+                  ),
+                )
+              else
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    color: isLight
+                        ? colors.primaryContainer
+                        : colors.primary.withValues(alpha: 0.16),
+                  ),
+                  child: Icon(icon, color: colors.primary, size: 22),
                 ),
-                child: Icon(icon, color: colors.primary, size: 22),
-              ),
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Column(
@@ -810,7 +857,7 @@ class _QuickAccessTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -820,6 +867,7 @@ class _QuickAccessTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -833,41 +881,78 @@ class _QuickAccessTile extends StatelessWidget {
   }
 }
 
+/// Static skeleton placeholders for recommendation loading.
+/// No shimmer animation — keeps first paint cheap on head units (Phase 2).
 class PortraitFallbackGrid extends StatelessWidget {
   const PortraitFallbackGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 4,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: AppSpace.md,
-        mainAxisSpacing: AppSpace.md,
-        childAspectRatio: 0.82,
-      ),
-      itemBuilder: (BuildContext context, int index) {
-        final DemoTrack track = demoQueue[index % demoQueue.length];
-        return StaggeredAnimatedItem(
-          index: index,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: PortraitArtwork(
-                  visual: track,
-                  imageUrl: '',
-                  icon: Icons.album_rounded,
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final bool isLight = Theme.of(context).brightness == Brightness.light;
+    final Color bone = isLight
+        ? colors.surfaceContainerHighest.withValues(alpha: 0.7)
+        : colors.surfaceContainerHighest.withValues(alpha: 0.28);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(child: _SkeletonPlaylistColumn(bone: bone, tallFirst: true)),
+        const SizedBox(width: AppSpace.md),
+        Expanded(child: _SkeletonPlaylistColumn(bone: bone, tallFirst: false)),
+      ],
+    );
+  }
+}
+
+class _SkeletonPlaylistColumn extends StatelessWidget {
+  const _SkeletonPlaylistColumn({required this.bone, required this.tallFirst});
+
+  final Color bone;
+  final bool tallFirst;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        for (int index = 0; index < 2; index += 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                AspectRatio(
+                  aspectRatio: (tallFirst ? index.isEven : index.isOdd)
+                      ? 0.78
+                      : 1.0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: bone,
+                      borderRadius: BorderRadius.circular(AppRadius.card),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpace.sm),
-              Text(track.title, style: Theme.of(context).textTheme.titleSmall),
-            ],
+                const SizedBox(height: AppSpace.sm),
+                Container(
+                  height: 12,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: bone,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 10,
+                  width: 96,
+                  decoration: BoxDecoration(
+                    color: bone.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      },
+      ],
     );
   }
 }

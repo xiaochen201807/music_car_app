@@ -576,7 +576,7 @@ class _SearchChipSection extends StatelessWidget {
               child: Text(
                 title,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -644,7 +644,7 @@ class _SearchResultsToolbar extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 2),
@@ -768,7 +768,7 @@ class _LoadMoreFooter extends StatelessWidget {
             Text(
               label,
               style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w800,
                 color: actionable
                     ? colors.onSurface
                     : colors.onSurface.withValues(alpha: 0.38),

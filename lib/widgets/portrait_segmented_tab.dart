@@ -34,7 +34,8 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
           }
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
+          // Roadmap: chip/segment selection ≤150ms.
+          duration: const Duration(milliseconds: 140),
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpace.md,
@@ -49,15 +50,7 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
                       : colors.primaryContainer.withValues(alpha: 0.65)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.control - 2),
-            boxShadow: isSelected && !isLight
-                ? <BoxShadow>[
-                    BoxShadow(
-                      color: colors.primary.withValues(alpha: 0.15),
-                      offset: const Offset(0, 2),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : null,
+            // Drop selection shadow — keeps paint cheap on car head units.
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -73,7 +66,7 @@ class PortraitSegmentedTab<T> extends StatelessWidget {
               Text(
                 item.label,
                 style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   color: isSelected
                       ? colors.onPrimaryContainer
                       : colors.onSurfaceVariant,

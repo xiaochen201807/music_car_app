@@ -247,11 +247,13 @@ Positioned.fill(child: childWidget!),
                   ],
                 ),
                 const SizedBox(height: AppSpace.md),
-                // Cap vinyl height so lyrics keep a stable band above the seek bar.
+                // Phase 3: slightly smaller vinyl, larger lyrics mid-band.
                 Flexible(
-                  flex: 5,
+                  flex: 4,
                   child: Center(
-                    child: AspectRatio(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 320),
+                      child: AspectRatio(
                       aspectRatio: 1,
                       child: GestureDetector(
                         onVerticalDragEnd: (DragEndDetails details) {
@@ -293,9 +295,10 @@ Positioned.fill(child: childWidget!),
                         ),
                       ),
                     ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppSpace.md),
+                const SizedBox(height: AppSpace.sm),
                 _PlayerTitleBlock(title: title, artist: artist),
                 const SizedBox(height: AppSpace.sm),
                 _PlayerMetaRow(
@@ -309,7 +312,7 @@ Positioned.fill(child: childWidget!),
                   const SizedBox(height: AppSpace.sm),
                   _PlaybackLoadingBanner(playbackState: playbackState),
                 ],
-                const SizedBox(height: AppSpace.md),
+                const SizedBox(height: AppSpace.sm),
                 _PlayerTransportBar(
                   playing: playbackState.playing,
                   busy: playbackState.isBusy,
@@ -322,11 +325,11 @@ Positioned.fill(child: childWidget!),
                 ),
                 // Lyrics fill remaining space and center empty/loading copy.
                 Expanded(
-                  flex: 4,
+                  flex: 5,
                   child: Padding(
                     padding: const EdgeInsets.only(
-                      top: AppSpace.md,
-                      bottom: 72,
+                      top: AppSpace.sm,
+                      bottom: 64,
                     ),
                     child: _PlaybackPositionBuilder(
                       stream: playbackPositionStream,
@@ -370,7 +373,7 @@ class _PlayerTitleBlock extends StatelessWidget {
         MarqueeText(
           text: title,
           style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
           ),
         ),
         if (artist.isNotEmpty) ...<Widget>[
@@ -936,69 +939,106 @@ class PortraitMiniPlayerBar extends StatelessWidget {
         ? currentSong?.artist ?? fallbackTrack.artist
         : playbackState.artist;
 
-    final Widget innerContent = Padding(
-      padding: const EdgeInsets.all(AppSpace.sm),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: GestureDetector(
-              key: const ValueKey<String>('portrait-mini-player-open-area'),
-              behavior: HitTestBehavior.opaque,
-              onTap: onOpenPlayer,
-              child: Row(
-                children: <Widget>[
-                  Hero(
-                    tag: 'now-playing-artwork',
-                    child: PortraitArtwork(
-                      visual: fallbackTrack,
-                      imageUrl: playbackState.coverUrl.isEmpty
-                          ? currentSong?.cover ?? ''
-                          : playbackState.coverUrl,
-                      size: 52,
-                      icon: Icons.album_rounded,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpace.md),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
+    final int totalMs = playbackState.duration?.inMilliseconds ?? 0;
+    final double progress = totalMs <= 0
+        ? 0.0
+        : (playbackState.position.inMilliseconds / totalMs).clamp(0.0, 1.0);
+
+    final Widget innerContent = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        // Thin progress hairline along the top of the mini player (Phase 3).
+        ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 2,
+            backgroundColor: colors.onSurface.withValues(alpha: 0.08),
+            color: colors.primary,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.sm,
+            AppSpace.xs,
+            AppSpace.sm,
+            AppSpace.sm,
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: GestureDetector(
+                  key: const ValueKey<String>('portrait-mini-player-open-area'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onOpenPlayer,
+                  child: Row(
+                    children: <Widget>[
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.control),
+                          border: Border.all(
+                            color: colors.outlineVariant.withValues(alpha: 0.45),
                           ),
                         ),
-                        const SizedBox(height: AppSpace.xs),
-                        Text(
-                          artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.control),
+                          child: Hero(
+                            tag: 'now-playing-artwork',
+                            child: PortraitArtwork(
+                              visual: fallbackTrack,
+                              imageUrl: playbackState.coverUrl.isEmpty
+                                  ? currentSong?.cover ?? ''
+                                  : playbackState.coverUrl,
+                              size: 48,
+                              icon: Icons.album_rounded,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: AppSpace.md),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          IconButton(
-            tooltip: '上一首',
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              onPrevious();
-            },
-            icon: const Icon(Icons.skip_previous_rounded),
-          ),
+              const SizedBox(width: AppSpace.xs),
+              IconButton(
+                tooltip: '上一首',
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  onPrevious();
+                },
+                icon: const Icon(Icons.skip_previous_rounded),
+              ),
           IconButton(
             tooltip: labelForPlaybackMode(playbackMode),
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: () {
               HapticFeedback.selectionClick();
               onPlaybackMode();
@@ -1006,8 +1046,8 @@ class PortraitMiniPlayerBar extends StatelessWidget {
             icon: Icon(iconForPlaybackMode(playbackMode)),
           ),
           PortraitPlayButton(
-            size: 48,
-            iconSize: 28,
+            size: 44,
+            iconSize: 26,
             playing: playbackState.playing,
             onTap: () {
               HapticFeedback.lightImpact();
@@ -1016,6 +1056,7 @@ class PortraitMiniPlayerBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: '音质',
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: () {
               HapticFeedback.selectionClick();
               onQuality();
@@ -1024,14 +1065,17 @@ class PortraitMiniPlayerBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: '下一首',
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: () {
               HapticFeedback.selectionClick();
               onNext();
             },
             icon: const Icon(Icons.skip_next_rounded),
           ),
-        ],
-      ),
+            ],
+          ),
+        ),
+      ],
     );
 
     if (transparent) {
@@ -1385,19 +1429,20 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
         uri.hasAbsolutePath &&
         (uri.isScheme('http') || uri.isScheme('https'));
 
+    // Phase 3: cover-only ambience — lighter blur/opacity, ≤300ms crossfade.
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 1500),
-      switchInCurve: Curves.easeInOut,
-      switchOutCurve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
       child: KeyedSubtree(
         key: ValueKey<String>(
           imageUrl.isEmpty ? fallbackColor.toString() : imageUrl,
         ),
         child: SizedBox.expand(
           child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+            imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Opacity(
-              opacity: 0.16,
+              opacity: 0.12,
               child: canLoad
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,

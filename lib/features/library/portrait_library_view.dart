@@ -939,7 +939,7 @@ class _LibraryMetricTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                         color: selected ? colors.primary : colors.onSurface,
                       ),
                     ),

@@ -19,26 +19,33 @@ class PortraitSurface extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
     final bool isLight = theme.brightness == Brightness.light;
-    final Widget innerContent = Container(
-      padding: const EdgeInsets.all(AppSpace.md),
+    // Roadmap list-row: tile radius + horizontal md / vertical sm.
+    final BorderRadius radius = BorderRadius.circular(AppRadius.tile);
+    final Widget innerContent = AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.md,
+        vertical: AppSpace.sm,
+      ),
       decoration: BoxDecoration(
         color: selected
             ? isLight
                   ? colors.primaryContainer
                   : colors.primaryContainer.withValues(alpha: 0.24)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: radius,
       ),
       child: child,
     );
 
     return GlassCard(
-      radius: AppRadius.card,
+      radius: AppRadius.tile,
       shadows: const <BoxShadow>[],
       child: onTap == null
           ? innerContent
           : InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.card),
+              borderRadius: radius,
               onTap: onTap,
               child: innerContent,
             ),

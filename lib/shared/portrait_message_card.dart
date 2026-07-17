@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/glass_card.dart';
 
+/// Unified empty / error / info card (Phase 4).
+/// Layout: icon · title · guide message · optional primary action.
 class PortraitMessageCard extends StatelessWidget {
   const PortraitMessageCard({
     super.key,
@@ -23,7 +25,10 @@ class PortraitMessageCard extends StatelessWidget {
     final bool isLight = theme.brightness == Brightness.light;
     return GlassCard(
       radius: AppRadius.panel,
-      padding: const EdgeInsets.all(AppSpace.xl),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.xl,
+        vertical: AppSpace.xl2,
+      ),
       shadows: const <BoxShadow>[],
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -34,7 +39,7 @@ class PortraitMessageCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: isLight
                   ? colors.primaryContainer
-                  : colors.primaryContainer.withValues(alpha: 0.18),
+                  : colors.primary.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Icon(icon, size: AppSpace.xl2, color: colors.primary),
@@ -43,16 +48,23 @@ class PortraitMessageCard extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: AppType.cardTitle.copyWith(color: colors.onSurface),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: colors.onSurface,
+            ),
           ),
           const SizedBox(height: AppSpace.sm),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: AppType.body.copyWith(color: colors.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
           ),
           if (action != null) ...<Widget>[
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.lg),
             action!,
           ],
         ],

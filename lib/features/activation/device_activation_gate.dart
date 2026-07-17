@@ -145,18 +145,43 @@ class _DeviceActivationGateState extends State<DeviceActivationGate> {
                       if (_loadingId)
                         const Center(child: LuxuryLoadingIndicator(size: 22))
                       else
-                        SelectableText(
-                          _deviceId,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontFamily: 'monospace',
-                            fontWeight: FontWeight.w700,
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.md,
+                            vertical: AppSpace.md,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHighest.withValues(
+                              alpha: theme.brightness == Brightness.light
+                                  ? 0.55
+                                  : 0.28,
+                            ),
+                            borderRadius: BorderRadius.circular(AppRadius.tile),
+                            border: Border.all(
+                              color: colors.outlineVariant.withValues(
+                                alpha: 0.55,
+                              ),
+                            ),
+                          ),
+                          child: SelectableText(
+                            _deviceId,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
                           ),
                         ),
                       const SizedBox(height: AppSpace.md),
-                      OutlinedButton.icon(
-                        onPressed: _loadingId ? null : _copyDeviceId,
-                        icon: const Icon(Icons.copy_rounded),
-                        label: const Text('复制设备码发给管理员'),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton.tonalIcon(
+                          onPressed: _loadingId ? null : _copyDeviceId,
+                          icon: const Icon(Icons.copy_rounded),
+                          label: const Text('复制设备码发给管理员'),
+                        ),
                       ),
                       const SizedBox(height: AppSpace.xl),
                       Text(
@@ -170,23 +195,45 @@ class _DeviceActivationGateState extends State<DeviceActivationGate> {
                         controller: _codeController,
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => _submit(),
-                        decoration: const InputDecoration(
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                        decoration: InputDecoration(
                           hintText: 'AUTH-XXXX-XXXXXXXXXXXX',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.tile),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.md,
+                            vertical: AppSpace.md,
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpace.lg),
-                      FilledButton(
-                        onPressed: _busy ? null : _submit,
-                        child: _busy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: _busy ? null : _submit,
+                          child: _busy
+                              ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: colors.onPrimary,
+                                  ),
+                                )
+                              : Text(
+                                  '激活并进入应用',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.onPrimary,
+                                  ),
                                 ),
-                              )
-                            : const Text('激活并进入应用'),
+                        ),
                       ),
                       const SizedBox(height: AppSpace.md),
                       Text(
@@ -194,6 +241,7 @@ class _DeviceActivationGateState extends State<DeviceActivationGate> {
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],

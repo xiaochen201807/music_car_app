@@ -3,6 +3,17 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - UI Polish Phases 1–6 (v1.0.91)
+
+Performance-first visual polish per `docs/ui-polish-roadmap.md`:
+
+- Phase 1: shared tiles/surface/chip/segment weight + spacing language.
+- Phase 2: home playlist scrim, static skeleton, continue-playing cover thumb.
+- Phase 3: player vinyl/lyrics ratio, cheaper ambient blur, mini-player progress.
+- Phase 4: song/queue row consistency, semantic icons, empty MessageCard.
+- Phase 5: quality/effects selection border transition; activation + QR polish.
+- Phase 6: BounceTouchable 0.96, stagger first-6 ≤400ms, theme fade 200ms.
+
 ## 2026-07-17 - Fix sticky playlist source chips (v1.0.90)
 
 - Root cause: MusicAppStateScope.updateShouldNotify ignored playlistSource and
