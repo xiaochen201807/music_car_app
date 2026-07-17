@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../free_music_api.dart';
+import '../services/lru_cache.dart';
 
 abstract class TrackMetadataClient {
   Future<FreeMusicLyrics> fetchEnhancedLyrics(FreeMusicSong song);
@@ -25,10 +26,18 @@ class FreeMusicTrackMetadataClient implements TrackMetadataClient {
 }
 
 class TrackMetadataController extends ChangeNotifier {
-  TrackMetadataController({required TrackMetadataClient client})
-    : _client = client;
+  TrackMetadataController({
+    required TrackMetadataClient client,
+    int lyricsCacheCapacity = 48,
+  }) : _client = client,
+       _lyricsCache = LruCache<String, FreeMusicLyrics>(
+         capacity: lyricsCacheCapacity,
+       );
 
   final TrackMetadataClient _client;
+  final LruCache<String, FreeMusicLyrics> _lyricsCache;
+  final Map<String, Future<FreeMusicLyrics>> _lyricsInflight =
+      <String, Future<FreeMusicLyrics>>{};
 
   bool _isLoadingLyrics = false;
   bool _isLoadingQualities = false;
@@ -37,25 +46,16 @@ class TrackMetadataController extends ChangeNotifier {
   String _lyricsError = '';
   String _qualityError = '';
   FreeMusicLyrics? _currentLyrics;
-  // 记录当前歌词所属歌曲，切歌后用于校验归属，避免歌词与歌曲错位
   String _currentLyricsKey = '';
   List<FreeMusicQuality> _currentQualities = const <FreeMusicQuality>[];
 
   bool get isLoadingLyrics => _isLoadingLyrics;
-
   bool get isLoadingQualities => _isLoadingQualities;
-
   String get lyricsError => _lyricsError;
-
   String get qualityError => _qualityError;
-
   FreeMusicLyrics? get currentLyrics => _currentLyrics;
-
-  /// 当前歌词所属歌曲的标识（source:id），空表示无归属。
   String get currentLyricsKey => _currentLyricsKey;
-
   static String lyricsKeyFor(FreeMusicSong song) => '${song.source}:${song.id}';
-
   List<FreeMusicQuality> get currentQualities => _currentQualities;
 
   void reset() {
@@ -71,6 +71,21 @@ class TrackMetadataController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> prefetchLyricsForSong(FreeMusicSong song) async {
+    if (!song.canResolve) {
+      return;
+    }
+    final String songKey = lyricsKeyFor(song);
+    if (_lyricsCache.containsKey(songKey)) {
+      return;
+    }
+    try {
+      await _fetchLyricsCached(song);
+    } catch (error) {
+      debugPrint('[lyrics] prefetch failed for $songKey: $error');
+    }
+  }
+
   Future<bool> loadLyricsForSong(FreeMusicSong song) async {
     final int requestId = ++_lyricsRequestId;
     final String songKey = lyricsKeyFor(song);
@@ -83,20 +98,28 @@ class TrackMetadataController extends ChangeNotifier {
       return true;
     }
 
+    final FreeMusicLyrics? cached = _lyricsCache.get(songKey);
+    if (cached != null) {
+      _currentLyrics = cached;
+      _currentLyricsKey = songKey;
+      _lyricsError = '';
+      _isLoadingLyrics = false;
+      notifyListeners();
+      return true;
+    }
+
     _isLoadingLyrics = true;
     _lyricsError = '';
-    // 立即清空旧歌词与归属标识，避免切歌后短暂显示上一首
     _currentLyrics = null;
     _currentLyricsKey = '';
     notifyListeners();
 
     try {
-      final FreeMusicLyrics lyrics = await _client.fetchEnhancedLyrics(song);
+      final FreeMusicLyrics lyrics = await _fetchLyricsCached(song);
       if (requestId != _lyricsRequestId) {
         return false;
       }
       _currentLyrics = lyrics;
-      // 用发起请求时的 songKey 写回，避免闭包持有的 song 对象与 UI 对不上
       _currentLyricsKey = songKey;
       _isLoadingLyrics = false;
       notifyListeners();
@@ -122,6 +145,29 @@ class TrackMetadataController extends ChangeNotifier {
       notifyListeners();
       return true;
     }
+  }
+
+  Future<FreeMusicLyrics> _fetchLyricsCached(FreeMusicSong song) {
+    final String songKey = lyricsKeyFor(song);
+    final FreeMusicLyrics? cached = _lyricsCache.get(songKey);
+    if (cached != null) {
+      return Future<FreeMusicLyrics>.value(cached);
+    }
+    final Future<FreeMusicLyrics>? inflight = _lyricsInflight[songKey];
+    if (inflight != null) {
+      return inflight;
+    }
+    final Future<FreeMusicLyrics> future = _client
+        .fetchEnhancedLyrics(song)
+        .then((FreeMusicLyrics lyrics) {
+          _lyricsCache.put(songKey, lyrics);
+          return lyrics;
+        })
+        .whenComplete(() {
+          _lyricsInflight.remove(songKey);
+        });
+    _lyricsInflight[songKey] = future;
+    return future;
   }
 
   Future<bool> loadQualitiesForSong(FreeMusicSong song) async {
@@ -160,5 +206,10 @@ class TrackMetadataController extends ChangeNotifier {
       notifyListeners();
       return true;
     }
+  }
+
+  void clearLyricsCache() {
+    _lyricsCache.clear();
+    _lyricsInflight.clear();
   }
 }

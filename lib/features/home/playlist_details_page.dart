@@ -11,6 +11,11 @@ import '../../shared/portrait_surface.dart';
 import '../../shared/staggered_animated_item.dart';
 import '../../widgets/glass_card.dart';
 
+// Session catalog cache for playlist tracks (Spotify-like: keep recently opened
+// playlists warm; cleared with process death / explicit storage cleanup).
+final Map<String, List<FreeMusicSong>> _playlistSongsMemoryCache =
+    <String, List<FreeMusicSong>>{};
+
 class PlaylistDetailsPage extends StatefulWidget {
   const PlaylistDetailsPage({
     super.key,
@@ -50,9 +55,27 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
     _loadSongs(reset: true);
   }
 
+  String get _cacheKey =>
+      '${widget.playlist.source}:${widget.playlist.id}';
+
   Future<void> _loadSongs({required bool reset}) async {
     if (_busy) return;
     final int targetOffset = reset ? 0 : _offset;
+    if (reset && targetOffset == 0) {
+      final List<FreeMusicSong>? cached = _playlistSongsMemoryCache[_cacheKey];
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _songs
+            ..clear()
+            ..addAll(cached);
+          _offset = _songs.length;
+          _total = _songs.length;
+          _busy = false;
+          _error = '';
+        });
+        return;
+      }
+    }
     setState(() {
       _busy = true;
       _error = '';
@@ -74,6 +97,10 @@ class _PlaylistDetailsPageState extends State<PlaylistDetailsPage> {
         _busy = false;
         if (page.songs.isEmpty && reset) {
           _error = '歌单暂无可播放歌曲';
+        }
+        if (_songs.isNotEmpty) {
+          _playlistSongsMemoryCache[_cacheKey] =
+              List<FreeMusicSong>.unmodifiable(_songs);
         }
       });
     } catch (e) {

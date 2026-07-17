@@ -43,9 +43,7 @@ void main() {
     final FreeMusicSong stranded = _song('stranded');
     final FreeMusicSong lanting = _song('lanting');
 
-    // 先请求上一首（搁浅），响应尚未返回
     final Future<bool> firstLoad = controller.loadLyricsForSong(stranded);
-    // 切到当前歌（兰亭序），其响应先返回
     final Future<bool> secondLoad = controller.loadLyricsForSong(lanting);
 
     fast.complete(
@@ -58,7 +56,6 @@ void main() {
     );
     expect(await secondLoad, isTrue);
 
-    // 上一首的响应迟到返回，应被判为过期而丢弃
     slow.complete(
       const FreeMusicLyrics(
         raw: '[00:00.00]搁浅',
@@ -69,7 +66,6 @@ void main() {
     );
     expect(await firstLoad, isFalse);
 
-    // 归属仍指向当前歌（兰亭序），且歌词为兰亭序而非搁浅
     expect(
       controller.currentLyricsKey,
       TrackMetadataController.lyricsKeyFor(lanting),
@@ -102,6 +98,27 @@ void main() {
 
     controller.dispose();
   });
+
+  test('lyrics cache serves second load without another client fetch', () async {
+    final _FakeTrackMetadataClient client = _FakeTrackMetadataClient();
+    client.lyricsResults['lanting'] = const FreeMusicLyrics(
+      raw: '[00:00.00]兰亭序',
+      lines: <FreeMusicLyricLine>[
+        FreeMusicLyricLine(time: Duration.zero, text: '兰亭序'),
+      ],
+    );
+    final TrackMetadataController controller = TrackMetadataController(
+      client: client,
+    );
+    final FreeMusicSong song = _song('lanting');
+
+    await controller.loadLyricsForSong(song);
+    await controller.loadLyricsForSong(song);
+
+    expect(client.fetchCount, 1);
+    expect(controller.currentLyrics?.lines.single.text, '兰亭序');
+    controller.dispose();
+  });
 }
 
 class _FakeTrackMetadataClient implements TrackMetadataClient {
@@ -109,9 +126,11 @@ class _FakeTrackMetadataClient implements TrackMetadataClient {
 
   final Future<FreeMusicLyrics> Function(FreeMusicSong song)? onFetch;
   final Map<String, FreeMusicLyrics> lyricsResults = <String, FreeMusicLyrics>{};
+  int fetchCount = 0;
 
   @override
   Future<FreeMusicLyrics> fetchEnhancedLyrics(FreeMusicSong song) {
+    fetchCount += 1;
     final Future<FreeMusicLyrics> Function(FreeMusicSong song)? handler =
         onFetch;
     if (handler != null) {

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../free_music_api.dart';
 import '../services/app_telemetry.dart';
@@ -44,12 +46,20 @@ class MusicSearchController extends ChangeNotifier {
     required MusicSearchClient client,
     AppTelemetry? telemetry,
     this.searchDebounce = const Duration(milliseconds: 300),
+    SharedPreferences? preferences,
+    Future<SharedPreferences> Function()? preferencesLoader,
   }) : _client = client,
-       _telemetry = telemetry ?? AppTelemetry.instance;
+       _telemetry = telemetry ?? AppTelemetry.instance,
+       _preferences = preferences,
+       _preferencesLoader = preferencesLoader;
+
+  static const String _recommendationsCachePrefix = 'recommended_playlists_v1_';
 
   final MusicSearchClient _client;
   final AppTelemetry _telemetry;
   final Duration searchDebounce;
+  final SharedPreferences? _preferences;
+  final Future<SharedPreferences> Function()? _preferencesLoader;
 
   bool _isSearching = false;
   bool _isLoadingMore = false;
@@ -61,8 +71,11 @@ class MusicSearchController extends ChangeNotifier {
   String _searchLoadMoreError = '';
   String _recommendationError = '';
   String _lastSearchQuery = '';
+  String _lastRecommendationSourceKey = '';
   List<FreeMusicSong> _searchResults = const <FreeMusicSong>[];
   List<FreeMusicPlaylist> _recommendedPlaylists = const <FreeMusicPlaylist>[];
+  final Map<String, List<FreeMusicPlaylist>> _recommendationMemoryCache =
+      <String, List<FreeMusicPlaylist>>{};
   Timer? _searchDebounceTimer;
   Completer<void>? _pendingDebouncedSearch;
 
@@ -85,6 +98,9 @@ class MusicSearchController extends ChangeNotifier {
   List<FreeMusicSong> get searchResults => _searchResults;
 
   List<FreeMusicPlaylist> get recommendedPlaylists => _recommendedPlaylists;
+
+  /// Last catalog source key served from memory/disk/network.
+  String get lastRecommendationSourceKey => _lastRecommendationSourceKey;
 
   Future<void> searchSongsDebounced(
     String query, {
@@ -256,10 +272,39 @@ class MusicSearchController extends ChangeNotifier {
     }
   }
 
-  Future<void> loadRecommendations({List<String>? sources}) async {
+  Future<void> loadRecommendations({
+    List<String>? sources,
+    bool forceRefresh = false,
+  }) async {
+    final String sourceKey = _sourceKey(sources);
     if (_isLoadingRecommendations) {
       return;
     }
+
+    // Spotify-like catalog cache: serve memory/disk immediately, refresh only
+    // when forced (pull-to-refresh / source switch) or when empty.
+    if (!forceRefresh) {
+      final List<FreeMusicPlaylist>? memory = _recommendationMemoryCache[sourceKey];
+      if (memory != null && memory.isNotEmpty) {
+        _recommendedPlaylists = memory;
+        _lastRecommendationSourceKey = sourceKey;
+        _recommendationError = '';
+        notifyListeners();
+        return;
+      }
+      final List<FreeMusicPlaylist>? disk = await _readRecommendationDiskCache(
+        sourceKey,
+      );
+      if (disk != null && disk.isNotEmpty) {
+        _recommendedPlaylists = disk;
+        _recommendationMemoryCache[sourceKey] = disk;
+        _lastRecommendationSourceKey = sourceKey;
+        _recommendationError = '';
+        notifyListeners();
+        return;
+      }
+    }
+
     _isLoadingRecommendations = true;
     _recommendationError = '';
     notifyListeners();
@@ -268,16 +313,20 @@ class MusicSearchController extends ChangeNotifier {
     try {
       final FreeMusicRecommendResult result = await _client
           .fetchRecommendations(sources: sources);
-      _recommendedPlaylists = List<FreeMusicPlaylist>.unmodifiable(
-        result.playlists,
-      );
+      final List<FreeMusicPlaylist> playlists =
+          List<FreeMusicPlaylist>.unmodifiable(result.playlists);
+      _recommendedPlaylists = playlists;
+      _recommendationMemoryCache[sourceKey] = playlists;
+      _lastRecommendationSourceKey = sourceKey;
       _isLoadingRecommendations = false;
+      unawaited(_writeRecommendationDiskCache(sourceKey, playlists));
       _telemetry.record(
         'recommendations_load',
         duration: stopwatch.elapsed,
         attributes: <String, Object?>{
           'sources': sources?.join(','),
           'playlistCount': result.playlists.length,
+          'forceRefresh': forceRefresh,
         },
       );
       notifyListeners();
@@ -306,6 +355,95 @@ class MusicSearchController extends ChangeNotifier {
       );
       notifyListeners();
     }
+  }
+
+  String _sourceKey(List<String>? sources) {
+    if (sources == null || sources.isEmpty) {
+      return 'default';
+    }
+    final List<String> sorted = List<String>.from(sources)..sort();
+    return sorted.join(',');
+  }
+
+  Future<SharedPreferences> _prefs() async {
+    final Future<SharedPreferences> Function()? loader = _preferencesLoader;
+    if (loader != null) {
+      return loader();
+    }
+    return _preferences ?? SharedPreferences.getInstance();
+  }
+
+  Future<List<FreeMusicPlaylist>?> _readRecommendationDiskCache(
+    String sourceKey,
+  ) async {
+    try {
+      final SharedPreferences prefs = await _prefs();
+      final String? raw = prefs.getString(
+        '$_recommendationsCachePrefix$sourceKey',
+      );
+      if (raw == null || raw.isEmpty) {
+        return null;
+      }
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return null;
+      }
+      final Object? list = decoded['playlists'];
+      if (list is! List) {
+        return null;
+      }
+      final List<FreeMusicPlaylist> playlists = list
+          .whereType<Map>()
+          .map(
+            (Map<dynamic, dynamic> item) => FreeMusicPlaylist.fromMap(
+              item.map(
+                (dynamic key, dynamic value) =>
+                    MapEntry<String, dynamic>('$key', value),
+              ),
+            ),
+          )
+          .where((FreeMusicPlaylist p) => p.canLoad)
+          .toList(growable: false);
+      return List<FreeMusicPlaylist>.unmodifiable(playlists);
+    } catch (error) {
+      debugPrint('[search] recommendation cache read failed: $error');
+      return null;
+    }
+  }
+
+  Future<void> _writeRecommendationDiskCache(
+    String sourceKey,
+    List<FreeMusicPlaylist> playlists,
+  ) async {
+    try {
+      final SharedPreferences prefs = await _prefs();
+      final String payload = jsonEncode(<String, Object?>{
+        'savedAt': DateTime.now().millisecondsSinceEpoch,
+        'playlists': playlists
+            .map((FreeMusicPlaylist p) => p.toMap())
+            .toList(growable: false),
+      });
+      await prefs.setString(
+        '$_recommendationsCachePrefix$sourceKey',
+        payload,
+      );
+    } catch (error) {
+      debugPrint('[search] recommendation cache write failed: $error');
+    }
+  }
+
+  /// Drops recommendation memory+disk cache (settings / storage cleanup).
+  Future<void> clearRecommendationCache() async {
+    _recommendationMemoryCache.clear();
+    try {
+      final SharedPreferences prefs = await _prefs();
+      final Iterable<String> keys = prefs
+          .getKeys()
+          .where((String key) => key.startsWith(_recommendationsCachePrefix));
+      for (final String key in keys) {
+        await prefs.remove(key);
+      }
+    } catch (_) {}
   }
 
   @override

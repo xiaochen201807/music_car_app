@@ -43,7 +43,18 @@ X-Admin-Key: <ADMIN_KEY>
 
 也可用 `durationDays` 覆盖计划天数。`lifetime` 的 `expires_at` 为 `null`。
 
-管理页：`https://你的worker.workers.dev/admin`
+管理页：`https://你的worker.workers.dev/admin`  
+健康检查：`https://你的worker.workers.dev/health`  
+根路径 `/` 会 302 跳到 `/admin`。
+
+当前生产域名：
+- 管理后台：`https://music.yosyou.com/admin`
+- 健康检查：`https://music.yosyou.com/health`
+- Worker 默认域名（备用）：`https://music119.xiaoguan1649.workers.dev`
+
+GitHub Actions 构建会注入  
+`--dart-define=DEVICE_AUTH_BASE_URL=https://music.yosyou.com`  
+（可用仓库变量/密钥 `DEVICE_AUTH_BASE_URL` 覆盖）。
 
 ## App 流程
 
@@ -55,5 +66,5 @@ X-Admin-Key: <ADMIN_KEY>
 
 ## 默认 Base URL
 
-代码默认：`https://music-car-auth.sy110.nyc.mn`  
-可用 `--dart-define=DEVICE_AUTH_BASE_URL=...` 覆盖。部署前请改成你的 Worker 域名。
+代码默认：`https://music.yosyou.com`  
+可用 `--dart-define=DEVICE_AUTH_BASE_URL=...` 覆盖。

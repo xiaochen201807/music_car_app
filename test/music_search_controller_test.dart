@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:music_car_app/controllers/music_search_controller.dart';
 import 'package:music_car_app/free_music_api.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues(<String, Object>{});
   test('empty search resets query, results, paging, and errors', () async {
     final _FakeMusicSearchClient client = _FakeMusicSearchClient();
     final MusicSearchController controller = MusicSearchController(

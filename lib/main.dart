@@ -55,8 +55,9 @@ Future<void> main() async {
   final MusicAudioHandler audioHandler = await initMusicAudioHandler();
 
   await _ensureNotificationPermission();
-
-  unawaited(_clearAudioCache());
+  // Spotify-like: keep streaming/media disk cache across launches. Cleanup is
+  // size-based / user-initiated, not "wipe on every cold start".
+  unawaited(_pruneStreamingAudioCache());
 
   final DeviceAuthService deviceAuthService = DeviceAuthService();
   // Hard gate: do not mount the music shell until the device is activated.
@@ -71,16 +72,59 @@ Future<void> main() async {
   );
 }
 
-Future<void> _clearAudioCache() async {
+/// Prunes just_audio's on-disk streaming cache when it exceeds a soft budget.
+/// Offline downloads under application documents are never touched here.
+Future<void> _pruneStreamingAudioCache({
+  int maxBytes = 400 * 1024 * 1024,
+}) async {
   try {
     final Directory cacheDir = await getTemporaryDirectory();
     final Directory audioCache = Directory('${cacheDir.path}/just_audio_cache');
-    if (await audioCache.exists()) {
-      await audioCache.delete(recursive: true);
-      debugPrint('[cache] Cleared just_audio cache');
+    if (!await audioCache.exists()) {
+      return;
     }
+    final List<File> files = <File>[];
+    await for (final FileSystemEntity entity in audioCache.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is File) {
+        files.add(entity);
+      }
+    }
+    if (files.isEmpty) {
+      return;
+    }
+    final List<(File, int, DateTime)> stats = <(File, int, DateTime)>[];
+    int total = 0;
+    for (final File file in files) {
+      try {
+        final FileStat st = await file.stat();
+        stats.add((file, st.size, st.modified));
+        total += st.size;
+      } catch (_) {}
+    }
+    if (total <= maxBytes) {
+      return;
+    }
+    stats.sort(
+      ((File, int, DateTime) a, (File, int, DateTime) b) =>
+          a.$3.compareTo(b.$3),
+    );
+    for (final (File file, int size, DateTime _) in stats) {
+      if (total <= maxBytes) {
+        break;
+      }
+      try {
+        await file.delete();
+        total -= size;
+      } catch (_) {}
+    }
+    debugPrint(
+      '[cache] pruned streaming audio cache to ~${(total / (1024 * 1024)).toStringAsFixed(1)}MB',
+    );
   } catch (e) {
-    debugPrint('[cache] Failed to clear audio cache: $e');
+    debugPrint('[cache] Failed to prune audio cache: $e');
   }
 }
 
@@ -364,8 +408,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.86 (Build 10086)');
-    debugPrint('✅ Fixes: 一机一码激活闸门、CarLife 连接回传修复');
+    debugPrint('🚀 App Version: 1.0.87 (Build 10087)');
+    debugPrint('✅ Fixes: 缓存分层优化、播放页歌词居中、设备激活地址 music.yosyou.com');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -797,9 +841,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     );
   }
 
-  Future<void> _loadRecommendations() async {
+  Future<void> _loadRecommendations({bool forceRefresh = false}) async {
     await _musicSearchController.loadRecommendations(
       sources: <String>[_playlistSource],
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -810,7 +855,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     setState(() {
       _playlistSource = source;
     });
-    await _loadRecommendations();
+    // Source switch uses cache when available; pull-to-refresh forces network.
+    await _loadRecommendations(forceRefresh: false);
   }
 
   Set<String> get _downloadedSongKeys {
@@ -1075,6 +1121,24 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     } else {
       widget.audioHandler?.updateLyrics(const []);
     }
+    // Spotify-like: warm the next track's lyrics while the current one plays.
+    unawaited(_prefetchNextTrackLyrics());
+  }
+
+  Future<void> _prefetchNextTrackLyrics() async {
+    final List<FreeMusicSong> queue = _playbackQueue;
+    if (queue.length < 2) {
+      return;
+    }
+    final int current = _selectedQueueIndex;
+    if (current < 0 || current >= queue.length) {
+      return;
+    }
+    final int next = (current + 1) % queue.length;
+    if (next == current) {
+      return;
+    }
+    await _trackMetadataController.prefetchLyricsForSong(queue[next]);
   }
 
   Future<void> _loadQualitiesForSong(FreeMusicSong song) async {
@@ -2086,7 +2150,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> skipToQueueItem(int index) => _skipToQueueItem(index);
   Future<void> searchSongs() => _searchSongs();
   Future<void> loadMoreSearchResults() => _loadMoreSearchResults();
-  Future<void> retryLoadRecommendations() => _loadRecommendations();
+  Future<void> retryLoadRecommendations() =>
+      _loadRecommendations(forceRefresh: true);
   Future<void> playSearchResult(int index) => _playSearchResult(index);
   Future<void> addSearchResultToQueue(int index) =>
       _addSearchResultToQueue(index);
@@ -2166,8 +2231,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.86',
-        'build': 10086,
+        'version': '1.0.87',
+        'build': 10087,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

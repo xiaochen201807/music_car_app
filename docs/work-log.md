@@ -3,6 +3,25 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Device Auth Domain + Cache + Player Lyrics Layout (v1.0.87)
+
+- Point device activation at production CF custom domain `https://music.yosyou.com`.
+- GitHub Actions Android/iOS release builds inject
+  `--dart-define=DEVICE_AUTH_BASE_URL=https://music.yosyou.com`
+  (overridable via `DEVICE_AUTH_BASE_URL` var/secret).
+- Worker root `/` redirects to `/admin`; `/health` for connectivity checks.
+- Spotify-style cache layers: playlist catalog cache, lyrics LRU + next-track
+  prefetch, streaming cache prune instead of wipe-on-launch.
+- Player lyrics empty/loading state centered between transport and seek bar.
+
+## 2026-07-17 - Spotify-style multi-layer cache
+
+- Catalog (recommended playlists): memory + SharedPreferences; serve cache first, network only on empty or forceRefresh (pull-to-refresh).
+- Playlist detail tracks: session memory cache per source:id.
+- Lyrics: LRU (48) + in-flight de-dupe; prefetch next queue item after current lyrics load.
+- Next audio URL: existing native preload retained.
+- Streaming disk cache (just_audio): no longer wiped on every launch; prune oldest files above ~400MB soft budget. Offline downloads remain user-managed.
+
 ## 2026-07-17 - Device Activation Gate + CarLife Notify Fix (v1.0.86)
 
 Implemented in this increment:

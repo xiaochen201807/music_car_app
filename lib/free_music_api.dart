@@ -83,6 +83,20 @@ class FreeMusicPlaylist {
     this.playCount = 0,
   });
 
+  factory FreeMusicPlaylist.fromMap(Map<String, dynamic> map) {
+    return FreeMusicPlaylist(
+      id: '${map['id'] ?? ''}',
+      source: '${map['source'] ?? ''}',
+      name: '${map['name'] ?? ''}',
+      cover: '${map['cover'] ?? ''}',
+      creator: '${map['creator'] ?? ''}',
+      description: '${map['description'] ?? ''}',
+      link: '${map['link'] ?? ''}',
+      trackCount: _mapInt(map['trackCount']),
+      playCount: _mapInt(map['playCount']),
+    );
+  }
+
   final String id;
   final String source;
   final String name;
@@ -94,6 +108,33 @@ class FreeMusicPlaylist {
   final int playCount;
 
   bool get canLoad => id.isNotEmpty && source.isNotEmpty;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'id': id,
+      'source': source,
+      'name': name,
+      'cover': cover,
+      'creator': creator,
+      'description': description,
+      'link': link,
+      'trackCount': trackCount,
+      'playCount': playCount,
+    };
+  }
+}
+
+int _mapInt(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.round();
+  }
+  if (value is String) {
+    return int.tryParse(value) ?? 0;
+  }
+  return 0;
 }
 
 class FreeMusicRecommendResult {

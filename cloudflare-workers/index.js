@@ -15,6 +15,24 @@ export default {
     }
 
     try {
+      // 根路径：跳转到管理后台，避免打开 workers.dev 首页只看到伪装 404
+      if ((url.pathname === '/' || url.pathname === '') && method === 'GET') {
+        return Response.redirect(new URL('/admin', url).toString(), 302);
+      }
+
+      // 健康检查（部署/域名连通性探测）
+      if (url.pathname === '/health' && method === 'GET') {
+        return new Response(JSON.stringify({
+          ok: true,
+          service: 'music-car-auth',
+          hasKv: !!env.AUTH_DEVICES,
+          hasAdminKey: !!env.ADMIN_KEY,
+          hasSecretKey: !!env.SECRET_KEY,
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
       // 路由 1：获取可视化管理后台 HTML 页面
       if (url.pathname === '/admin' && method === 'GET') {
         return new Response(getAdminHtmlPage(), {

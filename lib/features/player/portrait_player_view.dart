@@ -165,113 +165,120 @@ class PortraitPlayerView extends StatelessWidget {
                       fallbackColor: seed,
                     ),
                   ),
-                  Positioned.fill(child: childWidget!),
+Positioned.fill(child: childWidget!),
                   Positioned(
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: _PlaybackPositionBuilder(
-                      stream: playbackPositionStream,
-                      initialState: playbackState,
-                      builder: (BuildContext context, PlaybackUiState state) {
-                        return PlayerSeekBar(
-                          position: state.position,
-                          bufferedPosition: state.bufferedPosition,
-                          duration: state.duration ?? duration,
-                          busy: state.isBusy,
-                          onSeek: onSeek,
-                        );
-                      },
+                    child: SafeArea(
+                      top: false,
+                      child: _PlaybackPositionBuilder(
+                        stream: playbackPositionStream,
+                        initialState: playbackState,
+                        builder: (BuildContext context, PlaybackUiState state) {
+                          return PlayerSeekBar(
+                            position: state.position,
+                            bufferedPosition: state.bufferedPosition,
+                            duration: state.duration ?? duration,
+                            busy: state.isBusy,
+                            onSeek: onSeek,
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ],
               );
             },
+        // Column (not scroll) so the lyrics band sits between transport and
+        // seek bar and can vertically center empty/loading states.
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: <Widget>[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpace.xl,
-                  AppSpace.md,
-                  AppSpace.xl,
-                  AppSpace.xl3,
-                ),
-                sliver: SliverList.list(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              AppSpace.md,
+              AppSpace.xl,
+              0,
+            ),
+            child: Column(
+              children: <Widget>[
+                Row(
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        PortraitCircleButton(
-                          icon: Icons.keyboard_arrow_down_rounded,
-                          label: '收起',
-                          onTap: onClose,
-                        ),
-                        const SizedBox(width: AppSpace.sm),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: <Widget>[
-                              Text(
-                                '正在播放',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colors.onSurfaceVariant,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '左滑下一首 · 右滑上一首 · 下滑收起',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colors.onSurfaceVariant.withValues(
-                                    alpha: 0.72,
-                                  ),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpace.sm),
-                        PortraitCircleButton(
-                          icon: favorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          label: favorite ? '取消收藏' : '收藏',
-                          selected: favorite,
-                          onTap: onToggleFavorite,
-                        ),
-                      ],
+                    PortraitCircleButton(
+                      icon: Icons.keyboard_arrow_down_rounded,
+                      label: '收起',
+                      onTap: onClose,
                     ),
-                    const SizedBox(height: AppSpace.lg),
-                    GestureDetector(
-                      onVerticalDragEnd: (DragEndDetails details) {
-                        if (details.primaryVelocity != null &&
-                            details.primaryVelocity! > 200) {
-                          onClose();
-                        }
-                      },
-                      onHorizontalDragEnd: (DragEndDetails details) {
-                        final double? velocity = details.primaryVelocity;
-                        if (velocity == null || velocity.abs() < 200) {
-                          return;
-                        }
-                        HapticFeedback.mediumImpact();
-                        // 左滑 = 下一首；右滑 = 上一首（与常见播放器一致）
-                        if (velocity < 0) {
-                          onNext();
-                        } else {
-                          onPrevious();
-                        }
-                      },
-                      child: _VinylTouchWrapper(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          onPlayPause();
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: <Widget>[
+                          Text(
+                            '正在播放',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '左滑下一首 · 右滑上一首 · 下滑收起',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.72,
+                              ),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    PortraitCircleButton(
+                      icon: favorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      label: favorite ? '取消收藏' : '收藏',
+                      selected: favorite,
+                      onTap: onToggleFavorite,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.md),
+                // Cap vinyl height so lyrics keep a stable band above the seek bar.
+                Flexible(
+                  flex: 5,
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: GestureDetector(
+                        onVerticalDragEnd: (DragEndDetails details) {
+                          if (details.primaryVelocity != null &&
+                              details.primaryVelocity! > 200) {
+                            onClose();
+                          }
                         },
-                        child: Hero(
-                          tag: 'now-playing-artwork',
-                          child: AspectRatio(
-                            aspectRatio: 1,
+                        onHorizontalDragEnd: (DragEndDetails details) {
+                          final double? velocity = details.primaryVelocity;
+                          if (velocity == null || velocity.abs() < 200) {
+                            return;
+                          }
+                          HapticFeedback.mediumImpact();
+                          if (velocity < 0) {
+                            onNext();
+                          } else {
+                            onPrevious();
+                          }
+                        },
+                        child: _VinylTouchWrapper(
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            onPlayPause();
+                          },
+                          child: Hero(
+                            tag: 'now-playing-artwork',
                             child: _SpinningVinylDisc(
                               spinning:
                                   playbackState.playing && animationsEnabled,
@@ -286,33 +293,42 @@ class PortraitPlayerView extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppSpace.lg),
-                    _PlayerTitleBlock(title: title, artist: artist),
-                    const SizedBox(height: AppSpace.md),
-                    _PlayerMetaRow(
-                      duration: duration,
-                      playbackState: playbackState,
-                      qualities: qualities,
-                      qualitiesBusy: qualitiesBusy,
-                      qualityError: qualityError,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                _PlayerTitleBlock(title: title, artist: artist),
+                const SizedBox(height: AppSpace.sm),
+                _PlayerMetaRow(
+                  duration: duration,
+                  playbackState: playbackState,
+                  qualities: qualities,
+                  qualitiesBusy: qualitiesBusy,
+                  qualityError: qualityError,
+                ),
+                if (playbackState.isBusy) ...<Widget>[
+                  const SizedBox(height: AppSpace.sm),
+                  _PlaybackLoadingBanner(playbackState: playbackState),
+                ],
+                const SizedBox(height: AppSpace.md),
+                _PlayerTransportBar(
+                  playing: playbackState.playing,
+                  busy: playbackState.isBusy,
+                  playbackMode: playbackMode,
+                  onPlaybackMode: onPlaybackMode,
+                  onPrevious: onPrevious,
+                  onPlayPause: onPlayPause,
+                  onNext: onNext,
+                  onQuality: onQuality,
+                ),
+                // Lyrics fill remaining space and center empty/loading copy.
+                Expanded(
+                  flex: 4,
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      top: AppSpace.md,
+                      bottom: 72,
                     ),
-                    if (playbackState.isBusy) ...<Widget>[
-                      const SizedBox(height: AppSpace.md),
-                      _PlaybackLoadingBanner(playbackState: playbackState),
-                    ],
-                    const SizedBox(height: AppSpace.lg),
-                    _PlayerTransportBar(
-                      playing: playbackState.playing,
-                      busy: playbackState.isBusy,
-                      playbackMode: playbackMode,
-                      onPlaybackMode: onPlaybackMode,
-                      onPrevious: onPrevious,
-                      onPlayPause: onPlayPause,
-                      onNext: onNext,
-                      onQuality: onQuality,
-                    ),
-                    const SizedBox(height: AppSpace.xl),
-                    _PlaybackPositionBuilder(
+                    child: _PlaybackPositionBuilder(
                       stream: playbackPositionStream,
                       initialState: playbackState,
                       builder: (BuildContext context, PlaybackUiState state) {
@@ -328,11 +344,10 @@ class PortraitPlayerView extends StatelessWidget {
                         );
                       },
                     ),
-                    const SizedBox(height: AppSpace.xl2),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

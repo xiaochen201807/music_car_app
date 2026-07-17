@@ -333,44 +333,38 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
     final ColorScheme colors = theme.colorScheme;
 
     if (widget.lyricsBusy) {
-      return const SizedBox(
-        height: 120,
-        child: Center(child: LuxuryLoadingIndicator()),
-      );
+      return const Center(child: LuxuryLoadingIndicator());
     }
     if (widget.lyricsError.isNotEmpty) {
-      return SizedBox(
-        height: 120,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Text(
-                '歌词加载失败',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.error,
-                ),
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text(
+              '歌词加载失败',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.error,
               ),
-              const SizedBox(height: AppSpace.xs),
-              TextButton.icon(
-                onPressed: widget.onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('重试'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-                ),
+            ),
+            const SizedBox(height: AppSpace.xs),
+            TextButton.icon(
+              onPressed: widget.onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('重试'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
     final List<FreeMusicLyricLine> lines = widget.lyrics?.lines ?? const [];
     if (lines.isEmpty) {
-      return SizedBox(
-        height: 120,
-        child: Center(
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
           child: Text(
             widget.lyrics?.raw.isNotEmpty == true
                 ? widget.lyrics!.raw
@@ -391,11 +385,9 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
       lead: lyricHighlightLead,
     );
 
-    return SizedBox(
-      height: 200,
-      child: GestureDetector(
-        onLongPress: _showOffsetAdjuster,
-        child: Stack(
+    return GestureDetector(
+      onLongPress: _showOffsetAdjuster,
+      child: Stack(
           children: <Widget>[
             ShaderMask(
               shaderCallback: (Rect rect) {
@@ -429,7 +421,7 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
                   controller: _scrollController,
                   itemCount: lines.length,
                   itemExtent: _lyricLineHeight,
-                  padding: const EdgeInsets.symmetric(vertical: 76.0),
+                  padding: const EdgeInsets.symmetric(vertical: 48.0),
                   physics: const BouncingScrollPhysics(
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
@@ -517,7 +509,6 @@ class _PlayerLyricsViewState extends State<PlayerLyricsView>
                 ),
               ),
           ],
-        ),
       ),
     );
   }

@@ -189,6 +189,7 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('缓存与存储管理'),
+        // Offline downloads only; streaming/lyrics caches auto-prune.
         actions: <Widget>[
           if (_tracks.isNotEmpty)
             TextButton.icon(
@@ -215,7 +216,7 @@ class _CacheManagerPageState extends State<CacheManagerPage> {
                       color: colors.onSurfaceVariant,
                     ),
                     const SizedBox(height: AppSpace.md),
-                    Text('暂无离线缓存', style: theme.textTheme.titleMedium),
+                    Text('暂无离线下载', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpace.xs),
                     Text(
                       '在播放页或歌单中下载歌曲后，将可以在这里查看和管理。',

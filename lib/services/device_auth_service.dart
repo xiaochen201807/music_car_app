@@ -133,7 +133,7 @@ class DeviceAuthService {
   /// `--dart-define=DEVICE_AUTH_BASE_URL=https://your-worker.workers.dev`
   static const String defaultBaseUrl = String.fromEnvironment(
     'DEVICE_AUTH_BASE_URL',
-    defaultValue: 'https://music-car-auth.sy110.nyc.mn',
+    defaultValue: 'https://music.yosyou.com',
   );
 
   static const MethodChannel _channel = MethodChannel(

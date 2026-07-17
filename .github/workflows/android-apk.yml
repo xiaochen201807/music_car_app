@@ -105,6 +105,15 @@ jobs:
           if [ -n "${SY110_PASSWORD:-}" ]; then
             build_args="$build_args --dart-define=SY110_PASSWORD=$SY110_PASSWORD"
           fi
+          # One-device activation server (Cloudflare Worker custom domain).
+          # Prefer repo variable/secret when set; otherwise use the production
+          # admin domain so release APKs always hit the live auth service.
+          device_auth_base_url="${DEVICE_AUTH_BASE_URL:-}"
+          if [ -z "$device_auth_base_url" ]; then
+            device_auth_base_url="https://music.yosyou.com"
+          fi
+          build_args="$build_args --dart-define=DEVICE_AUTH_BASE_URL=$device_auth_base_url"
+          echo "DEVICE_AUTH_BASE_URL=$device_auth_base_url"
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             version_name="${GITHUB_REF_NAME#v}"
             # Derive a monotonic versionCode as major*10000 + minor*100 + patch
@@ -126,6 +135,7 @@ jobs:
           CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
           SY110_USERNAME: ${{ secrets.SY110_USERNAME }}
           SY110_PASSWORD: ${{ secrets.SY110_PASSWORD }}
+          DEVICE_AUTH_BASE_URL: ${{ vars.DEVICE_AUTH_BASE_URL || secrets.DEVICE_AUTH_BASE_URL }}
 
       - name: List APK Outputs
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
