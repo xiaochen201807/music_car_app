@@ -235,7 +235,7 @@ void main() {
       return const CarLifeControlResult(handled: false, reason: 'unused');
     });
 
-    final ByteData? encoded = const StandardMethodCodec().encodeMethodCall(
+    final ByteData encoded = const StandardMethodCodec().encodeMethodCall(
       const MethodCall('onConnectionChanged', <String, Object?>{
         'available': true,
         'installed': true,
