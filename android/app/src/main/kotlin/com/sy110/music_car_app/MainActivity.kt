@@ -348,6 +348,7 @@ class MainActivity : AudioServiceActivity() {
         override fun onConnected() {
             carLifeSdkConnected = true
             lastCarLifeSdkError = ""
+            notifyCarLifeConnectionChanged()
         }
 
         override fun onCarlifeRequest(request: CLRequest) {

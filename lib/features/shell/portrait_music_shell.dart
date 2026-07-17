@@ -383,12 +383,14 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
       carLifeStatus: appState.carLifeStatus,
       carLifeSyncing: appState.isSyncingCarLife,
+      carPlayStatus: appState.carPlayStatus,
       onThemeModeChanged: appState.setThemeMode,
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
       onAudioEffectPresetChanged: appState.setAudioEffectPreset,
       onCheckUpdate: () => appState.checkForUpdate(),
       onOpenDownloads: () => appState.openDownloads(),
+      onOpenCarLife: () => appState.openCarLife(),
       onSyncCarLife: () => appState.syncCarLifeManually(),
       onCopyDiagnostics: () => appState.copyDiagnostics(),
     );

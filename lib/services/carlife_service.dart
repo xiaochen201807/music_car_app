@@ -3,29 +3,41 @@ import 'package:flutter/services.dart';
 import '../free_music_api.dart';
 
 class CarLifeService {
-  const CarLifeService({MethodChannel? channel})
+  CarLifeService({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel('music_car_app/carlife');
 
   final MethodChannel _channel;
+  void Function(CarLifeStatus status)? onConnectionChanged;
 
   void setControlHandler(
     Future<CarLifeControlResult> Function(CarLifeControlCommand command)?
     handler,
   ) {
-    if (handler == null) {
-      _channel.setMethodCallHandler(null);
-      return;
-    }
     _channel.setMethodCallHandler((MethodCall call) async {
+      if (call.method == 'onConnectionChanged') {
+        final CarLifeStatus status = CarLifeStatus.fromMap(
+          _asStringKeyMap(call.arguments),
+        );
+        onConnectionChanged?.call(status);
+        return null;
+      }
       if (call.method != 'onCarLifeControl') {
         throw MissingPluginException(
           'Unknown CarLife callback: ${call.method}',
         );
       }
+      final Future<CarLifeControlResult> Function(CarLifeControlCommand command)?
+      controlHandler = handler;
+      if (controlHandler == null) {
+        return const CarLifeControlResult(
+          handled: false,
+          reason: 'no_callback',
+        ).toMap();
+      }
       final CarLifeControlCommand command = CarLifeControlCommand.fromMap(
         _asStringKeyMap(call.arguments),
       );
-      final CarLifeControlResult result = await handler(command);
+      final CarLifeControlResult result = await controlHandler(command);
       return result.toMap();
     });
   }

@@ -241,7 +241,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   OverlayEntry? _activeToastEntry;
   CarLifePlaybackContext? _pendingSyncContext;
   final AppInstallerService _appInstallerService = const AppInstallerService();
-  final CarLifeService _carLifeService = const CarLifeService();
+  final CarLifeService _carLifeService = CarLifeService();
   CarPlayService? _carPlayService;
   CarLifeStatus _carLifeStatus = const CarLifeStatus(
     available: false,
@@ -250,6 +250,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     sdkLinked: false,
     reason: 'unchecked',
   );
+  CarPlayStatus _carPlayStatus = CarPlayStatus.unsupported;
   bool _isCheckingUpdate = false;
   bool _isInstallingUpdate = false;
   bool _isCheckingCarLife = false;
@@ -325,8 +326,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.84 (Build 10084)');
-    debugPrint('✅ Fixes: 全页 UI 统一、设置选中跟手、音乐库/搜索/播放交互优化');
+    debugPrint('🚀 App Version: 1.0.85 (Build 10085)');
+    debugPrint('✅ Fixes: CarLife/CarPlay 对接补齐、蓝牙歌词元数据修正');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -373,13 +374,45 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
           ..onSetShuffleMode = _handleSetShuffleModeFromSession
           ..attachToAudioHandler(widget.audioHandler)
           ..attachToCarLife();
+    _carLifeService.onConnectionChanged = (_) {
+      unawaited(_refreshCarLifeStatus());
+      if (_currentSong != null) {
+        unawaited(_syncCarLifePlaybackContext(showResult: false));
+      }
+    };
     if (defaultTargetPlatform == TargetPlatform.iOS &&
         widget.audioHandler != null) {
-      _carPlayService = CarPlayService(
-        widget.audioHandler!,
-        _nativeAudioController,
+      final CarPlayService carPlay = CarPlayService(
+        audioHandler: widget.audioHandler!,
+        nativeAudioController: _nativeAudioController,
       );
-      unawaited(_carPlayService!.init());
+      carPlay.onStatusChanged = (CarPlayStatus status) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _carPlayStatus = status;
+        });
+      };
+      carPlay.onPlay = () => _playbackController.resumeNativePlayback();
+      carPlay.onPause = () => _playbackController.pauseNativePlayback();
+      carPlay.onSkipNext = () async {
+        final bool handled = await _playbackController.skipToNext();
+        if (handled) {
+          _syncSelectedQueueIndexFromAudioController();
+        }
+        return handled;
+      };
+      carPlay.onSkipPrevious = () async {
+        final bool handled = await _playbackController.skipToPrevious();
+        if (handled) {
+          _syncSelectedQueueIndexFromAudioController();
+        }
+        return handled;
+      };
+      carPlay.onSelectQueueIndex = _skipToQueueItem;
+      _carPlayService = carPlay;
+      unawaited(carPlay.init());
     }
     WidgetsBinding.instance.addObserver(this);
     _queueController.addListener(_handlePlaybackStateChanged);
@@ -387,6 +420,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadStartupMusicContent());
       unawaited(_refreshCarLifeStatus());
+      unawaited(_carPlayService?.refreshStatus());
       if (widget.autoCheckForUpdates) {
         unawaited(_autoCheckForUpdate());
       }
@@ -546,7 +580,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     // force: external skips always re-bind so a previous in-flight load for
     // the same key (rare) or a missed clear cannot leave stale lyrics up.
     _bindMetadataForSong(song, force: true);
-    unawaited(_syncCarLifePlaybackContext(showResult: false));
+    unawaited(_syncExternalCarSurfaces(showResult: false));
   }
 
   Future<void> _loadApiBootstrap() async {
@@ -921,7 +955,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
         return;
       }
       _bindMetadataForSong(song, force: true);
-      unawaited(_syncCarLifePlaybackContext(showResult: false));
+      unawaited(_syncExternalCarSurfaces(showResult: false));
     } catch (e) {
       debugPrint('[main] _playSongQueue error: $e');
       if (mounted) {
@@ -987,7 +1021,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return false;
     }
     _bindMetadataForSong(targetSong, force: true);
-    unawaited(_syncCarLifePlaybackContext(showResult: false));
+    unawaited(_syncExternalCarSurfaces(showResult: false));
     return true;
   }
 
@@ -1516,6 +1550,16 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
+  Future<void> _syncExternalCarSurfaces({required bool showResult}) async {
+    unawaited(_syncCarLifePlaybackContext(showResult: showResult));
+    unawaited(
+      _carPlayService?.syncNowPlaying(
+        queue: _playbackQueue,
+        queueIndex: _selectedQueueIndex,
+      ),
+    );
+  }
+
   Future<void> _syncCarLifePlaybackContext({required bool showResult}) async {
     final CarLifePlaybackContext? context = _buildCarLifePlaybackContext();
     if (context == null) {
@@ -1931,6 +1975,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   bool get isLoadingQualities => _trackMetadataController.isLoadingQualities;
   String get qualityError => _trackMetadataController.qualityError;
   CarLifeStatus get carLifeStatus => _carLifeStatus;
+  CarPlayStatus get carPlayStatus => _carPlayStatus;
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2039,8 +2084,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.84',
-        'build': 10084,
+        'version': '1.0.85',
+        'build': 10085,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,

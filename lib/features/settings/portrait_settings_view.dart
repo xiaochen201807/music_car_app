@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/carlife_service.dart';
+import '../../services/carplay_service.dart';
 import '../../services/audio_effects_controller.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/glass_card.dart';
@@ -17,11 +18,13 @@ class PortraitSettingsView extends StatelessWidget {
     required this.updateBusy,
     required this.carLifeStatus,
     required this.carLifeSyncing,
+    required this.carPlayStatus,
     required this.onThemeModeChanged,
     required this.onPreferredBitrateChanged,
     required this.onAudioEffectPresetChanged,
     required this.onCheckUpdate,
     required this.onOpenDownloads,
+    required this.onOpenCarLife,
     required this.onSyncCarLife,
     required this.onCopyDiagnostics,
   });
@@ -33,11 +36,13 @@ class PortraitSettingsView extends StatelessWidget {
   final bool updateBusy;
   final CarLifeStatus carLifeStatus;
   final bool carLifeSyncing;
+  final CarPlayStatus carPlayStatus;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<String> onPreferredBitrateChanged;
   final ValueChanged<String> onAudioEffectPresetChanged;
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
+  final VoidCallback onOpenCarLife;
   final VoidCallback onSyncCarLife;
   final VoidCallback onCopyDiagnostics;
 
@@ -132,6 +137,46 @@ class PortraitSettingsView extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.lg),
           _SettingsSection(
+            title: '车载互联',
+            subtitle: '百度 CarLife 与 Apple CarPlay 状态',
+            children: <Widget>[
+              _SettingsRow(
+                icon: Icons.directions_car_filled_rounded,
+                title: '百度 CarLife',
+                subtitle: carLifeStatus.displayText,
+                trailing: carLifeSyncing
+                    ? LuxuryLoadingIndicator(size: 14)
+                    : const Icon(Icons.open_in_new_rounded),
+                onTap: carLifeSyncing ? null : onOpenCarLife,
+              ),
+              _SettingsRow(
+                icon: Icons.sync_rounded,
+                title: carLifeSyncing ? '正在同步队列' : '同步当前队列到 CarLife',
+                subtitle: carLifeStatus.installed
+                    ? '把当前播放队列和曲目推给 CarLife 模板'
+                    : '先安装百度 CarLife 再同步',
+                trailing: carLifeSyncing
+                    ? LuxuryLoadingIndicator(size: 14)
+                    : const Icon(Icons.chevron_right_rounded),
+                onTap: carLifeSyncing ? null : onSyncCarLife,
+              ),
+              _SettingsRow(
+                icon: Icons.apple_rounded,
+                title: 'Apple CarPlay',
+                subtitle: carPlayStatus.displayText,
+                trailing: Icon(
+                  carPlayStatus.connected
+                      ? Icons.check_circle_rounded
+                      : Icons.info_outline_rounded,
+                  color: carPlayStatus.connected
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
             title: '存储',
             subtitle: '离线内容与缓存入口',
             children: <Widget>[
@@ -166,7 +211,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.84 · 车载音乐播放器',
+                subtitle: '版本 1.0.85 · 车载音乐播放器',
               ),
             ],
           ),

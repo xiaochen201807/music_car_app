@@ -750,24 +750,21 @@ MediaItem _mediaItemWithBluetoothLyric(
   extras.remove(MusicAudioHandler._androidLyricMetadataKey);
   extras.remove(MusicAudioHandler._musicCarLyricMetadataKey);
 
-  if (lyric.isEmpty) {
-    return item.copyWith(
-      displayTitle: item.title,
-      displaySubtitle: item.artist,
-      displayDescription: _artistAlbumDescription(item),
-      extras: extras,
-    );
+  // Keep title/artist/album in the normal display fields. Putting the lyric into
+  // displaySubtitle makes many head units render it under the song title and
+  // leave the dedicated lyric surface empty. Lyrics go only into lyric metadata
+  // keys so AVRCP/MediaSession lyric consumers can pick them up.
+  if (lyric.isNotEmpty) {
+    extras['lyric'] = lyric;
+    extras['currentLyric'] = lyric;
+    extras['lyricPositionMs'] = position.inMilliseconds;
+    extras[MusicAudioHandler._androidLyricMetadataKey] = lyric;
+    extras[MusicAudioHandler._musicCarLyricMetadataKey] = lyric;
   }
-
-  extras['lyric'] = lyric;
-  extras['currentLyric'] = lyric;
-  extras['lyricPositionMs'] = position.inMilliseconds;
-  extras[MusicAudioHandler._androidLyricMetadataKey] = lyric;
-  extras[MusicAudioHandler._musicCarLyricMetadataKey] = lyric;
 
   return item.copyWith(
     displayTitle: item.title,
-    displaySubtitle: lyric,
+    displaySubtitle: item.artist,
     displayDescription: _artistAlbumDescription(item),
     extras: extras,
   );

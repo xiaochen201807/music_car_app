@@ -3,6 +3,34 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - CarLife / CarPlay Bridge + Bluetooth Lyric Fix (v1.0.85)
+
+Implemented in this increment:
+
+- Restored Settings **车载互联** with Baidu CarLife open/sync actions and live
+  status, plus Apple CarPlay connection status.
+- CarLife native `onConnected` now pushes `onConnectionChanged` so Flutter can
+  refresh status and re-sync the queue without a manual pull.
+- Replaced the CarPlay stub with a real MethodChannel bridge and native
+  `CPTemplateApplicationScene` list template (now playing + queue). Flutter
+  handles play/pause/skip/selectQueueItem and pushes queue snapshots on track
+  changes. iOS Info.plist scene + `com.apple.developer.carplay-audio`
+  entitlement are wired (Apple capability approval still required for production).
+- Fixed Bluetooth lyric metadata: current lyric no longer overwrites
+  `displaySubtitle` (artist); lyrics stay in dedicated lyric extras only.
+
+Verification in this increment:
+
+- `flutter test test/carlife_service_test.dart test/carplay_service_test.dart`
+- `flutter test test/widget_test.dart test/platform_media_bridge_test.dart`
+- `flutter test test/music_audio_handler_test.dart`
+- `flutter analyze` on the touched Dart files
+
+Packaging note:
+
+- Version bumped to `1.0.85+10085`. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
 ## 2026-07-17 - Unified Portrait UI + Settings Selection Sync (v1.0.84)
 
 Implemented in this increment:

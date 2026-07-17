@@ -33,7 +33,7 @@ void main() {
       };
     });
 
-    final CarLifeStatus status = await const CarLifeService(
+    final CarLifeStatus status = await CarLifeService(
       channel: channel,
     ).getStatus();
 
@@ -65,7 +65,7 @@ void main() {
       };
     });
 
-    final CarLifeStatus status = await const CarLifeService(
+    final CarLifeStatus status = await CarLifeService(
       channel: channel,
     ).getStatus();
 
@@ -85,7 +85,7 @@ void main() {
       };
     });
 
-    final CarLifeLaunchResult result = await const CarLifeService(
+    final CarLifeLaunchResult result = await CarLifeService(
       channel: channel,
     ).openCarLife();
 
@@ -124,7 +124,7 @@ void main() {
     });
 
     final CarLifeSyncResult result =
-        await const CarLifeService(channel: channel).syncPlaybackContext(
+        await CarLifeService(channel: channel).syncPlaybackContext(
           title: 'Highway Morning',
           artist: 'Native Radio',
           playing: true,
@@ -172,7 +172,7 @@ void main() {
 
   test('setControlHandler handles native CarLife control callbacks', () async {
     final List<CarLifeControlCommand> commands = <CarLifeControlCommand>[];
-    const CarLifeService(channel: channel).setControlHandler((
+    CarLifeService(channel: channel).setControlHandler((
       CarLifeControlCommand command,
     ) async {
       commands.add(command);
@@ -225,4 +225,38 @@ void main() {
     expect(map['source'], 'kuwo');
     expect(map['songId'], 'song-2');
   });
+
+
+  test('onConnectionChanged is delivered from native callback', () async {
+    final Completer<CarLifeStatus> completer = Completer<CarLifeStatus>();
+    final CarLifeService service = CarLifeService(channel: channel);
+    service.onConnectionChanged = completer.complete;
+    service.setControlHandler((CarLifeControlCommand command) async {
+      return const CarLifeControlResult(handled: false, reason: 'unused');
+    });
+
+    final ByteData? encoded = const StandardMethodCodec().encodeMethodCall(
+      const MethodCall('onConnectionChanged', <String, Object?>{
+        'available': true,
+        'installed': true,
+        'launchable': true,
+        'sdkLinked': true,
+        'appKeyConfigured': true,
+        'sdkInitialized': true,
+        'sdkConnected': true,
+        'packageName': 'com.baidu.carlife',
+        'integrationMode': 'sdk_platform',
+        'reason': 'sdk_connected',
+      }),
+    );
+    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .handlePlatformMessage(channel.name, encoded, (_) {});
+
+    final CarLifeStatus status = await completer.future.timeout(
+      const Duration(seconds: 2),
+    );
+    expect(status.sdkConnected, isTrue);
+    expect(status.displayText, 'SDK 已连接');
+  });
+
 }

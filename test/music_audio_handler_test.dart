@@ -285,7 +285,8 @@ void main() {
     expect(item.title, '晴天');
     expect(item.artist, '周杰伦');
     expect(item.displayTitle, '晴天');
-    expect(item.displaySubtitle, '第二句歌词');
+    // Artist stays under the title — lyric must not hijack displaySubtitle.
+    expect(item.displaySubtitle, '周杰伦');
     expect(item.displayDescription, '周杰伦');
     expect(item.extras?['audioUrl'], 'https://example.com/song.mp3');
     expect(item.extras?['lyric'], '第二句歌词');

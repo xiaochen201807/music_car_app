@@ -9,7 +9,7 @@ The app currently implements a CarLife platform-SDK bridge:
 - Android package visibility declarations for common CarLife packages.
 - Android `MethodChannel` named `music_car_app/carlife`.
 - Flutter service wrapper in `lib/services/carlife_service.dart`.
-- Native UI entry card labeled `百度 CarLife`.
+- Settings section **车载互联** with open / sync actions and live status text.
 - Package status probe for installed/launchable CarLife apps.
 - `openCarLife` action with app launch, market page, and web fallback.
 - `android/app/libs/Carlife_android_platformsdk_2.2.0.jar` is linked by
@@ -24,29 +24,13 @@ The app currently implements a CarLife platform-SDK bridge:
 - `CLGetSongDataReq` dispatches a Flutter `selectQueueItem` control callback so
   the phone app can switch playback to the requested queue item. The response
   still reports that CarLife byte streaming is unavailable.
+- Native `onConnected` now pushes `onConnectionChanged` back to Flutter so the
+  settings card and silent re-sync can react without a manual refresh.
 
 This is intentionally not marked as complete CarLife support yet. The app now
 links the Baidu platform SDK and can provide a current-queue music template to
 that SDK, but production behavior still depends on a project AppKey, platform
 approval, a real CarLife connection, and a validated audio-stream strategy.
-
-## Why This Shape
-
-Baidu's public CarLife example describes a platform workflow where an app is
-submitted, reviewed, enabled server-side, and then shown in CarLife's music
-surface. The same example says the app should also provide its own CarLife
-entry, and if CarLife is installed, users can sync music/program lists into
-CarLife.
-
-Baidu's CarLife+ open platform page describes an application, integration, and
-certification flow where Baidu assigns the required documents or SDK according
-to the project type. That means a production music integration should be built
-against the SDK/documentation received from Baidu, not guessed from unrelated
-vehicle-side protocol code.
-
-The open-source `674809/carlife` repository is useful reference material for
-the CarLife protocol and vehicle/head-unit side. It is not a ready Flutter
-phone-app SDK for injecting our music app into CarLife.
 
 ## Current SDK Hook
 
@@ -62,8 +46,10 @@ single handoff point between Flutter playback and the CarLife SDK callback:
 - `CLGetSongDataReq` routes selection back to Flutter and returns
   `phone_playback_dispatched_audio_stream_not_available` unless the item is not
   found.
+- Platform bridge handles play / pause / next / previous / selectQueueItem from
+  CarLife control callbacks.
 
-The remaining production work is:
+## Remaining production work
 
 - Configure and protect the project-specific `CARLIFE_APP_KEY` in GitHub
   Actions or release secrets.
@@ -73,31 +59,15 @@ The remaining production work is:
   chunks, or phone-side playback only.
 - Add byte-streaming through `CLSongData` only if the approved SDK flow requires
   the app to provide audio bytes to CarLife.
-- Confirm whether the approved SDK exposes play, pause, previous, and next
-  controls beyond the list/song-data request types present in the current jar.
 - Keep `audio_service` as the single playback authority.
 
 ## Validation Checklist
 
-- Install APK on an Android phone.
-- Install Baidu CarLife on the same phone.
+- Install APK on an Android phone and install Baidu CarLife.
 - Configure `CARLIFE_APP_KEY` for the Android build if validating the SDK path.
-- Open the app and confirm the `百度 CarLife` card reports either
-  `SDK 待配置 AppKey`, `SDK 已初始化`, or `SDK 已连接` as appropriate.
-- Play a real search or playlist song, tap the CarLife sync icon, and confirm
-  the app reports cached or initialized SDK state without losing the queue.
-- Tap `打开` and confirm Baidu CarLife starts after attempting silent context
-  sync.
-- From CarLife, request the current album/song list and confirm it reflects the
-  app's current queue.
-- Select a song from the CarLife list and confirm phone-side playback switches
-  to that queue item, while the SDK response clearly reports that byte streaming
-  is still unavailable.
-- Uninstall CarLife or test a clean device and confirm the button opens an
-  install/web fallback.
-- Connect to a CarLife-capable head unit and validate metadata, queue paging,
-  selected-item behavior, and any SDK control callbacks exposed by the approved
-  integration.
+- Open Settings → 车载互联 and confirm status text.
+- Play a song, tap sync, open CarLife, and confirm queue/select behavior.
+- Uninstall CarLife and confirm market/web fallback.
 
 ## References
 

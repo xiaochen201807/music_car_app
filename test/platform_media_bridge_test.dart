@@ -16,7 +16,7 @@ void main() {
       );
       final PlatformMediaBridge bridge = PlatformMediaBridge(
         playbackController: playback,
-        carLifeService: const CarLifeService(),
+        carLifeService: CarLifeService(),
       );
 
       int notifyCount = 0;
@@ -42,7 +42,7 @@ void main() {
     );
     final PlatformMediaBridge bridge = PlatformMediaBridge(
       playbackController: playback,
-      carLifeService: const CarLifeService(),
+      carLifeService: CarLifeService(),
     );
 
     int notifyCount = 0;
@@ -65,7 +65,7 @@ void main() {
     );
     final PlatformMediaBridge bridge = PlatformMediaBridge(
       playbackController: playback,
-      carLifeService: const CarLifeService(),
+      carLifeService: CarLifeService(),
     );
 
     int notifyCount = 0;
