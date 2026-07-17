@@ -87,8 +87,9 @@ enum CarPlayBridge {
 
     var items: [CPListItem] = []
     if queue.isEmpty {
+      // No handler: non-interactive placeholder. Avoid isEnabled (iOS 15+ only);
+      // project deployment target remains iOS 14 for broader device support.
       let empty = CPListItem(text: "队列为空", detailText: "在手机端播放后这里会显示歌曲")
-      empty.isEnabled = false
       items.append(empty)
     } else {
       for (index, song) in queue.enumerated() {
