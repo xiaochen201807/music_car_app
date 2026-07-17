@@ -56,8 +56,6 @@ class PortraitSettingsView extends StatelessWidget {
             updateBusy: updateBusy,
             onCheckUpdate: onCheckUpdate,
           ),
-          const SizedBox(height: AppSpace.lg),
-          _SettingsProfileCard(onCheckUpdate: onCheckUpdate, busy: updateBusy),
           const SizedBox(height: AppSpace.xl),
           _SettingsSection(
             title: '播放',
@@ -168,7 +166,7 @@ class PortraitSettingsView extends StatelessWidget {
               _SettingsRow(
                 icon: Icons.info_outline_rounded,
                 title: 'Music Car',
-                subtitle: '版本 1.0.82 · 车载音乐播放器',
+                subtitle: '版本 1.0.84 · 车载音乐播放器',
               ),
             ],
           ),
@@ -187,14 +185,16 @@ class PortraitSettingsView extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
     final bool isLight = theme.brightness == Brightness.light;
-    final bool isSelected = _qualityTier(preferredBitrate) == value;
+    final bool isSelected = qualityOptionSelected(preferredBitrate, value);
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.tile),
       onTap: () {
         HapticFeedback.selectionClick();
         onPreferredBitrateChanged(value);
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpace.md,
           vertical: AppSpace.sm,
@@ -260,24 +260,38 @@ class PortraitSettingsView extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _qualityTier(String bitrate) {
-    final String value = bitrate.toLowerCase();
-    if (value.contains('flac') ||
-        value.contains('lossless') ||
-        value.contains('无损')) {
-      return 'flac';
-    }
-    final int bitrateValue =
-        int.tryParse(RegExp(r'\d+').firstMatch(value)?.group(0) ?? '') ?? 128;
-    if (bitrateValue >= 192) {
-      return '320kmp3';
-    }
-    if (bitrateValue >= 128) {
-      return '128kmp3';
-    }
-    return '48kaac';
+/// Maps a stored preferred-bitrate string onto one of the four settings
+/// options. Exact option values win first so the selected chip tracks the
+/// user's last tap without waiting on an unrelated rebuild.
+bool qualityOptionSelected(String preferredBitrate, String optionValue) {
+  return qualityTierForBitrate(preferredBitrate) == optionValue;
+}
+
+String qualityTierForBitrate(String bitrate) {
+  final String value = bitrate.toLowerCase().trim();
+  switch (value) {
+    case '48kaac':
+    case '128kmp3':
+    case '320kmp3':
+    case 'flac':
+      return value;
   }
+  if (value.contains('flac') ||
+      value.contains('lossless') ||
+      value.contains('无损')) {
+    return 'flac';
+  }
+  final int bitrateValue =
+      int.tryParse(RegExp(r'\d+').firstMatch(value)?.group(0) ?? '') ?? 128;
+  if (bitrateValue >= 192) {
+    return '320kmp3';
+  }
+  if (bitrateValue >= 128) {
+    return '128kmp3';
+  }
+  return '48kaac';
 }
 
 class _AudioEffectsSection extends StatelessWidget {
@@ -413,77 +427,6 @@ IconData _audioEffectIcon(String presetId) {
       return Icons.record_voice_over_rounded;
     default:
       return Icons.music_note_rounded;
-  }
-}
-
-class _SettingsProfileCard extends StatelessWidget {
-  const _SettingsProfileCard({required this.onCheckUpdate, required this.busy});
-
-  final VoidCallback onCheckUpdate;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    final bool isLight = theme.brightness == Brightness.light;
-    return GlassCard(
-      radius: AppRadius.panel,
-      padding: const EdgeInsets.all(AppSpace.lg),
-      shadows: const <BoxShadow>[],
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.tile),
-              color: isLight
-                  ? colors.primaryContainer
-                  : colors.onSurface.withValues(alpha: 0.08),
-            ),
-            child: Icon(
-              Icons.music_note_rounded,
-              color: colors.primary,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: AppSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Music Car',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '车载音乐播放器',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: busy ? '检查中' : '检查更新',
-            onPressed: busy
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    onCheckUpdate();
-                  },
-            icon: busy
-                ? LuxuryLoadingIndicator(size: 16)
-                : const Icon(Icons.system_update_rounded),
-          ),
-        ],
-      ),
-    );
   }
 }
 

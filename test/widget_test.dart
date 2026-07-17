@@ -75,7 +75,9 @@ void main() {
 
     expect(find.text('音乐库'), findsWidgets);
     expect(find.text('收藏'), findsWidgets);
-    expect(find.text('当前队列'), findsOneWidget);
+    // Queue is a first-class tab now (was a trailing section titled 当前队列).
+    expect(find.text('队列'), findsWidgets);
+    expect(find.text('离线'), findsWidgets);
 
     // Enter player by tapping the mini player metadata area.
     await tester.tap(
@@ -83,7 +85,8 @@ void main() {
     );
     await pumpUi();
 
-    expect(find.text('Highway Morning - Native Radio'), findsOneWidget);
+    expect(find.text('Highway Morning'), findsOneWidget);
+    expect(find.text('Native Radio'), findsOneWidget);
     expect(find.text('等待歌词同步'), findsOneWidget);
     expect(find.text('音乐库'), findsWidgets);
 

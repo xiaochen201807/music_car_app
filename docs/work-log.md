@@ -3,6 +3,40 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-17 - Unified Portrait UI + Settings Selection Sync (v1.0.84)
+
+Implemented in this increment:
+
+- Unified the portrait shell language across Home / Search / Library / Settings
+  / Player: light page headers, bordered search pills, wrap chip sections,
+  outlined quick-access tiles, and shared empty-state + bottom-padding patterns.
+- Removed the redundant settings "Music Car" profile card; version stays in the
+  application section only.
+- Fixed settings selection lag for preferred bitrate and audio-effect presets by
+  scoping those fields (plus theme mode) into `MusicAppStateScope` and letting
+  `NativeMusicHomePage` listen to `AppSettingsController` directly.
+- Redesigned Library as first-class tabs (收藏 / 离线 / 队列), with immediate
+  queue skip, identity-stable batch selection, and tab-specific batch actions.
+- Redesigned Search with lazy result list, near-bottom auto load-more, clear
+  input, history/hot keyword chips, and a results toolbar play action.
+- Player now has a full transport bar (mode / prev / play / next / quality),
+  separate title+artist block, corrected swipe directions (left=next,
+  right=previous), and haptic feedback on mini-player controls.
+- Home drops unused legacy shelf/search-hero widgets and keeps the waterfall
+  recommendation path only.
+
+Verification in this increment:
+
+- `flutter test test/widget_test.dart`
+- `flutter test test/music_app_state_scope_test.dart`
+- `flutter test test/settings_quality_selection_test.dart`
+- `flutter analyze` on the touched feature files
+
+Packaging note:
+
+- Version bumped to `1.0.84+10084`. Release packaging remains delegated to
+  GitHub Actions after commit and tag push.
+
 ## 2026-07-16 - Fix Manual Skip Lyric Mismatch (v1.0.83)
 
 Implemented in this increment:

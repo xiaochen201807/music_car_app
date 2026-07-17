@@ -344,6 +344,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       query: appState.lastSearchQuery,
       favoriteSongKeys: appState.favoriteSongKeys,
       downloadedSongKeys: appState.downloadedSongKeys,
+      hotKeywords: appState.hotSearchKeywords,
       onSearch: appState.searchSongs,
       onLoadMore: appState.loadMoreSearchResults,
       onPlay: appState.playSearchResult,

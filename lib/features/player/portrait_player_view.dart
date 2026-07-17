@@ -218,13 +218,14 @@ class PortraitPlayerView extends StatelessWidget {
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
-                              const SizedBox(height: AppSpace.xs),
-                              MarqueeText(
-                                text: artist.isEmpty
-                                    ? title
-                                    : '$title - $artist',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
+                              const SizedBox(height: 2),
+                              Text(
+                                '左滑下一首 · 右滑上一首 · 下滑收起',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: colors.onSurfaceVariant.withValues(
+                                    alpha: 0.72,
+                                  ),
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -250,16 +251,16 @@ class PortraitPlayerView extends StatelessWidget {
                         }
                       },
                       onHorizontalDragEnd: (DragEndDetails details) {
-                        if (details.primaryVelocity != null) {
-                          if (details.primaryVelocity! < 0) {
-                            // 向左滑动 -> 上一首
-                            HapticFeedback.mediumImpact();
-                            onPrevious();
-                          } else if (details.primaryVelocity! > 0) {
-                            // 向右滑动 -> 下一首
-                            HapticFeedback.mediumImpact();
-                            onNext();
-                          }
+                        final double? velocity = details.primaryVelocity;
+                        if (velocity == null || velocity.abs() < 200) {
+                          return;
+                        }
+                        HapticFeedback.mediumImpact();
+                        // 左滑 = 下一首；右滑 = 上一首（与常见播放器一致）
+                        if (velocity < 0) {
+                          onNext();
+                        } else {
+                          onPrevious();
                         }
                       },
                       child: _VinylTouchWrapper(
@@ -286,6 +287,8 @@ class PortraitPlayerView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpace.lg),
+                    _PlayerTitleBlock(title: title, artist: artist),
+                    const SizedBox(height: AppSpace.md),
                     _PlayerMetaRow(
                       duration: duration,
                       playbackState: playbackState,
@@ -297,6 +300,17 @@ class PortraitPlayerView extends StatelessWidget {
                       const SizedBox(height: AppSpace.md),
                       _PlaybackLoadingBanner(playbackState: playbackState),
                     ],
+                    const SizedBox(height: AppSpace.lg),
+                    _PlayerTransportBar(
+                      playing: playbackState.playing,
+                      busy: playbackState.isBusy,
+                      playbackMode: playbackMode,
+                      onPlaybackMode: onPlaybackMode,
+                      onPrevious: onPrevious,
+                      onPlayPause: onPlayPause,
+                      onNext: onNext,
+                      onQuality: onQuality,
+                    ),
                     const SizedBox(height: AppSpace.xl),
                     _PlaybackPositionBuilder(
                       stream: playbackPositionStream,
@@ -315,26 +329,6 @@ class PortraitPlayerView extends StatelessWidget {
                       },
                     ),
                     const SizedBox(height: AppSpace.xl2),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpace.xl,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          PortraitCircleButton(
-                            icon: iconForPlaybackMode(playbackMode),
-                            label: labelForPlaybackMode(playbackMode),
-                            onTap: onPlaybackMode,
-                          ),
-                          PortraitCircleButton(
-                            icon: Icons.equalizer_rounded,
-                            label: '音质',
-                            onTap: onQuality,
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -342,6 +336,115 @@ class PortraitPlayerView extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PlayerTitleBlock extends StatelessWidget {
+  const _PlayerTitleBlock({required this.title, required this.artist});
+
+  final String title;
+  final String artist;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Column(
+      children: <Widget>[
+        MarqueeText(
+          text: title,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        if (artist.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PlayerTransportBar extends StatelessWidget {
+  const _PlayerTransportBar({
+    required this.playing,
+    required this.busy,
+    required this.playbackMode,
+    required this.onPlaybackMode,
+    required this.onPrevious,
+    required this.onPlayPause,
+    required this.onNext,
+    required this.onQuality,
+  });
+
+  final bool playing;
+  final bool busy;
+  final NativePlaybackMode playbackMode;
+  final VoidCallback onPlaybackMode;
+  final VoidCallback onPrevious;
+  final VoidCallback onPlayPause;
+  final VoidCallback onNext;
+  final VoidCallback onQuality;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: <Widget>[
+        PortraitCircleButton(
+          icon: iconForPlaybackMode(playbackMode),
+          label: labelForPlaybackMode(playbackMode),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onPlaybackMode();
+          },
+        ),
+        PortraitCircleButton(
+          icon: Icons.skip_previous_rounded,
+          label: '上一首',
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onPrevious();
+          },
+        ),
+        PortraitPlayButton(
+          playing: playing,
+          onTap: busy
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  onPlayPause();
+                },
+          size: 72,
+        ),
+        PortraitCircleButton(
+          icon: Icons.skip_next_rounded,
+          label: '下一首',
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onNext();
+          },
+        ),
+        PortraitCircleButton(
+          icon: Icons.equalizer_rounded,
+          label: '音质',
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onQuality();
+          },
+        ),
+      ],
     );
   }
 }
@@ -485,9 +588,7 @@ class _PlayerMetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Flat metadata row (no card). Song title/artist already live in the
-    // header marquee, so here we only surface transport status, duration and
-    // available quality tiers.
+    // Flat metadata row under the title block: status, duration, qualities.
     return Row(
       children: <Widget>[
         _PlaybackStatusPill(playbackState: playbackState),
@@ -875,12 +976,18 @@ class PortraitMiniPlayerBar extends StatelessWidget {
           const SizedBox(width: AppSpace.sm),
           IconButton(
             tooltip: '上一首',
-            onPressed: onPrevious,
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onPrevious();
+            },
             icon: const Icon(Icons.skip_previous_rounded),
           ),
           IconButton(
             tooltip: labelForPlaybackMode(playbackMode),
-            onPressed: onPlaybackMode,
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onPlaybackMode();
+            },
             icon: Icon(iconForPlaybackMode(playbackMode)),
           ),
           PortraitPlayButton(
@@ -894,12 +1001,18 @@ class PortraitMiniPlayerBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: '音质',
-            onPressed: onQuality,
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onQuality();
+            },
             icon: const Icon(Icons.equalizer_rounded),
           ),
           IconButton(
             tooltip: '下一首',
-            onPressed: onNext,
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              onNext();
+            },
             icon: const Icon(Icons.skip_next_rounded),
           ),
         ],

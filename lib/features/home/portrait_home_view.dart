@@ -3,16 +3,11 @@ import 'package:flutter/services.dart';
 import '../../free_music_api.dart';
 import '../../models/demo_track.dart';
 import '../../theme/design_tokens.dart';
-import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_chip.dart';
-import '../../shared/portrait_circle_button.dart';
-
 import '../../shared/portrait_message_card.dart';
 import '../../shared/portrait_section_header.dart';
-import '../../shared/portrait_surface.dart';
 import '../../shared/staggered_animated_item.dart';
-import '../../widgets/glass_card.dart';
 
 class PortraitHomeView extends StatefulWidget {
   const PortraitHomeView({
@@ -108,62 +103,46 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                     onOpenSettings: widget.onOpenSettings,
                   ),
                   if (_history != null && _history!.isNotEmpty) ...[
-                    const SizedBox(height: AppSpace.md),
-                    SizedBox(
-                      height: 38,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _history!.length + 1,
-                        itemBuilder: (BuildContext context, int index) {
-                          if (index == _history!.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(left: AppSpace.xs),
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _history!.clear();
-                                  });
-                                },
-                                tooltip: '清空历史',
-                              ),
-                            );
-                          }
-                          final String keyword = _history![index];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: AppSpace.sm),
-                            child: GestureDetector(
-                              onLongPress: () {
-                                setState(() {
-                                  _history!.removeAt(index);
-                                });
-                                ScaffoldMessenger.of(context).clearSnackBars();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('已删除历史: $keyword'),
-                                    duration: const Duration(seconds: 4),
-                                    action: SnackBarAction(
-                                      label: '撤销',
-                                      onPressed: () {
-                                        setState(() {
-                                          _history!.insert(index, keyword);
-                                        });
-                                      },
-                                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    _HomeChipSection(
+                      title: '最近搜索',
+                      actionLabel: '清空',
+                      onAction: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _history!.clear();
+                        });
+                      },
+                      children: <Widget>[
+                        for (int index = 0; index < _history!.length; index++)
+                          GestureDetector(
+                            onLongPress: () {
+                              final String keyword = _history![index];
+                              setState(() {
+                                _history!.removeAt(index);
+                              });
+                              ScaffoldMessenger.of(context).clearSnackBars();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('已删除历史: $keyword'),
+                                  duration: const Duration(seconds: 4),
+                                  action: SnackBarAction(
+                                    label: '撤销',
+                                    onPressed: () {
+                                      setState(() {
+                                        _history!.insert(index, keyword);
+                                      });
+                                    },
                                   ),
-                                );
-                              },
-                              child: PortraitChip(
-                                label: keyword,
-                                onTap: () => _useHistory(keyword),
-                              ),
+                                ),
+                              );
+                            },
+                            child: PortraitChip(
+                              label: _history![index],
+                              onTap: () => _useHistory(_history![index]),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: AppSpace.lg),
@@ -179,11 +158,16 @@ class _PortraitHomeViewState extends State<PortraitHomeView> {
                   ),
                   if (widget.hotSearchKeywords.isNotEmpty) ...[
                     const SizedBox(height: AppSpace.xl),
-                    PortraitSectionHeader(title: '热门搜索'),
-                    const SizedBox(height: AppSpace.md),
-                    _HorizontalKeywordShelf(
-                      keywords: widget.hotSearchKeywords,
-                      onTap: widget.onHotKeyword,
+                    _HomeChipSection(
+                      title: '热门搜索',
+                      children: <Widget>[
+                        for (final String keyword
+                            in widget.hotSearchKeywords.take(8))
+                          PortraitChip(
+                            label: keyword,
+                            onTap: () => widget.onHotKeyword(keyword),
+                          ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: AppSpace.xl2),
@@ -529,6 +513,7 @@ class _SpotifyHomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final int hour = DateTime.now().hour;
     final String greeting = hour < 11
         ? '早上好'
@@ -542,11 +527,23 @@ class _SpotifyHomeHeader extends StatelessWidget {
         Row(
           children: <Widget>[
             Expanded(
-              child: Text(
-                greeting,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    greeting,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    '搜索、收藏与推荐歌单',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
             IconButton(
@@ -556,12 +553,21 @@ class _SpotifyHomeHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpace.md),
-        GlassCard(
-          height: 48,
-          radius: AppRadius.pill,
+        const SizedBox(height: AppSpace.lg),
+        Container(
+          height: 52,
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-          shadows: const <BoxShadow>[],
+          decoration: BoxDecoration(
+            color: isLight
+                ? colors.surfaceContainerHighest.withValues(alpha: 0.55)
+                : colors.surfaceContainerHighest.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(
+                alpha: isLight ? 0.7 : 0.3,
+              ),
+            ),
+          ),
           child: Row(
             children: <Widget>[
               Icon(Icons.search_rounded, size: 22, color: colors.primary),
@@ -580,13 +586,98 @@ class _SpotifyHomeHeader extends StatelessWidget {
                     isDense: true,
                     hintText: '想听什么？',
                     hintStyle: TextStyle(
-                      color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.68),
+                    ),
+                  ),
+                ),
+              ),
+              InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onSearch();
+                },
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+                  decoration: BoxDecoration(
+                    color: isLight
+                        ? colors.primaryContainer
+                        : colors.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '搜索',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeChipSection extends StatelessWidget {
+  const _HomeChipSection({
+    required this.title,
+    required this.children,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final List<Widget> children;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            if (actionLabel != null && onAction != null)
+              InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                onTap: onAction,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.sm,
+                    vertical: AppSpace.xs,
+                  ),
+                  child: Text(
+                    actionLabel!,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.sm),
+        Wrap(
+          spacing: AppSpace.sm,
+          runSpacing: AppSpace.sm,
+          children: children,
         ),
       ],
     );
@@ -673,18 +764,28 @@ class _QuickAccessTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
-    return GlassCard(
-      radius: AppRadius.tile,
-      padding: EdgeInsets.zero,
-      shadows: const <BoxShadow>[],
+    final bool isLight = theme.brightness == Brightness.light;
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.tile),
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();
         },
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+          decoration: BoxDecoration(
+            color: isLight
+                ? colors.surfaceContainer
+                : colors.surfaceContainerHighest.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(
+                alpha: isLight ? 0.55 : 0.25,
+              ),
+            ),
+          ),
           child: Row(
             children: <Widget>[
               Container(
@@ -692,7 +793,9 @@ class _QuickAccessTile extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppRadius.control),
-                  color: colors.primary.withValues(alpha: 0.14),
+                  color: isLight
+                      ? colors.primaryContainer
+                      : colors.primary.withValues(alpha: 0.16),
                 ),
                 child: Icon(icon, color: colors.primary, size: 22),
               ),
@@ -725,411 +828,6 @@ class _QuickAccessTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _HorizontalKeywordShelf extends StatelessWidget {
-  const _HorizontalKeywordShelf({required this.keywords, required this.onTap});
-
-  final List<String> keywords;
-  final ValueChanged<String> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: keywords.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.sm),
-        itemBuilder: (BuildContext context, int index) {
-          final String keyword = keywords[index];
-          return PortraitChip(label: keyword, onTap: () => onTap(keyword));
-        },
-      ),
-    );
-  }
-}
-
-class PortraitHeroPlaylistShelf extends StatelessWidget {
-  const PortraitHeroPlaylistShelf({
-    super.key,
-    required this.playlists,
-    required this.busy,
-    required this.onSelect,
-  });
-
-  final List<FreeMusicPlaylist> playlists;
-  final bool busy;
-  final ValueChanged<FreeMusicPlaylist> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    if (playlists.isEmpty) {
-      return const PortraitFallbackGrid();
-    }
-    return SizedBox(
-      height: 178,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: playlists.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
-        itemBuilder: (BuildContext context, int index) {
-          final FreeMusicPlaylist playlist = playlists[index];
-          return SizedBox(
-            width: 220,
-            child: PortraitPlaylistHeroCard(
-              playlist: playlist,
-              visual: demoQueue[index % demoQueue.length],
-              onTap: busy ? null : () => onSelect(playlist),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class PortraitPlaylistHeroCard extends StatelessWidget {
-  const PortraitPlaylistHeroCard({
-    super.key,
-    required this.playlist,
-    required this.visual,
-    required this.onTap,
-  });
-
-  final FreeMusicPlaylist playlist;
-  final DemoTrack visual;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      onTap: onTap,
-      child: Stack(
-        children: <Widget>[
-          Positioned.fill(
-            child: PortraitArtwork(
-              visual: visual,
-              imageUrl: playlist.cover,
-              icon: Icons.queue_music_rounded,
-            ),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppRadius.card),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    colors.scrim.withValues(alpha: 0.02),
-                    colors.scrim.withValues(alpha: 0.76),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: AppSpace.md,
-            right: AppSpace.md,
-            bottom: AppSpace.md,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  playlist.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColor.textPrimary,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                if (playlist.creator.isNotEmpty) ...[
-                  const SizedBox(height: AppSpace.xs),
-                  Text(
-                    playlist.creator,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColor.textPrimary.withValues(alpha: 0.76),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class PortraitPlaylistHorizontalShelf extends StatelessWidget {
-  const PortraitPlaylistHorizontalShelf({
-    super.key,
-    required this.playlists,
-    required this.busy,
-    required this.onSelect,
-  });
-
-  final List<FreeMusicPlaylist> playlists;
-  final bool busy;
-  final ValueChanged<FreeMusicPlaylist> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 172,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: playlists.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
-        itemBuilder: (BuildContext context, int index) {
-          final FreeMusicPlaylist playlist = playlists[index];
-          return SizedBox(
-            width: 118,
-            child: PortraitPlaylistCard(
-              playlist: playlist,
-              visual: demoQueue[index % demoQueue.length],
-              onTap: busy ? null : () => onSelect(playlist),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class PortraitSearchHero extends StatefulWidget {
-  const PortraitSearchHero({
-    super.key,
-    required this.controller,
-    required this.onSearch,
-    this.autofocus = false,
-  });
-
-  final TextEditingController controller;
-  final VoidCallback onSearch;
-  final bool autofocus;
-
-  @override
-  State<PortraitSearchHero> createState() => _PortraitSearchHeroState();
-}
-
-class _PortraitSearchHeroState extends State<PortraitSearchHero> {
-  final FocusNode _focusNode = FocusNode();
-  bool _isFocused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(_onFocusChange);
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _onFocusChange() {
-    setState(() {
-      _isFocused = _focusNode.hasFocus;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.panel),
-        boxShadow: _isFocused
-            ? <BoxShadow>[
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: 0.08),
-                  blurRadius: 16,
-                  spreadRadius: 1,
-                ),
-              ]
-            : const <BoxShadow>[],
-      ),
-      child: GlassCard(
-        radius: AppRadius.panel,
-        shadows: const <BoxShadow>[],
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.panel),
-            border: Border.all(
-              color: _isFocused
-                  ? colors.primary.withValues(alpha: 0.45)
-                  : Colors.transparent,
-              width: 1.5,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.md,
-            vertical: AppSpace.xs,
-          ),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: _focusNode,
-                  autofocus: widget.autofocus,
-                  keyboardType: TextInputType.text,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => widget.onSearch(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: _isFocused
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                    ),
-                    hintText: '搜索歌曲、歌手或专辑',
-                    hintStyle: TextStyle(
-                      color: colors.onSurfaceVariant.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              BounceTouchable(
-                onTap: widget.onSearch,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.lg,
-                    vertical: AppSpace.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _isFocused
-                        ? colors.primary.withValues(alpha: 0.15)
-                        : colors.onSurface.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    border: Border.all(
-                      color: _isFocused
-                          ? colors.primary.withValues(alpha: 0.25)
-                          : Colors.white.withValues(alpha: 0.05),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    '搜索',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: _isFocused ? colors.primary : colors.onSurface,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class PortraitPlaylistGrid extends StatelessWidget {
-  const PortraitPlaylistGrid({
-    super.key,
-    required this.playlists,
-    required this.busy,
-    required this.onSelect,
-  });
-
-  final List<FreeMusicPlaylist> playlists;
-  final bool busy;
-  final ValueChanged<FreeMusicPlaylist> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<FreeMusicPlaylist> visible = playlists.take(6).toList();
-    if (visible.isEmpty) {
-      return const PortraitFallbackGrid();
-    }
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: visible.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: AppSpace.md,
-        mainAxisSpacing: AppSpace.md,
-        childAspectRatio: 0.88,
-      ),
-      itemBuilder: (BuildContext context, int index) {
-        return StaggeredAnimatedItem(
-          index: index,
-          child: PortraitPlaylistCard(
-            playlist: visible[index],
-            visual: demoQueue[index % demoQueue.length],
-            onTap: busy ? null : () => onSelect(visible[index]),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class PortraitPlaylistCard extends StatelessWidget {
-  const PortraitPlaylistCard({
-    super.key,
-    required this.playlist,
-    required this.visual,
-    required this.onTap,
-  });
-
-  final FreeMusicPlaylist playlist;
-  final DemoTrack visual;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              child: PortraitArtwork(
-                visual: visual,
-                imageUrl: playlist.cover,
-                icon: Icons.queue_music_rounded,
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            playlist.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1170,91 +868,6 @@ class PortraitFallbackGrid extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class PortraitTimelineTile extends StatelessWidget {
-  const PortraitTimelineTile({
-    super.key,
-    required this.song,
-    required this.index,
-  });
-
-  final FreeMusicSong song;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return Row(
-      children: <Widget>[
-        SizedBox(
-          width: AppSpace.xl3,
-          child: Column(
-            children: <Widget>[
-              Container(
-                width: AppSpace.sm,
-                height: AppSpace.sm,
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(height: AppSpace.xs),
-              Container(
-                width: 2,
-                height: AppSpace.xl3,
-                color: colors.outlineVariant,
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: PortraitSurface(
-            child: Row(
-              children: <Widget>[
-                PortraitArtwork(
-                  visual: demoQueue[index % demoQueue.length],
-                  imageUrl: song.cover,
-                  size: 52,
-                  icon: Icons.music_note_rounded,
-                ),
-                const SizedBox(width: AppSpace.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        song.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpace.xs),
-                      Text(
-                        song.artist.isEmpty ? song.source : song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  formatDuration(Duration(seconds: song.duration)),
-                  style: theme.textTheme.labelSmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

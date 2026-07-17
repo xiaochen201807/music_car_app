@@ -312,13 +312,23 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
   }
 
+  void _handleAppSettingsChanged() {
+    // AppSettingsController lives on MusicCarApp; also listen here so the
+    // shell/settings selection UI rebuilds immediately for bitrate/theme,
+    // without waiting for an unrelated queue/playback notify.
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.83 (Build 10083)');
-    debugPrint('✅ Fixes: 首页推荐歌单瀑布流与多源切换、音效单选网格、切歌歌词错位修复');
+    debugPrint('🚀 App Version: 1.0.84 (Build 10084)');
+    debugPrint('✅ Fixes: 全页 UI 统一、设置选中跟手、音乐库/搜索/播放交互优化');
     debugPrint('════════════════════════════════════════════════════════════');
+    widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
     _musicSearchController = MusicSearchController(
       client: FreeMusicSearchApiClient(_freeMusicApi),
@@ -391,6 +401,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   @override
   void dispose() {
+    widget.settingsController.removeListener(_handleAppSettingsChanged);
     _queueController.removeListener(_handlePlaybackStateChanged);
     _carPlayService?.dispose();
     _lyricBroadcastTimer?.cancel();
@@ -2028,8 +2039,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.83',
-        'build': 10083,
+        'version': '1.0.84',
+        'build': 10084,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,
@@ -2070,6 +2081,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       isLoadingApiBootstrap: _isLoadingApiBootstrap,
       recommendationError: _musicSearchController.recommendationError,
       apiBootstrapError: _apiBootstrapError,
+      // Settings fields must be scoped so shell rebuilds when they change;
+      // otherwise selection UI lags until an unrelated notify (e.g. next track).
+      preferredBitrate: preferredBitrate,
+      audioEffectsSettings: audioEffectsSettings,
+      themeMode: themeMode,
       child: const PortraitMusicScaffold(),
     );
   }

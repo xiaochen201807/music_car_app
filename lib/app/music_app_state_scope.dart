@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../free_music_api.dart';
 import '../main.dart';
 import '../native_audio_controller.dart';
+import '../services/audio_effects_controller.dart';
 
 /// 使用 InheritedWidget 构建的全局状态共享组件。
 /// 使子视图（Home, Player, Search, Library, Settings）免去层层构造传参的痛苦，
@@ -21,6 +22,9 @@ class MusicAppStateScope extends InheritedWidget {
     required this.isLoadingApiBootstrap,
     required this.recommendationError,
     required this.apiBootstrapError,
+    required this.preferredBitrate,
+    required this.audioEffectsSettings,
+    required this.themeMode,
     required super.child,
   });
 
@@ -36,6 +40,9 @@ class MusicAppStateScope extends InheritedWidget {
   final bool isLoadingApiBootstrap;
   final String recommendationError;
   final String apiBootstrapError;
+  final String preferredBitrate;
+  final AudioEffectsSettings audioEffectsSettings;
+  final ThemeMode themeMode;
 
   /// 静态便捷获取主状态的方法。
   static NativeMusicHomePageState of(BuildContext context) {
@@ -57,6 +64,9 @@ class MusicAppStateScope extends InheritedWidget {
         oldWidget.isLoadingRecommendations != isLoadingRecommendations ||
         oldWidget.isLoadingApiBootstrap != isLoadingApiBootstrap ||
         oldWidget.recommendationError != recommendationError ||
-        oldWidget.apiBootstrapError != apiBootstrapError;
+        oldWidget.apiBootstrapError != apiBootstrapError ||
+        oldWidget.preferredBitrate != preferredBitrate ||
+        oldWidget.audioEffectsSettings != audioEffectsSettings ||
+        oldWidget.themeMode != themeMode;
   }
 }
