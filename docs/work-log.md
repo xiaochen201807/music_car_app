@@ -3,6 +3,15 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-19 - Fix iOS launch crash from CarPlay bridge KVC (v1.0.96)
+
+iOS app aborted at launch (`SIGABRT` / `valueForUndefinedKey`) because
+`AppDelegate` used KVC `value(forKey:)` on `FlutterImplicitEngineBridge` for
+`binaryMessenger` / `engine`. Missing keys raise `NSUnknownKeyException`.
+
+- Configure `CarPlayBridge` only via plugin registrar messenger.
+- Remove KVC fallbacks on `FlutterImplicitEngineBridge`.
+
 ## 2026-07-18 - ChKSz backup music source (v1.0.95)
 
 Integrate free multi-platform API at `https://api.chksz.com` as a **backup**
