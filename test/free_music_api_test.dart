@@ -674,4 +674,258 @@ void main() {
     expect(requestMade, isTrue);
     expect(success, isTrue);
   });
+
+  test('FreeMusicApi falls back to ChKSz when sy110 song_url is empty', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org',
+      client: createMockClient(<String, http.Response Function(http.Request)>{
+        'songs/url': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 0,
+              'message': 'success',
+              'data': <String, dynamic>{
+                'url': '',
+                'playable': false,
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+        '163_music': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 200,
+              'msg': 'success',
+              'data': <String, dynamic>{
+                'url': 'https://cdn.chksz.example/backup.mp3',
+                'level': 'exhigh',
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+      }),
+    );
+
+    final FreeMusicResolvedUrl? resolved = await api.resolveSongUrl(
+      const FreeMusicSong(
+        id: '5257138',
+        source: 'netease',
+        name: '屋顶',
+        artist: '周杰伦',
+        duration: 319,
+      ),
+    );
+
+    expect(resolved?.url, 'https://cdn.chksz.example/backup.mp3');
+    expect(resolved?.source, 'netease');
+  });
+
+  test('FreeMusicApi switchSource matches via ChKSz search', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org',
+      client: createMockClient(<String, http.Response Function(http.Request)>{
+        '163_search': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 200,
+              'data': <String, dynamic>{
+                'songs': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'id': 9001,
+                    'name': '晴天',
+                    'artists': '周杰伦',
+                    'album': '叶惠美',
+                    'duration': 269000,
+                  },
+                ],
+                'total': 1,
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+      }),
+    );
+
+    final FreeMusicSourceSwitch? matched = await api.switchSource(
+      const FreeMusicSong(
+        id: 'kw-1',
+        source: 'kuwo',
+        name: '晴天',
+        artist: '周杰伦',
+        duration: 269,
+      ),
+      target: 'netease',
+    );
+
+    expect(matched, isNotNull);
+    expect(matched!.song.id, '9001');
+    expect(matched.song.source, 'netease');
+    expect(matched.score, greaterThanOrEqualTo(0.5));
+  });
+
+  test('FreeMusicApi falls back to ChKSz lyrics when sy110 returns empty', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org',
+      client: createMockClient(<String, http.Response Function(http.Request)>{
+        'lyrics/discover': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 0,
+              'message': 'success',
+              'data': <String, dynamic>{},
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+        '163_lyric': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 200,
+              'msg': 'success',
+              'data': <String, dynamic>{
+                'lrc': '[00:29.26]故事的小黄花\n[00:32.71]从出生那年就飘着',
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+      }),
+    );
+
+    final FreeMusicLyrics lyrics = await api.fetchLyrics(
+      const FreeMusicSong(
+        id: '186016',
+        source: 'netease',
+        name: '晴天',
+        artist: '周杰伦',
+        duration: 269,
+      ),
+    );
+
+    expect(lyrics.isEmpty, isFalse);
+    expect(lyrics.raw, contains('故事的小黄花'));
+    expect(lyrics.lines, isNotEmpty);
+  });
+
+  test('FreeMusicApi falls back to ChKSz playlist when sy110 is empty', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org',
+      client: createMockClient(<String, http.Response Function(http.Request)>{
+        'playlists/songs': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 0,
+              'message': 'success',
+              'data': <String, dynamic>{'list': <Map<String, dynamic>>[]},
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+        '163_playlist': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'data': <String, dynamic>{
+                'id': 3778678,
+                'name': '热歌榜',
+                'trackCount': 2,
+                'tracks': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'id': 1,
+                    'name': '歌曲A',
+                    'ar': <Map<String, dynamic>>[
+                      <String, dynamic>{'name': '歌手A'},
+                    ],
+                    'al': <String, dynamic>{
+                      'name': '专辑A',
+                      'picUrl': 'https://example.com/a.jpg',
+                    },
+                  },
+                  <String, dynamic>{
+                    'id': 2,
+                    'name': '歌曲B',
+                    'ar': <Map<String, dynamic>>[
+                      <String, dynamic>{'name': '歌手B'},
+                    ],
+                    'al': <String, dynamic>{
+                      'name': '专辑B',
+                      'picUrl': 'https://example.com/b.jpg',
+                    },
+                  },
+                ],
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+      }),
+    );
+
+    final FreeMusicPlaylistPage page = await api.fetchPlaylistSongs(
+      const FreeMusicPlaylist(
+        id: '3778678',
+        source: 'netease',
+        name: '热歌榜',
+      ),
+      size: 30,
+    );
+
+    expect(page.songs, hasLength(2));
+    expect(page.songs.first.source, 'netease');
+    expect(page.songs.first.name, '歌曲A');
+    expect(page.total, 2);
+  });
+
+  test('FreeMusicApi can disable ChKSz backup at runtime', () async {
+    final FreeMusicApi api = FreeMusicApi(
+      baseUri: 'https://music.sy110.eu.org',
+      client: createMockClient(<String, http.Response Function(http.Request)>{
+        'songs/url': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 0,
+              'message': 'success',
+              'data': <String, dynamic>{'url': '', 'playable': false},
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+        '163_music': (http.Request request) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'code': 200,
+              'data': <String, dynamic>{
+                'url': 'https://cdn.chksz.example/should-not-use.mp3',
+              },
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        },
+      }),
+    );
+
+    api.enableBackup = false;
+    final FreeMusicResolvedUrl? resolved = await api.resolveSongUrl(
+      const FreeMusicSong(
+        id: '5257138',
+        source: 'netease',
+        name: '屋顶',
+        artist: '周杰伦',
+        duration: 319,
+      ),
+    );
+
+    expect(resolved, isNull);
+  });
 }

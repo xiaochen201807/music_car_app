@@ -3,7 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const String themeModePreferenceKey = 'theme_mode';
 const String preferredBitratePreferenceKey = 'preferred_bitrate';
+const String backupMusicSourcePreferenceKey = 'backup_music_source_enabled';
 const String defaultPreferredBitrate = '320kmp3';
+const bool defaultBackupMusicSourceEnabled = true;
 
 class AppSettingsController extends ChangeNotifier {
   AppSettingsController({SharedPreferences? preferences})
@@ -12,10 +14,14 @@ class AppSettingsController extends ChangeNotifier {
   final SharedPreferences? _preferences;
   ThemeMode _themeMode = ThemeMode.system;
   String _preferredBitrate = defaultPreferredBitrate;
+  bool _backupMusicSourceEnabled = defaultBackupMusicSourceEnabled;
 
   ThemeMode get themeMode => _themeMode;
 
   String get preferredBitrate => _preferredBitrate;
+
+  /// When true, FreeMusicApi falls back to ChKSz after sy110 failures.
+  bool get backupMusicSourceEnabled => _backupMusicSourceEnabled;
 
   Future<void> load() async {
     try {
@@ -26,12 +32,17 @@ class AppSettingsController extends ChangeNotifier {
       final String nextPreferredBitrate =
           preferences.getString(preferredBitratePreferenceKey) ??
           defaultPreferredBitrate;
+      final bool nextBackupEnabled =
+          preferences.getBool(backupMusicSourcePreferenceKey) ??
+          defaultBackupMusicSourceEnabled;
       if (_themeMode == nextThemeMode &&
-          _preferredBitrate == nextPreferredBitrate) {
+          _preferredBitrate == nextPreferredBitrate &&
+          _backupMusicSourceEnabled == nextBackupEnabled) {
         return;
       }
       _themeMode = nextThemeMode;
       _preferredBitrate = nextPreferredBitrate;
+      _backupMusicSourceEnabled = nextBackupEnabled;
       notifyListeners();
     } catch (_) {}
   }
@@ -57,6 +68,18 @@ class AppSettingsController extends ChangeNotifier {
     try {
       final SharedPreferences preferences = await _getPreferences();
       await preferences.setString(preferredBitratePreferenceKey, bitrate);
+    } catch (_) {}
+  }
+
+  Future<void> setBackupMusicSourceEnabled(bool enabled) async {
+    if (_backupMusicSourceEnabled == enabled) {
+      return;
+    }
+    _backupMusicSourceEnabled = enabled;
+    notifyListeners();
+    try {
+      final SharedPreferences preferences = await _getPreferences();
+      await preferences.setBool(backupMusicSourcePreferenceKey, enabled);
     } catch (_) {}
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'services/chksz_music_api.dart';
 import 'services/sy110_auth_service.dart';
 
 class FreeMusicSong {
@@ -272,16 +273,34 @@ class FreeMusicApi {
     this.timeout = const Duration(seconds: 12),
     String? authUsername,
     String? authPassword,
+    ChkSzMusicApi? backupApi,
+    this.enableBackup = true,
   }) : _client = client ?? http.Client(),
        _authService = Sy110AuthService(
          client: client,
          username: authUsername,
          password: authPassword,
-       );
+       ),
+       _backupApi =
+           backupApi ??
+           ChkSzMusicApi(
+             // Reuse the injected client (e.g. MockClient in tests). When null,
+             // ChkSz creates and owns its own client.
+             client: client,
+             timeout: timeout,
+           ),
+       _ownsBackupApi = backupApi == null;
 
   final http.Client _client;
   final String baseUri;
   final Sy110AuthService _authService;
+  final ChkSzMusicApi _backupApi;
+  final bool _ownsBackupApi;
+
+  /// When true, search / URL resolve / lyrics / playlist / cross-source switch
+  /// fall back to [ChkSzMusicApi] after the primary sy110 backend fails or
+  /// returns empty. Mutable so settings can toggle it at runtime.
+  bool enableBackup;
 
   /// Network timeout applied to every request.
   final Duration timeout;
@@ -360,6 +379,45 @@ class FreeMusicApi {
         ? sources.first
         : 'netease';
 
+    try {
+      final FreeMusicSearchResult primary = await _searchSongsPrimary(
+        keyword,
+        page: page,
+        source: source,
+      );
+      if (primary.songs.isNotEmpty || !enableBackup) {
+        return primary;
+      }
+    } on FreeMusicApiException {
+      if (!enableBackup) {
+        rethrow;
+      }
+    } catch (_) {
+      if (!enableBackup) {
+        rethrow;
+      }
+    }
+
+    if (!enableBackup || !_backupApi.supportsSource(source)) {
+      return FreeMusicSearchResult(
+        songs: const <FreeMusicSong>[],
+        hasMore: false,
+        page: page,
+      );
+    }
+
+    return _backupApi.searchSongs(
+      keyword,
+      source: source,
+      page: page,
+    );
+  }
+
+  Future<FreeMusicSearchResult> _searchSongsPrimary(
+    String keyword, {
+    required int page,
+    required String source,
+  }) async {
     final Uri uri = Uri.parse('$baseUri/api/music/search/songs').replace(
       queryParameters: <String, String>{
         'q': keyword,
@@ -390,10 +448,10 @@ class FreeMusicApi {
 
     final Map<String, dynamic>? data = decoded['data'] as Map<String, dynamic>?;
     if (data == null) {
-      return const FreeMusicSearchResult(
-        songs: <FreeMusicSong>[],
+      return FreeMusicSearchResult(
+        songs: const <FreeMusicSong>[],
         hasMore: false,
-        page: 0,
+        page: page,
       );
     }
 
@@ -481,6 +539,55 @@ class FreeMusicApi {
       return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
     }
 
+    FreeMusicApiException? primaryError;
+    try {
+      final FreeMusicPlaylistPage primary = await _fetchPlaylistSongsPrimary(
+        playlist,
+        offset: offset,
+        size: size,
+      );
+      if (primary.songs.isNotEmpty || !enableBackup) {
+        return primary;
+      }
+    } on FreeMusicApiException catch (error) {
+      primaryError = error;
+      if (!enableBackup) {
+        rethrow;
+      }
+    } catch (_) {
+      if (!enableBackup) {
+        rethrow;
+      }
+    }
+
+    if (!enableBackup) {
+      return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
+    }
+
+    try {
+      final FreeMusicPlaylistPage backup = await _backupApi.fetchPlaylistSongs(
+        playlist,
+        offset: offset,
+        size: size,
+      );
+      if (backup.songs.isNotEmpty || primaryError == null) {
+        return backup;
+      }
+    } catch (_) {
+      // Fall through to primary error / empty.
+    }
+
+    if (primaryError != null) {
+      throw primaryError;
+    }
+    return const FreeMusicPlaylistPage(songs: <FreeMusicSong>[], total: 0);
+  }
+
+  Future<FreeMusicPlaylistPage> _fetchPlaylistSongsPrimary(
+    FreeMusicPlaylist playlist, {
+    required int offset,
+    required int size,
+  }) async {
     final int page = (offset ~/ size) + 1;
 
     final Uri uri =
@@ -536,6 +643,44 @@ class FreeMusicApi {
       return null;
     }
 
+    FreeMusicApiException? primaryError;
+    try {
+      final FreeMusicResolvedUrl? primary = await _resolveSongUrlPrimary(
+        song,
+        bitrate: bitrate,
+      );
+      if (primary != null && primary.url.isNotEmpty) {
+        return primary;
+      }
+    } on FreeMusicApiException catch (error) {
+      primaryError = error;
+    }
+
+    if (enableBackup) {
+      try {
+        final FreeMusicResolvedUrl? backup = await _backupApi.resolveSongUrl(
+          song,
+          bitrate: bitrate,
+        );
+        if (backup != null && backup.url.isNotEmpty) {
+          return backup;
+        }
+      } catch (_) {
+        // Keep the primary error (if any) so callers still see a useful
+        // failure when both backends miss.
+      }
+    }
+
+    if (primaryError != null) {
+      throw primaryError;
+    }
+    return null;
+  }
+
+  Future<FreeMusicResolvedUrl?> _resolveSongUrlPrimary(
+    FreeMusicSong song, {
+    required String bitrate,
+  }) async {
     final Uri uri =
         Uri.parse(
           '$baseUri/api/music/songs/url/${song.source}/${song.id}',
@@ -585,8 +730,12 @@ class FreeMusicApi {
     required String target,
     double minScore = 0.5,
   }) async {
-    // sy110 暂无跨源切换接口，返回 null
-    return null;
+    if (!enableBackup) {
+      return null;
+    }
+    // sy110 currently has no cross-source match API. Use ChKSz search on the
+    // target platform and pick the best name/artist/duration match.
+    return _backupApi.matchSong(song, target: target, minScore: minScore);
   }
 
   Future<FreeMusicQualityResult> fetchQualities(FreeMusicSong song) async {
@@ -610,6 +759,33 @@ class FreeMusicApi {
       return const FreeMusicLyrics(raw: '', lines: <FreeMusicLyricLine>[]);
     }
 
+    final FreeMusicLyrics primary = await _fetchLyricsPrimary(
+      song,
+      needWord: needWord,
+    );
+    if (!primary.isEmpty) {
+      return primary;
+    }
+
+    if (!enableBackup) {
+      return primary;
+    }
+
+    try {
+      final FreeMusicLyrics backup = await _backupApi.fetchLyrics(song);
+      if (!backup.isEmpty) {
+        return backup;
+      }
+    } catch (_) {
+      // Primary already empty; keep empty result.
+    }
+    return primary;
+  }
+
+  Future<FreeMusicLyrics> _fetchLyricsPrimary(
+    FreeMusicSong song, {
+    required bool needWord,
+  }) async {
     final Uri uri = Uri.parse('$baseUri/api/music/lyrics/discover').replace(
       queryParameters: <String, String>{
         'id': song.id,
@@ -1028,6 +1204,9 @@ class FreeMusicApi {
   void close() {
     _client.close();
     _authService.close();
+    if (_ownsBackupApi) {
+      _backupApi.close();
+    }
   }
 
   /// 从 sy110 API 返回的 Map 构建 FreeMusicSong

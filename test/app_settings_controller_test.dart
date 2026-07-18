@@ -10,10 +10,11 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  test('loads persisted theme mode and preferred bitrate', () async {
+  test('loads persisted theme mode, preferred bitrate and backup flag', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       themeModePreferenceKey: ThemeMode.dark.name,
       preferredBitratePreferenceKey: 'flac',
+      backupMusicSourcePreferenceKey: false,
     });
     final AppSettingsController controller = AppSettingsController();
 
@@ -21,7 +22,15 @@ void main() {
 
     expect(controller.themeMode, ThemeMode.dark);
     expect(controller.preferredBitrate, 'flac');
+    expect(controller.backupMusicSourceEnabled, isFalse);
 
+    controller.dispose();
+  });
+
+  test('defaults backup music source to enabled', () async {
+    final AppSettingsController controller = AppSettingsController();
+    await controller.load();
+    expect(controller.backupMusicSourceEnabled, isTrue);
     controller.dispose();
   });
 
@@ -35,13 +44,17 @@ void main() {
     await controller.setThemeMode(ThemeMode.light);
     await controller.setPreferredBitrate('128kmp3');
     await controller.setPreferredBitrate('128kmp3');
+    await controller.setBackupMusicSourceEnabled(false);
+    await controller.setBackupMusicSourceEnabled(false);
 
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     expect(controller.themeMode, ThemeMode.light);
     expect(controller.preferredBitrate, '128kmp3');
+    expect(controller.backupMusicSourceEnabled, isFalse);
     expect(preferences.getString(themeModePreferenceKey), ThemeMode.light.name);
     expect(preferences.getString(preferredBitratePreferenceKey), '128kmp3');
-    expect(notifyCount, 2);
+    expect(preferences.getBool(backupMusicSourcePreferenceKey), isFalse);
+    expect(notifyCount, 3);
 
     controller.dispose();
   });

@@ -378,6 +378,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
     return PortraitSettingsView(
       themeMode: appState.themeMode,
       preferredBitrate: appState.preferredBitrate,
+      backupMusicSourceEnabled: appState.backupMusicSourceEnabled,
       audioEffectsSettings: appState.audioEffectsSettings,
       audioEffectsSupported: appState.audioEffectsSupported,
       updateBusy: appState.isCheckingUpdate || appState.isInstallingUpdate,
@@ -389,6 +390,7 @@ class _PortraitMusicScaffoldState extends State<PortraitMusicScaffold> {
       onThemeModeChanged: appState.setThemeMode,
       onPreferredBitrateChanged: (String bitrate) =>
           appState.setPreferredBitrate(bitrate),
+      onBackupMusicSourceChanged: appState.setBackupMusicSourceEnabled,
       onAudioEffectPresetChanged: appState.setAudioEffectPreset,
       onCheckUpdate: () => appState.checkForUpdate(),
       onOpenDownloads: () => appState.openDownloads(),

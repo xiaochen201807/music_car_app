@@ -76,11 +76,26 @@ void main() {
       recommendationError: '',
       apiBootstrapError: '',
       preferredBitrate: '320kmp3',
+      backupMusicSourceEnabled: true,
       audioEffectsSettings: AudioEffectsSettings.off,
       themeMode: ThemeMode.system,
       playlistSource: 'kugou',
       recommendedPlaylists: const <FreeMusicPlaylist>[],
       child: const SizedBox.shrink(),
+    );
+    expect(after.updateShouldNotify(before), isTrue);
+  });
+
+  test('updateShouldNotify is true when backupMusicSourceEnabled changes', () {
+    final MusicAppStateScope before = _scope(
+      effects: AudioEffectsSettings.off,
+      preferredBitrate: '320kmp3',
+      backupMusicSourceEnabled: true,
+    );
+    final MusicAppStateScope after = _scope(
+      effects: AudioEffectsSettings.off,
+      preferredBitrate: '320kmp3',
+      backupMusicSourceEnabled: false,
     );
     expect(after.updateShouldNotify(before), isTrue);
   });
@@ -111,6 +126,7 @@ void main() {
                 recommendationError: '',
                 apiBootstrapError: '',
                 preferredBitrate: '320kmp3',
+                backupMusicSourceEnabled: true,
                 audioEffectsSettings: effects,
                 themeMode: ThemeMode.system,
                 playlistSource: 'netease',
@@ -149,6 +165,7 @@ MusicAppStateScope _scope({
   required AudioEffectsSettings effects,
   required String preferredBitrate,
   ThemeMode themeMode = ThemeMode.system,
+  bool backupMusicSourceEnabled = true,
 }) {
   return MusicAppStateScope(
     state: _UnusedHomeState(),
@@ -164,6 +181,7 @@ MusicAppStateScope _scope({
     recommendationError: '',
     apiBootstrapError: '',
     preferredBitrate: preferredBitrate,
+    backupMusicSourceEnabled: backupMusicSourceEnabled,
     audioEffectsSettings: effects,
     themeMode: themeMode,
     playlistSource: 'netease',

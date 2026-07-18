@@ -32,6 +32,7 @@ class PortraitSettingsView extends StatelessWidget {
     super.key,
     required this.themeMode,
     required this.preferredBitrate,
+    required this.backupMusicSourceEnabled,
     required this.audioEffectsSettings,
     required this.audioEffectsSupported,
     required this.updateBusy,
@@ -42,6 +43,7 @@ class PortraitSettingsView extends StatelessWidget {
     required this.appVersion,
     required this.onThemeModeChanged,
     required this.onPreferredBitrateChanged,
+    required this.onBackupMusicSourceChanged,
     required this.onAudioEffectPresetChanged,
     required this.onCheckUpdate,
     required this.onOpenDownloads,
@@ -55,6 +57,7 @@ class PortraitSettingsView extends StatelessWidget {
 
   final ThemeMode themeMode;
   final String preferredBitrate;
+  final bool backupMusicSourceEnabled;
   final AudioEffectsSettings audioEffectsSettings;
   final bool audioEffectsSupported;
   final bool updateBusy;
@@ -65,6 +68,7 @@ class PortraitSettingsView extends StatelessWidget {
   final String appVersion;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<String> onPreferredBitrateChanged;
+  final ValueChanged<bool> onBackupMusicSourceChanged;
   final ValueChanged<String> onAudioEffectPresetChanged;
   final VoidCallback onCheckUpdate;
   final VoidCallback onOpenDownloads;
@@ -122,6 +126,31 @@ class PortraitSettingsView extends StatelessWidget {
                 title: '无损',
                 subtitle: '可用时尝试无损',
                 icon: Icons.spatial_audio_off_rounded,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _SettingsSection(
+            title: '音源',
+            subtitle: '主源不可用时，自动切换备用解析服务',
+            children: <Widget>[
+              _SettingsRow(
+                icon: Icons.cloud_sync_rounded,
+                title: 'ChKSz 备用音源',
+                subtitle: backupMusicSourceEnabled
+                    ? '已开启 · 搜索/解析/歌词/歌单失败时兜底'
+                    : '已关闭 · 仅使用主音源',
+                trailing: Switch.adaptive(
+                  value: backupMusicSourceEnabled,
+                  onChanged: (bool value) {
+                    HapticFeedback.selectionClick();
+                    onBackupMusicSourceChanged(value);
+                  },
+                ),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onBackupMusicSourceChanged(!backupMusicSourceEnabled);
+                },
               ),
             ],
           ),

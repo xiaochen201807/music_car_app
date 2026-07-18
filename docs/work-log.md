@@ -3,6 +3,18 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-18 - ChKSz backup music source (v1.0.95)
+
+Integrate free multi-platform API at `https://api.chksz.com` as a **backup**
+when the primary sy110 backend fails or returns empty results.
+
+- New `lib/services/chksz_music_api.dart`: netease / QQ / kugou search, URL
+  resolve (with netease quality ladder), lyrics, and netease playlist tracks.
+- `FreeMusicApi` falls back for search, `resolveSongUrl`, lyrics, playlist
+  songs, and implements `switchSource` via ChKSz name/artist match.
+- Settings → 音源 → "ChKSz 备用音源" toggle (persisted, default on) syncs
+  `FreeMusicApi.enableBackup` at runtime.
+
 ## 2026-07-17 - Audio effect loudness parity with dry (v1.0.94)
 
 All effect presets sounded quieter than "原声" because EQ curves mixed cuts with

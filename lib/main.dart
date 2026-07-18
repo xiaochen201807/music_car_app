@@ -401,6 +401,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     // AppSettingsController lives on MusicCarApp; also listen here so the
     // shell/settings selection UI rebuilds immediately for bitrate/theme,
     // without waiting for an unrelated queue/playback notify.
+    // Keep FreeMusicApi backup flag in sync with the persisted preference.
+    _freeMusicApi.enableBackup = backupMusicSourceEnabled;
     if (mounted) {
       setState(() {});
     }
@@ -412,8 +414,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     _deviceAuthService = widget.deviceAuthService ?? DeviceAuthService();
     unawaited(_refreshDeviceAuthSnapshot());
     debugPrint('════════════════════════════════════════════════════════════');
-    debugPrint('🚀 App Version: 1.0.94 (Build 10094)');
-    debugPrint('✅ Fixes: 音效预设响度不低于原声（EQ 去负增益+抬升）');
+    debugPrint('🚀 App Version: 1.0.95 (Build 10095)');
+    debugPrint('✅ Fixes: ChKSz 备用音源（解析/歌词/歌单/跨源）+ 设置开关');
     debugPrint('════════════════════════════════════════════════════════════');
     widget.settingsController.addListener(_handleAppSettingsChanged);
     _libraryController.addListener(_handleLibraryChanged);
@@ -436,6 +438,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       api: _freeMusicApi,
       downloadService: _downloadService,
     );
+    // Align backup source with the already-loaded (or default) setting.
+    _freeMusicApi.enableBackup = backupMusicSourceEnabled;
     _playbackController = PlaybackController(
       nativeAudioController: _nativeAudioController,
       audioHandler: widget.audioHandler,
@@ -575,6 +579,9 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   String get preferredBitrate => widget.settingsController.preferredBitrate;
 
+  bool get backupMusicSourceEnabled =>
+      widget.settingsController.backupMusicSourceEnabled;
+
   ThemeMode get themeMode => widget.settingsController.themeMode;
 
   AudioEffectsSettings get audioEffectsSettings {
@@ -591,6 +598,11 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> setPreferredBitrate(String br) async {
     await widget.settingsController.setPreferredBitrate(br);
+  }
+
+  Future<void> setBackupMusicSourceEnabled(bool enabled) async {
+    await widget.settingsController.setBackupMusicSourceEnabled(enabled);
+    _freeMusicApi.enableBackup = enabled;
   }
 
   Future<void> setAudioEffectPreset(String presetId) async {
@@ -2085,7 +2097,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   DeviceAuthSnapshot get deviceAuthSnapshot => _deviceAuthSnapshot;
   DeviceAuthService get deviceAuthService => _deviceAuthService;
   // Keep in sync with pubspec / tag; used by share QR + diagnostics.
-  String get appVersionLabel => '1.0.94';
+  String get appVersionLabel => '1.0.95';
   bool get isCheckingUpdate => _isCheckingUpdate;
   bool get isInstallingUpdate => _isInstallingUpdate;
   bool get isCheckingCarLife => _isCheckingCarLife;
@@ -2244,8 +2256,8 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> copyDiagnostics() async {
     final String payload = _telemetry.exportJson(
       app: <String, Object?>{
-        'version': '1.0.94',
-        'build': 10094,
+        'version': '1.0.95',
+        'build': 10095,
         'currentSource': _currentSong?.source,
         'queueLength': _playbackQueue.length,
         'selectedQueueIndex': _selectedQueueIndex,
@@ -2289,6 +2301,7 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       // Settings fields must be scoped so shell rebuilds when they change;
       // otherwise selection UI lags until an unrelated notify (e.g. next track).
       preferredBitrate: preferredBitrate,
+      backupMusicSourceEnabled: backupMusicSourceEnabled,
       audioEffectsSettings: audioEffectsSettings,
       themeMode: themeMode,
       // Home catalog: chips + list must notify on source switch even if only

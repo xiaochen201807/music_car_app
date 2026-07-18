@@ -23,6 +23,7 @@ class MusicAppStateScope extends InheritedWidget {
     required this.recommendationError,
     required this.apiBootstrapError,
     required this.preferredBitrate,
+    required this.backupMusicSourceEnabled,
     required this.audioEffectsSettings,
     required this.themeMode,
     required this.playlistSource,
@@ -43,6 +44,7 @@ class MusicAppStateScope extends InheritedWidget {
   final String recommendationError;
   final String apiBootstrapError;
   final String preferredBitrate;
+  final bool backupMusicSourceEnabled;
   final AudioEffectsSettings audioEffectsSettings;
   final ThemeMode themeMode;
   final String playlistSource;
@@ -70,6 +72,7 @@ class MusicAppStateScope extends InheritedWidget {
         oldWidget.recommendationError != recommendationError ||
         oldWidget.apiBootstrapError != apiBootstrapError ||
         oldWidget.preferredBitrate != preferredBitrate ||
+        oldWidget.backupMusicSourceEnabled != backupMusicSourceEnabled ||
         oldWidget.audioEffectsSettings != audioEffectsSettings ||
         oldWidget.themeMode != themeMode ||
         // Catalog source chips + list must rebuild immediately on switch.
