@@ -3,6 +3,23 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-21 - Fix list-loop mode overwritten as sequential (v1.0.97)
+
+UI "列表循环" behaved like sequential play: last track did not wrap to the head.
+
+Root cause: `_cyclePlaybackMode` synced media session via `setRepeatMode` /
+`setShuffleMode`, which re-entered app callbacks. `_handleSetShuffleModeFromSession`
+treated `shuffle=none` as always-sequential and overwrote native `repeatAll` /
+`repeatOne`.
+
+Fix:
+- App-owned mode changes publish session chrome via
+  `MusicAudioHandler.publishPlaybackModes` (no `onSet*` callbacks).
+- Session command mapping uses both repeat + shuffle axes
+  (`nativePlaybackModeFromSessionModes`); shuffle=none keeps list/single loop.
+- Startup restore copies native `playbackMode` into `QueueController` and the
+  media session.
+
 ## 2026-07-19 - Fix iOS launch crash from CarPlay bridge KVC (v1.0.96)
 
 iOS app aborted at launch (`SIGABRT` / `valueForUndefinedKey`) because

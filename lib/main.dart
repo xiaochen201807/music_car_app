@@ -42,6 +42,7 @@ import 'app/music_app_state_scope.dart';
 import 'features/shell/portrait_music_shell.dart';
 import 'utils/cover_palette_manager.dart';
 import 'utils/lyrics_utils.dart';
+import 'utils/playback_mode_utils.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -834,9 +835,17 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
       return;
     }
     final FreeMusicSong song = restored[restoredIndex];
+    final NativePlaybackMode restoredMode =
+        _nativeAudioController.playbackMode;
     setState(() {
       _queueController.replace(restored, restoredIndex);
+      // Keep UI mode in lockstep with the authoritative native controller.
+      _queueController.setPlaybackMode(restoredMode);
     });
+    await _publishPlaybackModesToSession(restoredMode);
+    if (!mounted) {
+      return;
+    }
     _bindMetadataForSong(song, force: true);
     // Resume playback — NativeAudioController will re-resolve the audio URL
     // if needed, so this is safe to fire-and-forget.
@@ -1580,10 +1589,30 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     if (!mounted) {
       return;
     }
+    // Publish session chrome only — do not call setRepeatMode/setShuffleMode,
+    // which re-enter via onSet* callbacks and used to overwrite native mode
+    // (e.g. list-loop → sequential when shuffle was published as none).
+    await _publishPlaybackModesToSession(mode);
+    setState(() {
+      _queueController.setPlaybackMode(mode);
+    });
+  }
+
+  Future<void> _publishPlaybackModesToSession(NativePlaybackMode mode) async {
     final MusicAudioHandler? handler = widget.audioHandler;
-    if (handler != null) {
-      await handler.setRepeatMode(_repeatModeForNativeMode(mode));
-      await handler.setShuffleMode(_shuffleModeForNativeMode(mode));
+    if (handler == null) {
+      return;
+    }
+    await handler.publishPlaybackModes(
+      repeatMode: repeatModeForNativeMode(mode),
+      shuffleMode: shuffleModeForNativeMode(mode),
+    );
+  }
+
+  Future<void> _applyNativePlaybackMode(NativePlaybackMode mode) async {
+    await _playbackController.setPlaybackMode(mode);
+    if (!mounted) {
+      return;
     }
     setState(() {
       _queueController.setPlaybackMode(mode);
@@ -1593,36 +1622,27 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
   Future<void> _handleSetRepeatModeFromSession(
     AudioServiceRepeatMode repeatMode,
   ) async {
-    final NativePlaybackMode mode;
-    switch (repeatMode) {
-      case AudioServiceRepeatMode.one:
-        mode = NativePlaybackMode.repeatOne;
-      case AudioServiceRepeatMode.all:
-      case AudioServiceRepeatMode.group:
-        mode = NativePlaybackMode.repeatAll;
-      case AudioServiceRepeatMode.none:
-        mode = playbackMode == NativePlaybackMode.shuffle
-            ? NativePlaybackMode.shuffle
-            : NativePlaybackMode.sequential;
-    }
-    await _playbackController.setPlaybackMode(mode);
-    if (!mounted) return;
-    setState(() {
-      _queueController.setPlaybackMode(mode);
-    });
+    final MusicAudioHandler? handler = widget.audioHandler;
+    final AudioServiceShuffleMode shuffleMode =
+        handler?.sessionShuffleMode ?? AudioServiceShuffleMode.none;
+    final NativePlaybackMode mode = nativePlaybackModeFromSessionModes(
+      repeatMode: repeatMode,
+      shuffleMode: shuffleMode,
+    );
+    await _applyNativePlaybackMode(mode);
   }
 
   Future<void> _handleSetShuffleModeFromSession(
     AudioServiceShuffleMode shuffleMode,
   ) async {
-    final NativePlaybackMode mode = shuffleMode == AudioServiceShuffleMode.none
-        ? NativePlaybackMode.sequential
-        : NativePlaybackMode.shuffle;
-    await _playbackController.setPlaybackMode(mode);
-    if (!mounted) return;
-    setState(() {
-      _queueController.setPlaybackMode(mode);
-    });
+    final MusicAudioHandler? handler = widget.audioHandler;
+    final AudioServiceRepeatMode repeatMode =
+        handler?.sessionRepeatMode ?? AudioServiceRepeatMode.none;
+    final NativePlaybackMode mode = nativePlaybackModeFromSessionModes(
+      repeatMode: repeatMode,
+      shuffleMode: shuffleMode,
+    );
+    await _applyNativePlaybackMode(mode);
   }
 
   Future<void> _togglePlayback() async {
@@ -2406,27 +2426,6 @@ String _formatInstallBytes(int bytes) {
   }
   final double kib = bytes / 1024;
   return '${kib.toStringAsFixed(kib >= 10 ? 0 : 1)} KB';
-}
-
-// ==========================================
-// Global Conversion Helpers
-// ==========================================
-AudioServiceRepeatMode _repeatModeForNativeMode(NativePlaybackMode mode) {
-  switch (mode) {
-    case NativePlaybackMode.repeatOne:
-      return AudioServiceRepeatMode.one;
-    case NativePlaybackMode.repeatAll:
-      return AudioServiceRepeatMode.all;
-    case NativePlaybackMode.sequential:
-    case NativePlaybackMode.shuffle:
-      return AudioServiceRepeatMode.none;
-  }
-}
-
-AudioServiceShuffleMode _shuffleModeForNativeMode(NativePlaybackMode mode) {
-  return mode == NativePlaybackMode.shuffle
-      ? AudioServiceShuffleMode.all
-      : AudioServiceShuffleMode.none;
 }
 
 // ==========================================

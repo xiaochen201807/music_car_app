@@ -319,7 +319,7 @@ class NativeAudioController {
   /// [playlist] or [currentIndex] to ensure persisted data has been loaded.
   Future<void> waitForRestore() => _restoreFuture;
 
-  @visibleForTesting
+  /// Authoritative playback mode used by skip / wrap / shuffle selection.
   NativePlaybackMode get playbackMode => _playbackMode;
 
   Future<NativePlaybackMode> cyclePlaybackMode() async {

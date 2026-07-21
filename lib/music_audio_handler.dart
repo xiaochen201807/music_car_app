@@ -119,6 +119,15 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Duration? _lastObservedPosition;
   DateTime? _lastPlaybackProgressAt;
 
+  /// Current media-session repeat mode (after the last [setRepeatMode] or
+  /// [publishPlaybackModes] call). Used when mapping external session commands
+  /// that only change one axis (repeat XOR shuffle).
+  AudioServiceRepeatMode get sessionRepeatMode => _repeatMode;
+
+  /// Current media-session shuffle mode (after the last [setShuffleMode] or
+  /// [publishPlaybackModes] call).
+  AudioServiceShuffleMode get sessionShuffleMode => _shuffleMode;
+
   @override
   Stream<PlaybackEvent> get playbackEventStream => _player.playbackEventStream;
 
@@ -376,6 +385,9 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
     _repeatMode = repeatMode;
     _broadcastPlaybackState(_player.playbackEvent);
+    // System / notification session commands re-enter the app via callback.
+    // App-initiated display sync must use [publishPlaybackModes] instead so
+    // those callbacks do not overwrite NativeAudioController's mode.
     await onSetRepeatMode?.call(repeatMode);
   }
 
@@ -384,6 +396,19 @@ class MusicAudioHandler extends BaseAudioHandler implements NativeAudioPlayer {
     _shuffleMode = shuffleMode;
     _broadcastPlaybackState(_player.playbackEvent);
     await onSetShuffleMode?.call(shuffleMode);
+  }
+
+  /// Push repeat/shuffle into the media notification without firing
+  /// [onSetRepeatMode] / [onSetShuffleMode]. Use this when the app already
+  /// owns the authoritative [NativePlaybackMode] and only needs to update the
+  /// session chrome (avoids the cycle → session → callback overwrite loop).
+  Future<void> publishPlaybackModes({
+    required AudioServiceRepeatMode repeatMode,
+    required AudioServiceShuffleMode shuffleMode,
+  }) async {
+    _repeatMode = repeatMode;
+    _shuffleMode = shuffleMode;
+    _broadcastPlaybackState(_player.playbackEvent);
   }
 
   @override

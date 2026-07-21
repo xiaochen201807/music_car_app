@@ -724,6 +724,8 @@ void main() {
       handler.playbackState.value.shuffleMode,
       AudioServiceShuffleMode.all,
     );
+    expect(handler.sessionRepeatMode, AudioServiceRepeatMode.all);
+    expect(handler.sessionShuffleMode, AudioServiceShuffleMode.all);
     expect(repeatModes, <AudioServiceRepeatMode>[AudioServiceRepeatMode.all]);
     expect(shuffleModes, <AudioServiceShuffleMode>[
       AudioServiceShuffleMode.all,
@@ -731,6 +733,43 @@ void main() {
 
     await handler.dispose();
   });
+
+  test(
+    'publishPlaybackModes updates session chrome without app callbacks',
+    () async {
+      final MusicAudioHandler handler = MusicAudioHandler(
+        player: _FakeNativeAudioPlayer(),
+      );
+      var repeatCallbackCount = 0;
+      var shuffleCallbackCount = 0;
+      handler.onSetRepeatMode = (AudioServiceRepeatMode repeatMode) async {
+        repeatCallbackCount += 1;
+      };
+      handler.onSetShuffleMode = (AudioServiceShuffleMode shuffleMode) async {
+        shuffleCallbackCount += 1;
+      };
+
+      await handler.publishPlaybackModes(
+        repeatMode: AudioServiceRepeatMode.all,
+        shuffleMode: AudioServiceShuffleMode.none,
+      );
+
+      expect(
+        handler.playbackState.value.repeatMode,
+        AudioServiceRepeatMode.all,
+      );
+      expect(
+        handler.playbackState.value.shuffleMode,
+        AudioServiceShuffleMode.none,
+      );
+      expect(handler.sessionRepeatMode, AudioServiceRepeatMode.all);
+      expect(handler.sessionShuffleMode, AudioServiceShuffleMode.none);
+      expect(repeatCallbackCount, 0);
+      expect(shuffleCallbackCount, 0);
+
+      await handler.dispose();
+    },
+  );
 
   test(
     'checkForPlaybackStall skips next after ten seconds without progress',
