@@ -312,7 +312,6 @@ class NativeAudioController {
   bool _enableAudioPrebuffer;
   String? _prebufferedUrl;
   int? _prebufferedIndex;
-  int _prebufferBoundGeneration = -1;
 
   /// Last successful queue transition — used to detect rapid consecutive skips.
   DateTime? _lastQueueTransitionAt;
@@ -1110,7 +1109,6 @@ class NativeAudioController {
         await _stopPrebufferPlayer();
         _prebufferedIndex = null;
         _prebufferedUrl = null;
-        _prebufferBoundGeneration = -1;
         _scheduleLookaheadPreload();
         return true;
       }
@@ -1225,7 +1223,6 @@ class NativeAudioController {
       unawaited(_stopPrebufferPlayer());
       _prebufferedIndex = null;
       _prebufferedUrl = null;
-      _prebufferBoundGeneration = -1;
     }
     // Invalidate in-flight URL lookaheads; keep matching audio prebuffer.
     _preloadGeneration += 1;
@@ -1237,7 +1234,6 @@ class NativeAudioController {
       unawaited(_stopPrebufferPlayer());
       _prebufferedIndex = null;
       _prebufferedUrl = null;
-      _prebufferBoundGeneration = -1;
     }
   }
 
@@ -1365,7 +1361,6 @@ class NativeAudioController {
       }
       _prebufferedIndex = index;
       _prebufferedUrl = url;
-      _prebufferBoundGeneration = generation;
       debugPrint('[native-audio] audio prebuffered index=$index');
     } catch (error) {
       debugPrint('[native-audio] audio prebuffer failed: $error');
@@ -1376,7 +1371,6 @@ class NativeAudioController {
       await _stopPrebufferPlayer();
       _prebufferedIndex = null;
       _prebufferedUrl = null;
-      _prebufferBoundGeneration = -1;
     }
   }
 
@@ -1421,7 +1415,6 @@ class NativeAudioController {
     _prebufferPlayer = null;
     _prebufferedIndex = null;
     _prebufferedUrl = null;
-    _prebufferBoundGeneration = -1;
     if (player == null || identical(player, _injectedPreloadPlayer)) {
       // Injected fakes are owned by the test; only stop them.
       if (player != null) {

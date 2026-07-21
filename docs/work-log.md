@@ -3,6 +3,11 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-21 - Drop unused prebuffer generation field (v1.0.99)
+
+`flutter analyze` failed on unused `_prebufferBoundGeneration` (hit path only
+matches index+URL). Remove the field and all assignments.
+
 ## 2026-07-21 - Robust skip prebuffer (URL LRU + lookahead + secondary player) (v1.0.98)
 
 Consecutive skips made "prebuffer" useless because it was a single next-URL
