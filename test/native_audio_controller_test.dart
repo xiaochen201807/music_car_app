@@ -735,6 +735,207 @@ void main() {
     expect(handled, isFalse);
     expect(player.calls, isEmpty);
   });
+
+  test('resolved URL LRU is reused across consecutive skips', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FakeNativeAudioPlayer preload = FakeNativeAudioPlayer();
+    int resolveCount = 0;
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        if (_isAuthRequest(request)) {
+          return _authResponse();
+        }
+        final List<String> segments = request.url.pathSegments;
+        if (segments.length >= 5 &&
+            request.url.path.startsWith('/api/music/songs/url/')) {
+          resolveCount += 1;
+          final String id = segments.last;
+          return _songUrlResponse('https://example.com/$id.mp3');
+        }
+        return http.Response('Not Found', 404);
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+      preloadPlayer: preload,
+      enableAudioPrebuffer: true,
+      lookaheadDepth: 3,
+    );
+
+    await controller.syncFromProbe(
+      const PlayerProbeSnapshot(
+        audioUrl: '',
+        playing: true,
+        currentIndex: 0,
+        song: FreeMusicSong(
+          id: '1',
+          source: 'kuwo',
+          name: '七里香',
+          artist: '周杰伦',
+          duration: 290,
+        ),
+        playlist: <FreeMusicSong>[
+          FreeMusicSong(
+            id: '1',
+            source: 'kuwo',
+            name: '七里香',
+            artist: '周杰伦',
+            duration: 290,
+          ),
+          FreeMusicSong(
+            id: '2',
+            source: 'kuwo',
+            name: '晴天',
+            artist: '周杰伦',
+            duration: 269,
+          ),
+          FreeMusicSong(
+            id: '3',
+            source: 'kuwo',
+            name: '以父之名',
+            artist: '周杰伦',
+            duration: 341,
+          ),
+        ],
+      ),
+    );
+    // Allow lookahead to fill the URL cache for next tracks.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    final int afterLookahead = resolveCount;
+
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.currentIndex, 1);
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.currentIndex, 2);
+
+    // Skips should hit the short-term URL cache rather than re-resolve.
+    expect(resolveCount, afterLookahead);
+    expect(controller.resolvedUrlCacheContains(_song('2')), isTrue);
+    expect(controller.resolvedUrlCacheContains(_song('3')), isTrue);
+  });
+
+  test('stale lookahead cannot overwrite after generation bump', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final Completer<void> holdResolve = Completer<void>();
+    int resolveStarts = 0;
+    final FreeMusicApi api = FreeMusicApi(
+      client: MockClient((http.Request request) async {
+        if (_isAuthRequest(request)) {
+          return _authResponse();
+        }
+        final List<String> segments = request.url.pathSegments;
+        if (segments.length >= 5 &&
+            request.url.path.startsWith('/api/music/songs/url/')) {
+          resolveStarts += 1;
+          final String id = segments.last;
+          if (id == '2' && resolveStarts <= 2) {
+            await holdResolve.future;
+          }
+          return _songUrlResponse('https://example.com/$id.mp3');
+        }
+        return http.Response('Not Found', 404);
+      }),
+    );
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+      enableAudioPrebuffer: false,
+      lookaheadDepth: 2,
+    );
+
+    await controller.syncFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/1.mp3',
+        playing: true,
+        currentIndex: 0,
+        song: _song('1'),
+        playlist: <FreeMusicSong>[_song('1'), _song('2'), _song('3')],
+      ),
+    );
+    final int genAfterLoad = controller.preloadGeneration;
+
+    // Start a skip that bumps generation while a stale resolve is held.
+    final Future<bool> skipFuture = controller.skipToNext();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(controller.preloadGeneration, greaterThan(genAfterLoad));
+
+    holdResolve.complete();
+    expect(await skipFuture, isTrue);
+    // Give stale tasks a chance to finish; they must not crash or regress index.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(controller.currentIndex, 1);
+  });
+
+  test('rapid consecutive skips mark rapid transition and skip long fades', () async {
+    DateTime now = DateTime(2026, 7, 21, 12, 0, 0);
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer()..isPlaying = true;
+    final FreeMusicApi api = _resolvingApi();
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+      enableAudioPrebuffer: false,
+      clock: () => now,
+    );
+
+    await controller.syncFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/1.mp3',
+        playing: true,
+        currentIndex: 0,
+        song: _song('1'),
+        playlist: <FreeMusicSong>[_song('1'), _song('2'), _song('3')],
+      ),
+    );
+    // First queue skip establishes last transition time.
+    player.isPlaying = true;
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.lastLoadUsedRapidTransition, isFalse);
+
+    now = now.add(const Duration(milliseconds: 200));
+    player.isPlaying = true;
+    expect(await controller.skipToNext(), isTrue);
+    expect(controller.lastLoadUsedRapidTransition, isTrue);
+  });
+
+  test('secondary prebuffer player warms the immediate next track', () async {
+    final FakeNativeAudioPlayer player = FakeNativeAudioPlayer();
+    final FakeNativeAudioPlayer preload = FakeNativeAudioPlayer();
+    final FreeMusicApi api = _resolvingApi();
+    final NativeAudioController controller = NativeAudioController(
+      player: player,
+      api: api,
+      preloadPlayer: preload,
+      enableAudioPrebuffer: true,
+      lookaheadDepth: 2,
+    );
+
+    await controller.syncFromProbe(
+      PlayerProbeSnapshot(
+        audioUrl: 'https://example.com/1.mp3',
+        playing: true,
+        currentIndex: 0,
+        song: _song('1'),
+        playlist: <FreeMusicSong>[_song('1'), _song('2'), _song('3')],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(controller.prebufferedIndex, 1);
+    expect(controller.prebufferedUrl, 'https://example.com/2.mp3');
+    expect(preload.lastUrl, 'https://example.com/2.mp3');
+    expect(preload.calls, contains('setUrl:https://example.com/2.mp3'));
+  });
+}
+
+FreeMusicSong _song(String id) {
+  return FreeMusicSong(
+    id: id,
+    source: 'kuwo',
+    name: 'song-$id',
+    artist: 'artist',
+    duration: 200,
+  );
 }
 
 FreeMusicApi _resolvingApi({
@@ -791,6 +992,7 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
   final List<String> calls = <String>[];
   final Set<String> failLoadUrls = <String>{};
   bool isPlaying = false;
+  String? lastUrl;
 
   @override
   Duration get bufferedPosition => Duration.zero;
@@ -830,6 +1032,7 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
     String url,
     PlayerProbeSnapshot snapshot,
   ) async {
+    lastUrl = url;
     calls.add('setUrl:$url');
     if (failLoadUrls.contains(url)) {
       throw StateError('failed to load $url');
@@ -865,12 +1068,17 @@ class FakeNativeAudioPlayer implements NativeAudioPlayer {
 
   @override
   Future<void> setVolume(double volume) async {
-    // 音量渐变属于播放副效应，不影响核心音频调度断言
+    // Volume fades are timing side-effects; keep out of call traces used by
+    // core transport assertions. Rapid-skip coverage uses controller flags.
   }
 
   @override
   Future<Duration?> setUrl(String url) async {
+    lastUrl = url;
     calls.add('setUrl:$url');
+    if (failLoadUrls.contains(url)) {
+      throw StateError('failed to load $url');
+    }
     return null;
   }
 

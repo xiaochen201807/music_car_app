@@ -13,6 +13,7 @@ import 'services/app_telemetry.dart';
 import 'services/app_settings_controller.dart';
 import 'services/download_service.dart';
 import 'services/logger_service.dart';
+import 'services/lru_cache.dart';
 import 'services/playback_error_tracker.dart';
 
 enum NativePlaybackMode {
@@ -245,18 +246,35 @@ class NativeAudioController {
     SharedPreferences? preferences,
     DownloadService? downloadService,
     AppTelemetry? telemetry,
+    /// Optional secondary player used only to warm the next track's buffer.
+    /// Tests may inject a [FakeNativeAudioPlayer]; production leaves this null
+    /// and a silent [JustAudioNativePlayer] is created lazily.
+    NativeAudioPlayer? preloadPlayer,
+    bool enableAudioPrebuffer = true,
+    DateTime Function()? clock,
+    int urlCacheCapacity = _defaultUrlCacheCapacity,
+    int lookaheadDepth = _defaultLookaheadDepth,
   }) : _player = player ?? JustAudioNativePlayer(),
        _api = api ?? FreeMusicApi(),
        _downloadService = downloadService,
        _preferences = preferences,
        _telemetry = telemetry ?? AppTelemetry.instance,
        _logger = Logger(),
-       _errorTracker = PlaybackErrorTracker() {
+       _errorTracker = PlaybackErrorTracker(),
+       _injectedPreloadPlayer = preloadPlayer,
+       _enableAudioPrebuffer = enableAudioPrebuffer,
+       _clock = clock ?? DateTime.now,
+       _resolvedUrlCache = LruCache<String, String>(capacity: urlCacheCapacity),
+       _lookaheadDepth = lookaheadDepth.clamp(1, 8) {
     _updatePlaybackContext();
     _restoreFuture = _restoreState();
   }
 
   static const String _statePreferenceKey = 'native_audio_state_v1';
+  static const int _defaultUrlCacheCapacity = 48;
+  static const int _defaultLookaheadDepth = 3;
+  static const Duration _rapidSkipWindow = Duration(milliseconds: 1200);
+  static const Duration _normalFade = Duration(milliseconds: 250);
 
   final NativeAudioPlayer _player;
   final FreeMusicApi _api;
@@ -265,6 +283,10 @@ class NativeAudioController {
   final AppTelemetry _telemetry;
   final Logger _logger;
   final PlaybackErrorTracker _errorTracker;
+  final NativeAudioPlayer? _injectedPreloadPlayer;
+  final DateTime Function() _clock;
+  final LruCache<String, String> _resolvedUrlCache;
+  final int _lookaheadDepth;
   late final Future<void> _restoreFuture;
   String _loadedUrl = '';
   PlayerProbeSnapshot? _loadedSnapshot;
@@ -281,9 +303,20 @@ class NativeAudioController {
   List<String>? _cachedSources;
   static const List<String> _fallbackSources = <String>['netease', 'kuwo'];
 
-  /// 预加载缓存：下一首歌曲的 URL
-  String? _preloadedNextUrl;
-  int? _preloadedNextIndex;
+  /// Generation token for in-flight URL/audio preloads. Bumped on skip, mode
+  /// change, and queue replace so stale async work cannot poison slots.
+  int _preloadGeneration = 0;
+
+  /// Secondary silent player that warms the immediate next track.
+  NativeAudioPlayer? _prebufferPlayer;
+  bool _enableAudioPrebuffer;
+  String? _prebufferedUrl;
+  int? _prebufferedIndex;
+  int _prebufferBoundGeneration = -1;
+
+  /// Last successful queue transition — used to detect rapid consecutive skips.
+  DateTime? _lastQueueTransitionAt;
+  bool _lastLoadUsedRapidTransition = false;
 
   List<FreeMusicSong> get playlist => _playlist;
 
@@ -322,6 +355,26 @@ class NativeAudioController {
   /// Authoritative playback mode used by skip / wrap / shuffle selection.
   NativePlaybackMode get playbackMode => _playbackMode;
 
+  @visibleForTesting
+  int get preloadGeneration => _preloadGeneration;
+
+  @visibleForTesting
+  int get resolvedUrlCacheLength => _resolvedUrlCache.length;
+
+  @visibleForTesting
+  bool get lastLoadUsedRapidTransition => _lastLoadUsedRapidTransition;
+
+  @visibleForTesting
+  int? get prebufferedIndex => _prebufferedIndex;
+
+  @visibleForTesting
+  String? get prebufferedUrl => _prebufferedUrl;
+
+  @visibleForTesting
+  bool resolvedUrlCacheContains(FreeMusicSong song) {
+    return _resolvedUrlCache.containsKey(_songCacheKey(song));
+  }
+
   Future<NativePlaybackMode> cyclePlaybackMode() async {
     await _restoreFuture;
     await setPlaybackMode(_playbackMode.nextMode);
@@ -336,6 +389,9 @@ class NativeAudioController {
     _playbackMode = mode;
     await _persistState(immediate: true);
     debugPrint('[native-audio] playback mode set: ${mode.storageValue}');
+    // Lookahead depends on mode (shuffle vs sequential wrap).
+    _invalidateInFlightPreloads(stopAudioPrebuffer: true);
+    _scheduleLookaheadPreload();
   }
 
   Future<bool> syncFromProbe(PlayerProbeSnapshot snapshot) async {
@@ -438,12 +494,14 @@ class NativeAudioController {
         'index': snapshot.currentIndex,
       },
     );
+    _scheduleLookaheadPreload();
     return true;
   }
 
   Future<void> syncQueueFromProbe(PlayerProbeSnapshot snapshot) async {
     await _restoreFuture;
     _syncQueue(snapshot);
+    _scheduleLookaheadPreload();
   }
 
   Future<bool> resumePlayback() async {
@@ -602,6 +660,7 @@ class NativeAudioController {
       );
       return false;
     }
+    _prepareForQueueTransition(targetIndex: index);
     return _loadQueueIndex(index, playWhenReady: true);
   }
 
@@ -611,6 +670,8 @@ class NativeAudioController {
 
   Future<void> dispose() async {
     _persistTimer?.cancel();
+    _invalidateInFlightPreloads(stopAudioPrebuffer: true);
+    await _disposePrebufferPlayer();
     await _performPersist();
     _api.close();
     await _player.dispose();
@@ -638,15 +699,27 @@ class NativeAudioController {
             debugPrint(
               '[native-audio] cache hit for ${snapshot.debugTitle}, playing local file',
             );
+            _rememberResolvedUrl(song, physicalPath);
             return physicalPath;
           } else {
             unawaited(ds.deleteTrack(song.source, song.id));
           }
         }
       }
+
+      final String? cachedUrl = _resolvedUrlCache.get(_songCacheKey(song));
+      if (cachedUrl != null && cachedUrl.isNotEmpty) {
+        debugPrint(
+          '[native-audio] url-cache hit for ${snapshot.debugTitle}',
+        );
+        return cachedUrl;
+      }
     }
 
     if (snapshot.hasAudioUrl) {
+      if (song != null) {
+        _rememberResolvedUrl(song, snapshot.audioUrl);
+      }
       return snapshot.audioUrl;
     }
     if (song == null || !song.canResolve) {
@@ -666,12 +739,14 @@ class NativeAudioController {
       final String url = resolved?.url ?? '';
       if (url.isNotEmpty) {
         debugPrint('[native-audio] resolved ${snapshot.debugTitle}');
+        _rememberResolvedUrl(song, url);
         _telemetry.record(
           'url_resolve',
           duration: stopwatch.elapsed,
           attributes: <String, Object?>{
             'source': song.source,
             'bitrate': preferredBitrate,
+            'cache': 'network',
           },
         );
         return url;
@@ -734,6 +809,9 @@ class NativeAudioController {
             '[native-audio] resolved ${snapshot.debugTitle} via $target '
             '(score ${matched.score.toStringAsFixed(2)})',
           );
+          // Cache under the original song key so subsequent plays of the same
+          // queue item reuse the working alternate URL.
+          _rememberResolvedUrl(song, url);
           _telemetry.record(
             'source_fallback',
             duration: stopwatch.elapsed,
@@ -790,19 +868,15 @@ class NativeAudioController {
     if (snapshot.currentIndex >= 0 &&
         snapshot.currentIndex < _playlist.length) {
       _currentIndex = snapshot.currentIndex;
-      debugPrint(
-        '[native-audio] queue synced: length=${_playlist.length} '
-        'index=$_currentIndex',
-      );
-      _updatePlaybackContext();
-      unawaited(_persistState());
-      return;
+    } else {
+      _currentIndex = _indexOfSong(snapshot.song);
     }
-    _currentIndex = _indexOfSong(snapshot.song);
     debugPrint(
       '[native-audio] queue synced: length=${_playlist.length} '
       'index=$_currentIndex',
     );
+    // Queue identity changed — drop in-flight lookaheads / secondary buffer.
+    _invalidateInFlightPreloads(stopAudioPrebuffer: true);
     _updatePlaybackContext();
     unawaited(_persistState());
   }
@@ -823,6 +897,7 @@ class NativeAudioController {
       );
       return false;
     }
+    _prepareForQueueTransition(targetIndex: targetIndex);
     return _loadQueueIndex(
       targetIndex,
       playWhenReady: _wantsPlayback || _player.playing,
@@ -856,14 +931,16 @@ class NativeAudioController {
     return -1;
   }
 
-  /// 获取下一首的索引（用于预加载）
-  int _getNextIndex() {
-    return _targetIndexForOffset(1);
-  }
-
   Future<void> _fadeOut(Duration duration) async {
+    if (duration <= Duration.zero) {
+      await _player.setVolume(0);
+      return;
+    }
     const int steps = 10;
-    final int intervalMs = (duration.inMilliseconds / steps).round();
+    final int intervalMs = (duration.inMilliseconds / steps).round().clamp(
+      1,
+      100,
+    );
     for (int i = steps; i >= 0; i--) {
       final double vol = i / steps;
       await _player.setVolume(vol);
@@ -872,8 +949,15 @@ class NativeAudioController {
   }
 
   Future<void> _fadeIn(Duration duration) async {
+    if (duration <= Duration.zero) {
+      await _player.setVolume(1.0);
+      return;
+    }
     const int steps = 10;
-    final int intervalMs = (duration.inMilliseconds / steps).round();
+    final int intervalMs = (duration.inMilliseconds / steps).round().clamp(
+      1,
+      100,
+    );
     for (int i = 0; i <= steps; i++) {
       final double vol = i / steps;
       await _player.setVolume(vol);
@@ -888,6 +972,8 @@ class NativeAudioController {
     }
     _wantsPlayback = playWhenReady ?? _wantsPlayback;
     _isQueueLoading = true;
+    final bool rapidTransition = _shouldUseRapidTransition();
+    _lastLoadUsedRapidTransition = rapidTransition;
     try {
       // Walk the queue until a track resolves+loads, or the failure budget
       // is exhausted. Prevents "stuck paused while notification still plays".
@@ -930,17 +1016,13 @@ class NativeAudioController {
           duration: Duration(seconds: song.duration),
         );
 
-        String audioUrl = '';
-        if (_preloadedNextIndex == attemptIndex && _preloadedNextUrl != null) {
-          audioUrl = _preloadedNextUrl!;
-          debugPrint(
-            '[native-audio] using preloaded URL for ${snapshot.debugTitle}',
-          );
-          _preloadedNextUrl = null;
-          _preloadedNextIndex = null;
-        } else {
-          audioUrl = await _resolveAudioUrl(snapshot);
-        }
+        // URL resolve hits the short-term LRU first (and any download path).
+        final String audioUrl = await _resolveAudioUrl(snapshot);
+        // Index+URL match is enough: generation is only for in-flight writers.
+        final bool audioPrebufferHit =
+            _prebufferedIndex == attemptIndex &&
+            _prebufferedUrl != null &&
+            _prebufferedUrl == audioUrl;
 
         if (audioUrl.isEmpty) {
           debugPrint(
@@ -960,15 +1042,24 @@ class NativeAudioController {
           continue;
         }
 
+        if (audioPrebufferHit) {
+          debugPrint(
+            '[native-audio] audio prebuffer hit for ${snapshot.debugTitle}',
+          );
+        }
+
         final int previousCurrentIndex = _currentIndex;
         final String previousLoadedUrl = _loadedUrl;
         final PlayerProbeSnapshot? previousLoadedSnapshot = _loadedSnapshot;
         final bool wasPlaying = _player.playing;
+        final Duration fade = rapidTransition ? Duration.zero : _normalFade;
         try {
           if (wasPlaying) {
-            await _fadeOut(const Duration(milliseconds: 250));
+            await _fadeOut(fade);
           }
           await _player.setVolume(_wantsPlayback ? 0.0 : 1.0);
+          // Main session player still owns transport; secondary only warms the
+          // network/decoder so this load is typically much faster after hit.
           await _player.loadFromSnapshot(audioUrl, snapshot);
           if (_wantsPlayback) {
             await _player.playDirect();
@@ -1002,16 +1093,25 @@ class NativeAudioController {
         _updatePlaybackContext();
         _loadedUrl = audioUrl;
         _loadedSnapshot = snapshot;
+        _lastQueueTransitionAt = _clock();
         await _persistState(immediate: true);
-        debugPrint('[native-audio] skipped to ${snapshot.debugTitle}');
+        debugPrint(
+          '[native-audio] skipped to ${snapshot.debugTitle}'
+          '${rapidTransition ? ' (rapid)' : ''}',
+        );
 
         if (_wantsPlayback) {
-          await _fadeIn(const Duration(milliseconds: 250));
+          await _fadeIn(fade);
         } else {
           await _player.setVolume(1.0);
         }
 
-        unawaited(_preloadNextSong());
+        // Drop the consumed prebuffer slot and warm the new lookahead window.
+        await _stopPrebufferPlayer();
+        _prebufferedIndex = null;
+        _prebufferedUrl = null;
+        _prebufferBoundGeneration = -1;
+        _scheduleLookaheadPreload();
         return true;
       }
 
@@ -1085,8 +1185,7 @@ class NativeAudioController {
     if (previousCurrentIndex != null) {
       _currentIndex = previousCurrentIndex;
     }
-    _preloadedNextUrl = null;
-    _preloadedNextIndex = null;
+    _invalidateInFlightPreloads(stopAudioPrebuffer: true);
     _updatePlaybackContext();
     try {
       await _player.setVolume(1.0);
@@ -1094,39 +1193,247 @@ class NativeAudioController {
     await _persistState(immediate: true);
   }
 
-  /// 预加载下一首歌曲的 URL，减少切歌延迟
-  Future<void> _preloadNextSong() async {
-    final int nextIndex = _getNextIndex();
-    if (nextIndex < 0 || nextIndex >= _playlist.length) {
+  // ---------------------------------------------------------------------------
+  // Lookahead URL cache + secondary-player audio prebuffer
+  // ---------------------------------------------------------------------------
+
+  String _songCacheKey(FreeMusicSong song) => '${song.source}:${song.id}';
+
+  void _rememberResolvedUrl(FreeMusicSong song, String url) {
+    if (!song.canResolve || url.isEmpty) {
       return;
     }
+    _resolvedUrlCache.put(_songCacheKey(song), url);
+  }
 
-    final FreeMusicSong nextSong = _playlist[nextIndex];
-    if (!nextSong.canResolve) {
-      return;
+  bool _shouldUseRapidTransition() {
+    final DateTime? last = _lastQueueTransitionAt;
+    if (last == null) {
+      return false;
     }
+    return _clock().difference(last) < _rapidSkipWindow;
+  }
 
-    try {
-      final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
-        audioUrl: '',
-        playing: false,
-        song: nextSong,
-        playlist: _playlist,
-        currentIndex: nextIndex,
-        title: nextSong.name,
-        artist: nextSong.artist,
-        coverUrl: nextSong.cover,
-        duration: Duration(seconds: nextSong.duration),
+  /// Called before a user/system skip loads a new index: cancel stale async
+  /// preloads and free the secondary player when it holds a different track.
+  void _prepareForQueueTransition({required int targetIndex}) {
+    if (_prebufferedIndex != null && _prebufferedIndex != targetIndex) {
+      debugPrint(
+        '[native-audio] prebuffer mismatch (have=$_prebufferedIndex '
+        'want=$targetIndex), releasing secondary player',
       );
-      final String url = await _resolveAudioUrl(snapshot);
-      if (url.isNotEmpty) {
-        _preloadedNextUrl = url;
-        _preloadedNextIndex = nextIndex;
-        debugPrint('[native-audio] preloaded next: ${nextSong.name}');
-      }
-    } catch (e) {
-      debugPrint('[native-audio] preload failed: $e');
+      unawaited(_stopPrebufferPlayer());
+      _prebufferedIndex = null;
+      _prebufferedUrl = null;
+      _prebufferBoundGeneration = -1;
     }
+    // Invalidate in-flight URL lookaheads; keep matching audio prebuffer.
+    _preloadGeneration += 1;
+  }
+
+  void _invalidateInFlightPreloads({required bool stopAudioPrebuffer}) {
+    _preloadGeneration += 1;
+    if (stopAudioPrebuffer) {
+      unawaited(_stopPrebufferPlayer());
+      _prebufferedIndex = null;
+      _prebufferedUrl = null;
+      _prebufferBoundGeneration = -1;
+    }
+  }
+
+  void _scheduleLookaheadPreload() {
+    if (_playlist.isEmpty || _currentIndex < 0) {
+      return;
+    }
+    final int generation = _preloadGeneration;
+    unawaited(_preloadLookahead(generation));
+  }
+
+  /// Resolve URLs for the next [_lookaheadDepth] queue items and audio-prebuffer
+  /// the immediate next track on a silent secondary player.
+  Future<void> _preloadLookahead(int generation) async {
+    final List<int> indices = _lookaheadIndices();
+    if (indices.isEmpty) {
+      return;
+    }
+    debugPrint(
+      '[native-audio] lookahead start gen=$generation indices=$indices',
+    );
+
+    for (int i = 0; i < indices.length; i += 1) {
+      if (generation != _preloadGeneration) {
+        debugPrint('[native-audio] lookahead aborted gen=$generation');
+        return;
+      }
+      final int index = indices[i];
+      if (index < 0 || index >= _playlist.length) {
+        continue;
+      }
+      final FreeMusicSong song = _playlist[index];
+      if (!song.canResolve) {
+        continue;
+      }
+      try {
+        final PlayerProbeSnapshot snapshot = PlayerProbeSnapshot(
+          audioUrl: '',
+          playing: false,
+          song: song,
+          playlist: _playlist,
+          currentIndex: index,
+          title: song.name,
+          artist: song.artist,
+          coverUrl: song.cover,
+          duration: Duration(seconds: song.duration),
+        );
+        final String url = await _resolveAudioUrl(snapshot);
+        if (generation != _preloadGeneration) {
+          return;
+        }
+        if (url.isEmpty) {
+          continue;
+        }
+        debugPrint(
+          '[native-audio] lookahead url ready index=$index ${song.name}',
+        );
+        // Immediate next track: warm bytes on secondary player.
+        if (i == 0) {
+          await _prebufferAudio(
+            index: index,
+            url: url,
+            generation: generation,
+          );
+        }
+      } catch (error) {
+        debugPrint('[native-audio] lookahead failed index=$index: $error');
+      }
+    }
+  }
+
+  /// Walk the queue forward (mode-aware) up to [_lookaheadDepth] unique indices.
+  List<int> _lookaheadIndices() {
+    if (_playlist.isEmpty || _currentIndex < 0) {
+      return const <int>[];
+    }
+    if (_playbackMode == NativePlaybackMode.repeatOne) {
+      return <int>[_currentIndex];
+    }
+    final List<int> result = <int>[];
+    final Set<int> seen = <int>{};
+    int cursor = _currentIndex;
+    for (int step = 0; step < _lookaheadDepth; step += 1) {
+      final int next = _nextIndexAfter(cursor);
+      if (next < 0 || seen.contains(next)) {
+        break;
+      }
+      // Avoid preloading the song we are already on unless depth forces it.
+      if (next == _currentIndex && _playbackMode != NativePlaybackMode.repeatOne) {
+        break;
+      }
+      result.add(next);
+      seen.add(next);
+      cursor = next;
+    }
+    return result;
+  }
+
+  Future<void> _prebufferAudio({
+    required int index,
+    required String url,
+    required int generation,
+  }) async {
+    if (!_enableAudioPrebuffer || url.isEmpty) {
+      return;
+    }
+    if (generation != _preloadGeneration) {
+      return;
+    }
+    // Already warm for this slot.
+    if (_prebufferedIndex == index &&
+        _prebufferedUrl == url &&
+        _prebufferPlayer != null) {
+      return;
+    }
+    final NativeAudioPlayer? player = _ensurePrebufferPlayer();
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.setVolume(0);
+      await player.setUrl(url);
+      if (generation != _preloadGeneration) {
+        return;
+      }
+      _prebufferedIndex = index;
+      _prebufferedUrl = url;
+      _prebufferBoundGeneration = generation;
+      debugPrint('[native-audio] audio prebuffered index=$index');
+    } catch (error) {
+      debugPrint('[native-audio] audio prebuffer failed: $error');
+      // Secondary player may be unusable in this environment — stop trying.
+      if (_injectedPreloadPlayer == null) {
+        _enableAudioPrebuffer = false;
+      }
+      await _stopPrebufferPlayer();
+      _prebufferedIndex = null;
+      _prebufferedUrl = null;
+      _prebufferBoundGeneration = -1;
+    }
+  }
+
+  NativeAudioPlayer? _ensurePrebufferPlayer() {
+    if (!_enableAudioPrebuffer) {
+      return null;
+    }
+    if (_prebufferPlayer != null) {
+      return _prebufferPlayer;
+    }
+    if (_injectedPreloadPlayer != null) {
+      _prebufferPlayer = _injectedPreloadPlayer;
+      return _prebufferPlayer;
+    }
+    // Unit tests inject Fake* primary players — avoid creating a real
+    // platform AudioPlayer there (no audio backend / extra timers).
+    if (_player.runtimeType.toString().contains('Fake')) {
+      return null;
+    }
+    try {
+      _prebufferPlayer = JustAudioNativePlayer();
+      return _prebufferPlayer;
+    } catch (error) {
+      debugPrint('[native-audio] cannot create prebuffer player: $error');
+      _enableAudioPrebuffer = false;
+      return null;
+    }
+  }
+
+  Future<void> _stopPrebufferPlayer() async {
+    final NativeAudioPlayer? player = _prebufferPlayer;
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.stop();
+    } catch (_) {}
+  }
+
+  Future<void> _disposePrebufferPlayer() async {
+    final NativeAudioPlayer? player = _prebufferPlayer;
+    _prebufferPlayer = null;
+    _prebufferedIndex = null;
+    _prebufferedUrl = null;
+    _prebufferBoundGeneration = -1;
+    if (player == null || identical(player, _injectedPreloadPlayer)) {
+      // Injected fakes are owned by the test; only stop them.
+      if (player != null) {
+        try {
+          await player.stop();
+        } catch (_) {}
+      }
+      return;
+    }
+    try {
+      await player.dispose();
+    } catch (_) {}
   }
 
   int _indexOfSong(FreeMusicSong? song) {

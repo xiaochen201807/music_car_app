@@ -3,6 +3,23 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-21 - Robust skip prebuffer (URL LRU + lookahead + secondary player) (v1.0.98)
+
+Consecutive skips made "prebuffer" useless because it was a single next-URL
+slot with no cancellation, no multi-track lookahead, and no audio warm-up.
+
+Implemented in `NativeAudioController`:
+
+1. Preload generation token — stale async resolves cannot poison state.
+2. Invalidate mismatched secondary prebuffer on skip target change.
+3. Short-term resolved-URL LRU (`source:id`, capacity 48).
+4. Lookahead depth 3 (mode-aware walk) for URL pre-resolve.
+5. Silent secondary `AudioPlayer` warms the immediate next track.
+6. Rapid consecutive skips (<1.2s) skip 250ms fade out/in.
+
+Tests cover URL cache reuse, generation abort, rapid transition flag, and
+secondary prebuffer setUrl.
+
 ## 2026-07-21 - Fix list-loop mode overwritten as sequential (v1.0.97)
 
 UI "列表循环" behaved like sequential play: last track did not wrap to the head.
