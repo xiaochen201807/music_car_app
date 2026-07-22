@@ -9,6 +9,7 @@ import '../../models/demo_track.dart';
 import '../../models/playback_ui_state.dart';
 import '../../native_audio_controller.dart';
 import '../../theme/design_tokens.dart';
+import '../../utils/cover_palette_manager.dart';
 import '../../utils/formatters.dart';
 import '../../shared/portrait_artwork.dart';
 import '../../shared/portrait_circle_button.dart';
@@ -127,13 +128,29 @@ class PortraitPlayerView extends StatelessWidget {
         tween: ColorTween(end: coverSeedColor),
         builder:
             (BuildContext context, Color? animatedColor, Widget? childWidget) {
-              final Color seed =
-                  Color.lerp(
-                    animatedColor ?? coverSeedColor,
-                    AppColor.bgBase,
-                    0.68,
-                  ) ??
-                  AppColor.glowViolet;
+              final bool isLight = theme.brightness == Brightness.light;
+              final Color rawSeed = animatedColor ?? coverSeedColor;
+              final Color themeSeed = CoverPaletteManager.adaptSeed(
+                rawSeed,
+                theme.brightness,
+              );
+              // Dark: pull seed toward near-black for Spotify-like ambience.
+              // Light: keep the soft paper wash — never blend into bgDeep.
+              final Color seed = isLight
+                  ? themeSeed
+                  : (Color.lerp(themeSeed, AppColor.bgBase, 0.68) ??
+                        AppColor.glowViolet);
+              final List<Color> gradientColors = isLight
+                  ? <Color>[
+                      themeSeed.withValues(alpha: 0.18),
+                      AppColor.paperWarm.withValues(alpha: 0.92),
+                      AppColor.paperBase,
+                    ]
+                  : <Color>[
+                      seed.withValues(alpha: 0.28),
+                      AppColor.bgBase.withValues(alpha: 0.88),
+                      AppColor.bgDeep,
+                    ];
               return Stack(
                 children: <Widget>[
                   Positioned.fill(
@@ -147,11 +164,7 @@ class PortraitPlayerView extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: <Color>[
-                            seed.withValues(alpha: 0.28),
-                            AppColor.bgBase.withValues(alpha: 0.88),
-                            AppColor.bgDeep,
-                          ],
+                          colors: gradientColors,
                           stops: const <double>[0, 0.5, 1],
                         ),
                       ),
@@ -163,9 +176,28 @@ class PortraitPlayerView extends StatelessWidget {
                           ? currentSong?.cover ?? ''
                           : playbackState.coverUrl,
                       fallbackColor: seed,
+                      isLight: isLight,
                     ),
                   ),
-Positioned.fill(child: childWidget!),
+                  // Light mode: white scrim so deep text stays readable over art.
+                  if (isLight)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: <Color>[
+                              AppColor.paperBase.withValues(alpha: 0.42),
+                              AppColor.paperBase.withValues(alpha: 0.72),
+                              AppColor.paperBase.withValues(alpha: 0.88),
+                            ],
+                            stops: const <double>[0, 0.55, 1],
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned.fill(child: childWidget!),
                   Positioned(
                     left: 0,
                     right: 0,
@@ -374,6 +406,7 @@ class _PlayerTitleBlock extends StatelessWidget {
           text: title,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
+            color: colors.onSurface,
           ),
         ),
         if (artist.isNotEmpty) ...<Widget>[
@@ -553,15 +586,20 @@ class QualityChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final TextStyle? metaStyle = theme.textTheme.bodySmall?.copyWith(
+      color: colors.onSurfaceVariant,
+      fontWeight: FontWeight.w600,
+    );
 
     if (busy) {
-      return Text('音质加载中', style: theme.textTheme.bodySmall);
+      return Text('音质加载中', style: metaStyle);
     }
     if (error.isNotEmpty) {
-      return Text('音质可重试: $error', style: theme.textTheme.bodySmall);
+      return Text('音质可重试: $error', style: metaStyle);
     }
     if (qualities.isEmpty) {
-      return Text('等待品质信息', style: theme.textTheme.bodySmall);
+      return Text('等待品质信息', style: metaStyle);
     }
     final List<String> qualityLabels = _qualityTierLabels();
     return Wrap(
@@ -1416,10 +1454,12 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
   const _BlurredBackgroundArtwork({
     required this.imageUrl,
     required this.fallbackColor,
+    this.isLight = false,
   });
 
   final String imageUrl;
   final Color fallbackColor;
+  final bool isLight;
 
   @override
   Widget build(BuildContext context) {
@@ -1429,6 +1469,11 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
         uri.hasAbsolutePath &&
         (uri.isScheme('http') || uri.isScheme('https'));
 
+    // Light: quieter wash so paper typography stays crisp.
+    // Dark: slightly stronger ambience behind glass controls.
+    final double artOpacity = isLight ? 0.10 : 0.14;
+    final double blurSigma = isLight ? 28 : 20;
+
     // Phase 3: cover-only ambience — lighter blur/opacity, ≤300ms crossfade.
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 280),
@@ -1436,13 +1481,16 @@ class _BlurredBackgroundArtwork extends StatelessWidget {
       switchOutCurve: Curves.easeOutCubic,
       child: KeyedSubtree(
         key: ValueKey<String>(
-          imageUrl.isEmpty ? fallbackColor.toString() : imageUrl,
+          '${imageUrl.isEmpty ? fallbackColor.toString() : imageUrl}|$isLight',
         ),
         child: SizedBox.expand(
           child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            imageFilter: ImageFilter.blur(
+              sigmaX: blurSigma,
+              sigmaY: blurSigma,
+            ),
             child: Opacity(
-              opacity: 0.12,
+              opacity: artOpacity,
               child: canLoad
                   ? CachedNetworkImage(
                       imageUrl: imageUrl,

@@ -3,6 +3,18 @@
 This file keeps the implementation record inside the repository so progress is
 not dependent on chat context.
 
+## 2026-07-22 - Light-mode full player palette (paper wash) (v1.0.100)
+
+Daytime full-screen player looked muddy: dark `bgBase/bgDeep` gradient under
+light-theme ink text, low-contrast chips, and mid-dirty cover seeds.
+
+- Player background branches on brightness: paper gradient + white scrim +
+  quieter blurred art in light; keep Spotify ambience in dark.
+- Cover seed `adaptSeed` / `getColor(brightness:)` — light raises L / lowers S.
+- Circle buttons use paper fill/stroke/shadow in light; seek track uses
+  readable graphite on paper.
+- Theme switch re-samples cover seed for the new brightness.
+
 ## 2026-07-21 - Drop unused prebuffer generation field (v1.0.99)
 
 `flutter analyze` failed on unused `_prebufferBoundGeneration` (hit path only

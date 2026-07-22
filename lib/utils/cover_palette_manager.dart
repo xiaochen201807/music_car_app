@@ -19,20 +19,33 @@ class CoverPaletteManager {
 
   /// 获取指定封面 URL 的采样主色。如果包含缓存，立即同步返回；
   /// 否则触发异步分析。
-  Future<Color> getColor(String imageUrl) async {
+  ///
+  /// [brightness] 决定 clamp 策略：白天抬亮降饱和做淡染色，夜晚保持氛围深色。
+  Future<Color> getColor(
+    String imageUrl, {
+    Brightness brightness = Brightness.dark,
+  }) async {
     final String cleanUrl = imageUrl.trim();
     if (cleanUrl.isEmpty) {
       return AppColor.accentSteelStart;
     }
 
+    final String cacheKey = '$cleanUrl|${brightness.name}';
+    if (_paletteCache.containsKey(cacheKey)) {
+      return _paletteCache[cacheKey]!;
+    }
+    // Backward-compatible: reuse an unscoped cache entry if present.
     if (_paletteCache.containsKey(cleanUrl)) {
-      return _paletteCache[cleanUrl]!;
+      final Color adapted = adaptSeed(_paletteCache[cleanUrl]!, brightness);
+      _paletteCache[cacheKey] = adapted;
+      return adapted;
     }
 
     try {
-      final Color color = await _extractColorFromUrl(cleanUrl);
-      // 分析成功，存入缓存
-      _paletteCache[cleanUrl] = color;
+      final Color raw = await _extractColorFromUrl(cleanUrl);
+      final Color color = adaptSeed(raw, brightness);
+      _paletteCache[cleanUrl] = raw;
+      _paletteCache[cacheKey] = color;
       return color;
     } catch (_) {
       // 失败则不写入缓存，下一次仍可重试，但本次返回安全 fallback 颜色
@@ -40,12 +53,30 @@ class CoverPaletteManager {
     }
   }
 
+  /// Re-clamp a sampled cover color for the active theme.
+  ///
+  /// Light: soft wash for paper UI (higher L, lower S).
+  /// Dark: restrained ambience (mid L, modest S).
+  static Color adaptSeed(Color seed, Brightness brightness) {
+    final HSLColor hsl = HSLColor.fromColor(seed);
+    if (brightness == Brightness.light) {
+      return hsl
+          .withSaturation(hsl.saturation.clamp(0.08, 0.22))
+          .withLightness(hsl.lightness.clamp(0.55, 0.72))
+          .toColor();
+    }
+    return hsl
+        .withSaturation(hsl.saturation.clamp(0.12, 0.34))
+        .withLightness(hsl.lightness.clamp(0.28, 0.56))
+        .toColor();
+  }
+
   /// 物理清空全部色值缓存
   void clearCache() {
     _paletteCache.clear();
   }
 
-  /// 核心 1x1 像素缩放采样主色，并限制饱和度与亮度
+  /// 核心 1x1 像素缩放采样主色（原始采样，主题 clamp 在 [adaptSeed] / [getColor]）
   Future<Color> _extractColorFromUrl(String imageUrl) async {
     final ImageProvider provider = CachedNetworkImageProvider(imageUrl);
     final ImageStream stream = provider.resolve(ImageConfiguration.empty);
@@ -98,11 +129,8 @@ class CoverPaletteManager {
       final int r = byteData.getUint8(0);
       final int g = byteData.getUint8(1);
       final int b = byteData.getUint8(2);
-
-      final HSLColor hsl = HSLColor.fromColor(Color.fromARGB(255, r, g, b));
-      final double s = hsl.saturation.clamp(0.12, 0.34);
-      final double l = hsl.lightness.clamp(0.28, 0.56);
-      return hsl.withSaturation(s).withLightness(l).toColor();
+      // Return the near-raw sample; theme-specific clamps happen in [adaptSeed].
+      return Color.fromARGB(255, r, g, b);
     } finally {
       stream.removeListener(listener);
     }

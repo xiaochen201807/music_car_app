@@ -595,6 +595,12 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
 
   Future<void> setThemeMode(ThemeMode mode) async {
     await widget.settingsController.setThemeMode(mode);
+    // Cover seed clamps differ for light/dark — refresh for the new brightness.
+    final FreeMusicSong? song = _currentSong;
+    if (song != null && song.cover.trim().isNotEmpty) {
+      _coverSeedUrl = '';
+      unawaited(_updateCoverSeed(song));
+    }
   }
 
   Future<void> setPreferredBitrate(String br) async {
@@ -795,6 +801,17 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     await _playSongQueue(favoriteSongs, 0);
   }
 
+  Brightness _resolvedThemeBrightness() {
+    switch (widget.settingsController.themeMode) {
+      case ThemeMode.light:
+        return Brightness.light;
+      case ThemeMode.dark:
+        return Brightness.dark;
+      case ThemeMode.system:
+        return WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    }
+  }
+
   Future<void> _updateCoverSeed(FreeMusicSong song) async {
     final String cover = song.cover.trim();
     if (cover.isEmpty || cover == _coverSeedUrl) {
@@ -802,7 +819,10 @@ class NativeMusicHomePageState extends State<NativeMusicHomePage>
     }
     _coverSeedUrl = cover;
     try {
-      final Color color = await CoverPaletteManager.instance.getColor(cover);
+      final Color color = await CoverPaletteManager.instance.getColor(
+        cover,
+        brightness: _resolvedThemeBrightness(),
+      );
       if (!mounted) {
         return;
       }

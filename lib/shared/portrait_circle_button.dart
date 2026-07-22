@@ -89,20 +89,40 @@ class PortraitCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    final bool isLight = Theme.of(context).brightness == Brightness.light;
     final double size = large ? 58 : 46;
+
+    // Light: solid paper chip so controls don't dissolve into cover wash.
+    // Dark: translucent neutral glass over near-black ambience.
+    final Color fill = selected
+        ? (isLight
+              ? AppColor.paperAccentContainer
+              : AppColor.fillNeutralHover)
+        : (isLight ? AppColor.paperBase : AppColor.fillNeutral);
+    final Color borderColor = selected
+        ? (isLight
+              ? colors.primary.withValues(alpha: 0.35)
+              : AppColor.strokeStrong)
+        : (isLight
+              ? AppColor.paperStrokeHairline
+              : colors.outline.withValues(alpha: 0.7));
 
     final Widget button = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? AppColor.fillNeutralHover : AppColor.fillNeutral,
-        border: Border.all(
-          color: selected
-              ? AppColor.strokeStrong
-              : colors.outline.withValues(alpha: 0.7),
-          width: 1.0,
-        ),
+        color: fill,
+        border: Border.all(color: borderColor, width: 1.0),
+        boxShadow: isLight && !selected
+            ? const <BoxShadow>[
+                BoxShadow(
+                  color: AppColor.paperShadow,
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Icon(
         icon,

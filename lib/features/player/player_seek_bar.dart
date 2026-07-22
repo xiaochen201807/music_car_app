@@ -38,6 +38,7 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
+    final bool isLight = theme.brightness == Brightness.light;
     final int totalMs = widget.duration.inMilliseconds;
     final bool enabled = totalMs > 0 && widget.onSeek != null;
     final double playedValue = _isDragging
@@ -47,6 +48,13 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
     final Duration previewPosition = Duration(
       milliseconds: (playedValue * totalMs).round(),
     );
+    // Light: visible graphite track on paper. Dark: soft white glass track.
+    final Color trackColor = isLight
+        ? AppColor.paperInk.withValues(alpha: 0.10)
+        : colors.surfaceContainerHighest.withValues(alpha: 0.28);
+    final Color bufferedColor = isLight
+        ? AppColor.paperInk.withValues(alpha: 0.16)
+        : colors.onSurface.withValues(alpha: 0.18);
 
     return RepaintBoundary(
       child: Semantics(
@@ -70,19 +78,13 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
                         fit: StackFit.expand,
                         children: <Widget>[
                           DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: colors.surfaceContainerHighest.withValues(
-                                alpha: 0.28,
-                              ),
-                            ),
+                            decoration: BoxDecoration(color: trackColor),
                           ),
                           FractionallySizedBox(
                             alignment: Alignment.centerLeft,
                             widthFactor: bufferedValue,
                             child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: colors.onSurface.withValues(alpha: 0.18),
-                              ),
+                              decoration: BoxDecoration(color: bufferedColor),
                             ),
                           ),
                           FractionallySizedBox(
